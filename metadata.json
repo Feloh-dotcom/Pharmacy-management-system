@@ -1,0 +1,6 @@
+{
+  "name": "Pharmacy Management System",
+  "description": "Enterprise-grade Pharmacy ERP and POS platform with inventory automation, role-based access control, real-time analytics, and AI-powered stock forecasting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

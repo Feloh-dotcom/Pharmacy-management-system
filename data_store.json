@@ -1,0 +1,754 @@
+{
+  "users": [
+    {
+      "id": "usr-1",
+      "name": "Budiono Siregar",
+      "email": "budionosiregar@gmail.com",
+      "role": "Super Admin",
+      "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop",
+      "isActive": true,
+      "createdAt": "2025-01-01T00:00:00Z"
+    },
+    {
+      "id": "usr-2",
+      "name": "Jane Smith",
+      "email": "janesmith@pharmacy.com",
+      "role": "Pharmacist",
+      "avatarUrl": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
+      "isActive": true,
+      "createdAt": "2025-03-10T00:00:00Z"
+    },
+    {
+      "id": "usr-3",
+      "name": "John Doe",
+      "email": "johndoe@pharmacy.com",
+      "role": "Cashier",
+      "avatarUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
+      "isActive": true,
+      "createdAt": "2025-04-12T00:00:00Z"
+    }
+  ],
+  "categories": [
+    {
+      "id": "cat-1",
+      "name": "Antibiotics",
+      "description": "Bacterial infection fighters"
+    },
+    {
+      "id": "cat-2",
+      "name": "Analgesics",
+      "description": "Pain relievers and anti-inflammatory"
+    },
+    {
+      "id": "cat-3",
+      "name": "Antihistamines",
+      "description": "Allergy treatments"
+    },
+    {
+      "id": "cat-4",
+      "name": "Cardiovascular",
+      "description": "Blood pressure and heart medications"
+    },
+    {
+      "id": "cat-5",
+      "name": "Antidiabetic",
+      "description": "Blood glucose regulation medicines"
+    },
+    {
+      "id": "cat-1779436358424",
+      "name": "pain killers",
+      "description": "fight generic"
+    }
+  ],
+  "medicines": [
+    {
+      "id": "med-1",
+      "name": "Medicine One",
+      "genericName": "Paracetamol",
+      "SKU": "MED-PR-001",
+      "batchNumber": "BCH-66291",
+      "expiryDate": "2027-08-15",
+      "buyingPrice": 180,
+      "sellingPrice": 270,
+      "quantity": 144,
+      "minStockLevel": 20,
+      "manufacturer": "GlaxoSmithKline",
+      "supplierId": "sup-1",
+      "categoryId": "cat-2",
+      "barcode": "8901234567890",
+      "taxVat": 16,
+      "prescriptionRequired": false,
+      "imageUrl": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=120&h=120&fit=crop",
+      "createdAt": "2025-01-10T00:00:00Z"
+    },
+    {
+      "id": "med-3",
+      "name": "Test Medicine",
+      "genericName": "Cetirizine",
+      "SKU": "MED-CTR-003",
+      "batchNumber": "BCH-55122",
+      "expiryDate": "2026-07-30",
+      "buyingPrice": 120,
+      "sellingPrice": 196,
+      "quantity": 210,
+      "minStockLevel": 30,
+      "manufacturer": "Bayer",
+      "supplierId": "sup-1",
+      "categoryId": "cat-3",
+      "barcode": "8903456789012",
+      "taxVat": 16,
+      "prescriptionRequired": false,
+      "imageUrl": "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
+      "createdAt": "2025-01-15T00:00:00Z"
+    },
+    {
+      "id": "med-4",
+      "name": "Lantus SoloStar",
+      "genericName": "Insulin Glargine",
+      "SKU": "MED-INS-004",
+      "batchNumber": "BCH-99102",
+      "expiryDate": "2026-05-30",
+      "buyingPrice": 450,
+      "sellingPrice": 580,
+      "quantity": 22,
+      "minStockLevel": 10,
+      "manufacturer": "Sanofi",
+      "supplierId": "sup-3",
+      "categoryId": "cat-5",
+      "barcode": "8904567890123",
+      "taxVat": 0,
+      "prescriptionRequired": true,
+      "imageUrl": "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=120&h=120&fit=crop",
+      "createdAt": "2025-02-01T00:00:00Z"
+    },
+    {
+      "id": "med-5",
+      "name": "Lipitor",
+      "genericName": "Atorvastatin",
+      "SKU": "MED-ATR-005",
+      "batchNumber": "BCH-10041",
+      "expiryDate": "2025-12-15",
+      "buyingPrice": 160,
+      "sellingPrice": 240,
+      "quantity": 11,
+      "minStockLevel": 15,
+      "manufacturer": "Pfizer",
+      "supplierId": "sup-2",
+      "categoryId": "cat-4",
+      "barcode": "8905678901234",
+      "taxVat": 16,
+      "prescriptionRequired": true,
+      "imageUrl": "https://images.unsplash.com/photo-1547853760-18471566e360?w=120&h=120&fit=crop",
+      "createdAt": "2025-02-10T00:00:00Z"
+    },
+    {
+      "id": "med-1779482107912",
+      "name": "Amoxil - 500",
+      "genericName": "Amoxil Tyralina",
+      "SKU": "MED-HQSO",
+      "batchNumber": "BCH-80908",
+      "expiryDate": "2027-10-22",
+      "buyingPrice": 100,
+      "sellingPrice": 200,
+      "quantity": 600,
+      "minStockLevel": 10,
+      "manufacturer": "Pfzaka",
+      "supplierId": "sup-1",
+      "categoryId": "cat-2",
+      "barcode": "8908782817646",
+      "taxVat": 16,
+      "prescriptionRequired": true,
+      "imageUrl": "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
+      "createdAt": "2026-05-22T20:35:07.912Z"
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "sup-1",
+      "name": "Astra Biotech Wholesalers",
+      "email": "orders@astrabiotech.com",
+      "phone": "+254 711 222333",
+      "companyName": "Astra Biotech Ltd",
+      "address": "Industrial Area, Sec 4, Nairobi, Kenya"
+    },
+    {
+      "id": "sup-2",
+      "name": "Global Pharma Distributors",
+      "email": "supply@globalpharma.net",
+      "phone": "+254 733 444555",
+      "companyName": "Global Pharma Kenya",
+      "address": "Mombasa Road, West Wing, Nairobi"
+    },
+    {
+      "id": "sup-3",
+      "name": "Sankara Medical Labs",
+      "email": "partners@sankaramed.org",
+      "phone": "+254 722 999888",
+      "companyName": "Sankara Medical Lab Solutions",
+      "address": "Karen Biotech Park, Nairobi"
+    }
+  ],
+  "customers": [
+    {
+      "id": "cust-1",
+      "name": "Susan Williams",
+      "email": "gust@avohertiz.com",
+      "phone": "+254 701 987654",
+      "loyaltyPoints": 340,
+      "insuranceProvider": "Jubilee Insurance",
+      "insurancePolicyNumber": "POL-JUB-88210",
+      "copayPercent": 10,
+      "prescriptionHistory": [
+        {
+          "date": "2015-04-22T00:00:00.000Z",
+          "medicineName": "Medicine Two",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "cust-2",
+      "name": "Bentley Howard",
+      "email": "gust@avohertiz.com",
+      "phone": "+254 701 456123",
+      "loyaltyPoints": 420,
+      "insuranceProvider": "AAR Health",
+      "insurancePolicyNumber": "POL-AAR-45218",
+      "copayPercent": 20,
+      "prescriptionHistory": [
+        {
+          "date": "2015-04-22T00:00:00.000Z",
+          "medicineName": "Test Medicine",
+          "quantity": 1
+        }
+      ]
+    },
+    {
+      "id": "cust-3",
+      "name": "Evelyn Johnson",
+      "email": "gust@avohertiz.com",
+      "phone": "+254 702 334455",
+      "loyaltyPoints": 850,
+      "insuranceProvider": "NHIF Cover",
+      "insurancePolicyNumber": "POL-NHIF-91180",
+      "copayPercent": 0,
+      "prescriptionHistory": [
+        {
+          "date": "2015-04-22T00:00:00.000Z",
+          "medicineName": "Medicine One",
+          "quantity": 1
+        }
+      ]
+    }
+  ],
+  "sales": [
+    {
+      "id": "sal-1779440677424",
+      "customerId": "cust-cash",
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-677424",
+      "items": [
+        {
+          "medicineId": "med-1",
+          "medicineName": "Medicine One",
+          "quantity": 1,
+          "price": 270,
+          "tax": 43.2
+        },
+        {
+          "medicineId": "med-5",
+          "medicineName": "Lipitor",
+          "quantity": 1,
+          "price": 240,
+          "tax": 38.4
+        }
+      ],
+      "totalPrice": 591.6,
+      "discount": 0,
+      "taxAmount": 81.6,
+      "paymentMethod": "M-Pesa",
+      "paymentStatus": "Paid",
+      "cashierEmail": "budionosiregar@gmail.com",
+      "date": "2026-05-22T09:04:37.425Z"
+    },
+    {
+      "id": "sal-1",
+      "customerId": "cust-1",
+      "customerName": "Susan Williams",
+      "customerEmail": "gust@avohertiz.com",
+      "invoiceNumber": "INV-2015-001",
+      "items": [
+        {
+          "medicineId": "med-2",
+          "medicineName": "Medicine Two",
+          "quantity": 1,
+          "price": 152,
+          "tax": 20.97
+        }
+      ],
+      "totalPrice": 152,
+      "discount": 0,
+      "taxAmount": 20.97,
+      "paymentMethod": "Card",
+      "paymentStatus": "Paid",
+      "cashierEmail": "budionosiregar@gmail.com",
+      "date": "2015-04-22T00:00:00.000Z"
+    },
+    {
+      "id": "sal-2",
+      "customerId": "cust-2",
+      "customerName": "Bentley Howard",
+      "customerEmail": "gust@avohertiz.com",
+      "invoiceNumber": "INV-2015-002",
+      "items": [
+        {
+          "medicineId": "med-3",
+          "medicineName": "Test Medicine",
+          "quantity": 1,
+          "price": 196,
+          "tax": 27.03
+        }
+      ],
+      "totalPrice": 196,
+      "discount": 0,
+      "taxAmount": 27.03,
+      "paymentMethod": "M-Pesa",
+      "paymentStatus": "Paid",
+      "cashierEmail": "budionosiregar@gmail.com",
+      "date": "2015-04-22T00:00:00.000Z"
+    },
+    {
+      "id": "sal-3",
+      "customerId": "cust-3",
+      "customerName": "Evelyn Johnson",
+      "customerEmail": "gust@avohertiz.com",
+      "invoiceNumber": "INV-2015-003",
+      "items": [
+        {
+          "medicineId": "med-1",
+          "medicineName": "Medicine One",
+          "quantity": 1,
+          "price": 270,
+          "tax": 37.24
+        }
+      ],
+      "totalPrice": 270,
+      "discount": 0,
+      "taxAmount": 37.24,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": "budionosiregar@gmail.com",
+      "date": "2015-04-22T00:00:00.000Z"
+    }
+  ],
+  "inventoryLogs": [
+    {
+      "id": "log-1779482107913",
+      "medicineId": "med-1779482107912",
+      "medicineName": "Amoxil - 500",
+      "type": "restock",
+      "quantity": 600,
+      "date": "2026-05-22T20:35:07.913Z",
+      "reason": "Initial Product Creation Restock",
+      "userEmail": "budionosiregar@gmail.com"
+    },
+    {
+      "id": "log-1779440677424-med-1",
+      "medicineId": "med-1",
+      "medicineName": "Medicine One",
+      "type": "sale",
+      "quantity": 1,
+      "date": "2026-05-22T09:04:37.424Z",
+      "reason": "POS Immediate Checklist Sale",
+      "userEmail": "budionosiregar@gmail.com"
+    },
+    {
+      "id": "log-1779440677424-med-5",
+      "medicineId": "med-5",
+      "medicineName": "Lipitor",
+      "type": "sale",
+      "quantity": 1,
+      "date": "2026-05-22T09:04:37.424Z",
+      "reason": "POS Immediate Checklist Sale",
+      "userEmail": "budionosiregar@gmail.com"
+    },
+    {
+      "id": "log-1",
+      "medicineId": "med-1",
+      "medicineName": "Medicine One",
+      "type": "restock",
+      "quantity": 100,
+      "date": "2025-05-10T11:00:00Z",
+      "reason": "Initial Batch Restock",
+      "userEmail": "budionosiregar@gmail.com"
+    },
+    {
+      "id": "log-2",
+      "medicineId": "med-2",
+      "medicineName": "Medicine Two",
+      "type": "sale",
+      "quantity": 1,
+      "date": "2015-04-22T00:00:00Z",
+      "reason": "Invoice POS Sale INV-2015-001",
+      "userEmail": "budionosiregar@gmail.com"
+    }
+  ],
+  "purchaseOrders": [
+    {
+      "id": "po-1",
+      "supplierId": "sup-1",
+      "supplierName": "Astra Biotech Wholesalers",
+      "items": [
+        {
+          "medicineName": "Amoxicillin 500mg Batch B",
+          "quantity": 200,
+          "buyingPrice": 90
+        },
+        {
+          "medicineName": "Cetirizine Syrup 100ml",
+          "quantity": 150,
+          "buyingPrice": 110
+        }
+      ],
+      "totalAmount": 34500,
+      "status": "Received",
+      "orderDate": "2025-05-01T10:00:00Z",
+      "receivedDate": "2025-05-08T15:00:00Z"
+    },
+    {
+      "id": "po-2",
+      "supplierId": "sup-2",
+      "supplierName": "Global Pharma Distributors",
+      "items": [
+        {
+          "medicineName": "Lantus SoloStar Insulin",
+          "quantity": 50,
+          "buyingPrice": 420
+        }
+      ],
+      "totalAmount": 21000,
+      "status": "Approved",
+      "orderDate": "2025-05-18T10:00:00Z"
+    }
+  ],
+  "financeRecords": [
+    {
+      "id": "fin-1779440677429",
+      "type": "income",
+      "category": "POS Prescription Sales",
+      "amount": 591.6,
+      "description": "Sales checkout receipt: INV-677424",
+      "paymentMethod": "M-Pesa",
+      "date": "2026-05-22T09:04:37.429Z"
+    },
+    {
+      "id": "fin-1",
+      "type": "expense",
+      "category": "Procurement",
+      "amount": 34500,
+      "description": "Payment for PO-1 Received Stock",
+      "paymentMethod": "Bank Transfer",
+      "date": "2025-05-08T15:15:00Z"
+    },
+    {
+      "id": "fin-2",
+      "type": "income",
+      "category": "POS Prescription Sales",
+      "amount": 618,
+      "description": "Direct sales register daily batch",
+      "paymentMethod": "Multiple",
+      "date": "2015-04-22T23:59:00Z"
+    }
+  ],
+  "auditLogs": [
+    {
+      "id": "aud-1779542711474",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "Committed Core Diagnostics Checks",
+      "module": "Maintenance",
+      "date": "2026-05-23T13:25:11.474Z",
+      "details": "Incurred live checks on memory, database records, IO and cloud networks."
+    },
+    {
+      "id": "aud-1779542653713",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "Updated Settings: SaaS Visual Canvas",
+      "module": "Settings Core",
+      "date": "2026-05-23T13:24:13.713Z",
+      "details": "Modified configurations inside system settings dashboard section."
+    },
+    {
+      "id": "aud-1779542607957",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "Committed Core Diagnostics Checks",
+      "module": "Maintenance",
+      "date": "2026-05-23T13:23:27.957Z",
+      "details": "Incurred live checks on memory, database records, IO and cloud networks."
+    },
+    {
+      "id": "aud-1779542587166",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "Committed Core Diagnostics Checks",
+      "module": "Maintenance",
+      "date": "2026-05-23T13:23:07.166Z",
+      "details": "Incurred live checks on memory, database records, IO and cloud networks."
+    },
+    {
+      "id": "aud-1779542210141",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "User Login",
+      "module": "Authentication",
+      "date": "2026-05-23T13:16:50.141Z",
+      "details": "SaaS Session opened securely via login endpoint."
+    },
+    {
+      "id": "aud-1779517994896",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "User Login",
+      "module": "Authentication",
+      "date": "2026-05-23T06:33:14.896Z",
+      "details": "SaaS Session opened securely via login endpoint."
+    },
+    {
+      "id": "aud-1779488265303",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "User Login",
+      "module": "Authentication",
+      "date": "2026-05-22T22:17:45.303Z",
+      "details": "SaaS Session opened securely via login endpoint."
+    },
+    {
+      "id": "aud-1779482107914",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "Created Medicine",
+      "module": "Inventory",
+      "date": "2026-05-22T20:35:07.914Z",
+      "details": "Added new medicine Amoxil - 500 (SKU: MED-HQSO) with 600 units."
+    },
+    {
+      "id": "aud-1779440677429",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "POS Checkout Completeness",
+      "module": "POS System",
+      "date": "2026-05-22T09:04:37.429Z",
+      "details": "Completed sale barcode checkout for INV-677424, amount: $591.6 via M-Pesa"
+    },
+    {
+      "id": "aud-1779440464468",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "User Login",
+      "module": "Authentication",
+      "date": "2026-05-22T09:01:04.468Z",
+      "details": "SaaS Session opened securely via login endpoint."
+    },
+    {
+      "id": "aud-1779436484068",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "Deleted Medicine",
+      "module": "Inventory",
+      "date": "2026-05-22T07:54:44.068Z",
+      "details": "Deleted product record Medicine Two (ID: med-2)."
+    },
+    {
+      "id": "aud-1779436358430",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "Created Category",
+      "module": "Inventory",
+      "date": "2026-05-22T07:52:38.430Z",
+      "details": "Added medical category: pain killers"
+    },
+    {
+      "id": "aud-1",
+      "userEmail": "budionosiregar@gmail.com",
+      "action": "Database Initialized",
+      "module": "System Core",
+      "date": "2025-05-22T06:12:00Z",
+      "details": "Database hydrated with system mock configurations."
+    }
+  ],
+  "settings": {
+    "general": {
+      "pharmacyName": "Halomedical Pharmacy Central",
+      "email": "contact@halomedical.org",
+      "phone": "+254 700 000000",
+      "address": "Biomedical Tower, Suite 402, Nairobi, KE",
+      "country": "Kenya",
+      "timezone": "Africa/Nairobi",
+      "currency": "KES",
+      "dateFormat": "YYYY-MM-DD",
+      "language": "en",
+      "logoUrl": "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
+      "registrationNumber": "PHARM-REG-2026-9901"
+    },
+    "security": {
+      "passwordMinLength": 8,
+      "requireSpecialChar": true,
+      "sessionTimeout": 30,
+      "mfaEnabled": false,
+      "ipWhitelist": "",
+      "accountLockoutAttempts": 5,
+      "failedLoginMonitoring": true
+    },
+    "financial": {
+      "vatPercentage": 16,
+      "taxPercentage": 2,
+      "currencyPrecision": 2,
+      "invoiceNumberPrefix": "INV-2026-",
+      "financialYearStart": "2026-01-01",
+      "selectedPaymentMethods": [
+        "Cash",
+        "Card",
+        "M-Pesa"
+      ]
+    },
+    "inventory": {
+      "autoReorderThreshold": 15,
+      "expiryWarningPeriodDays": 45,
+      "batchTrackingEnabled": true,
+      "barcodeScanningEnabled": true,
+      "lowStockAlertActive": true,
+      "aiStockPredictionActive": true
+    },
+    "notifications": {
+      "emailAlerts": true,
+      "smsAlerts": false,
+      "pushAlerts": true,
+      "whatsappAlerts": false,
+      "smtpHost": "smtp.halomedical.org",
+      "smtpPort": 587,
+      "smtpUsername": "alerts@halomedical.org",
+      "smtpPassword": "••••••••••••••••"
+    },
+    "integrations": {
+      "cloudinaryApiKey": "CLD-91823901-SEC",
+      "stripeSecretKey": "sk_test_51Mz...",
+      "awsS3Bucket": "halomed-clinical-vault",
+      "twilioSid": "AC440291039a...",
+      "googleAnalyticsId": "G-882910"
+    },
+    "aiAutomation": {
+      "aiReorderSmartThreshold": 85,
+      "aiPredictiveExpiryForecast": true,
+      "aiNaturalLanguageCopilot": true,
+      "geminiModelSelection": "gemini-2.5-flash"
+    },
+    "appearance": {
+      "themeMode": "light",
+      "sidebarStyle": "standard-teal",
+      "themeColors": "Warm-Sand",
+      "borderRadius": 16,
+      "animationSpeed": "normal"
+    },
+    "receipts": {
+      "receiptFooterText": "Thank you for trusting Halomedical Pharmacy. Call us at 0700 000000.",
+      "invoicePrefix": "INV-",
+      "showTaxBreakdown": true,
+      "paperSize": "80mm"
+    },
+    "maintenance": {
+      "maintenanceMode": false,
+      "cacheExpiryMinutes": 15
+    }
+  },
+  "branches": [
+    {
+      "id": "br-1",
+      "name": "Main HQ Branch",
+      "code": "HQ-01",
+      "address": "Biomedical Tower, Suite 402, Nairobi, KE",
+      "phone": "+254 700 011",
+      "isActive": true,
+      "inventorySynced": true
+    },
+    {
+      "id": "br-2",
+      "name": "Westlands Hub",
+      "code": "WEST-02",
+      "address": "Mall Square Ground Floor, Nairobi, KE",
+      "phone": "+254 700 022",
+      "isActive": true,
+      "inventorySynced": true
+    },
+    {
+      "id": "br-3",
+      "name": "Mombasa Coast Terminal",
+      "code": "COAST-03",
+      "address": "Oceanic Mall, Mombasa, KE",
+      "phone": "+254 700 033",
+      "isActive": false,
+      "inventorySynced": false
+    }
+  ],
+  "apiKeys": [
+    {
+      "id": "key-1",
+      "name": "ERP Sync Integrator",
+      "apiKey": "hm_pk_8820199a0d8bb2ecf301",
+      "createdAt": "2025-05-10T12:00:00Z",
+      "expiresAt": "2027-05-10T12:00:00Z",
+      "status": "Active"
+    },
+    {
+      "id": "key-2",
+      "name": "Local POS Offliner",
+      "apiKey": "hm_pk_3345112fcbe8d91028ab",
+      "createdAt": "2025-02-01T08:30:00Z",
+      "expiresAt": "2026-02-01T08:30:00Z",
+      "status": "Expired"
+    }
+  ],
+  "rolePermissions": [
+    {
+      "role": "Super Admin",
+      "permissions": {
+        "manageMedicines": true,
+        "deleteSales": true,
+        "viewReports": true,
+        "approvePurchases": true,
+        "manageInventory": true,
+        "modifySettings": true
+      }
+    },
+    {
+      "role": "Pharmacist",
+      "permissions": {
+        "manageMedicines": true,
+        "deleteSales": false,
+        "viewReports": true,
+        "approvePurchases": false,
+        "manageInventory": true,
+        "modifySettings": false
+      }
+    },
+    {
+      "role": "Cashier",
+      "permissions": {
+        "manageMedicines": false,
+        "deleteSales": false,
+        "viewReports": false,
+        "approvePurchases": false,
+        "manageInventory": false,
+        "modifySettings": false
+      }
+    }
+  ],
+  "backups": [
+    {
+      "id": "bk-1",
+      "filename": "halomed-db-backup-2026-05-20.enc",
+      "size": "2.4 MB",
+      "createdAt": "2026-05-20T23:00:01Z",
+      "storageProvider": "Local",
+      "status": "Success"
+    },
+    {
+      "id": "bk-2",
+      "filename": "halomed-db-backup-2026-05-15.enc",
+      "size": "2.3 MB",
+      "createdAt": "2026-05-15T23:00:00Z",
+      "storageProvider": "AWS S3",
+      "status": "Success"
+    }
+  ]
+}
