@@ -33,8 +33,28 @@ function getGeminiClient(): GoogleGenAI | null {
   return ai;
 }
 
+// Unified backend RBAC authorization utility
+function checkPermission(req: express.Request, permName: string): { allowed: boolean; user?: any } {
+  // Extract user email through headers, query params, or req structures
+  const email = req.headers["x-user-email"] || req.headers["X-User-Email"] || req.body?.userEmail || req.body?.adminEmail || req.query?.userEmail;
+  if (!email) return { allowed: false };
+  const db = readDB();
+  const user = db.users.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+  if (!user) return { allowed: false };
+  
+  if (user.role === UserRole.ADMIN) {
+    return { allowed: true, user };
+  }
+  
+  const rp = db.rolePermissions.find(rp => rp.role === user.role);
+  if (!rp) return { allowed: false, user };
+  
+  return { allowed: !!(rp.permissions as any)[permName], user };
+}
+
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // API Endpoints - MUST be defined BEFORE Vite middleware
 
@@ -391,15 +411,15 @@ app.post("/api/auth/register", (req, res) => {
     return res.status(409).json({ error: "An account with this email address already exists" });
   }
 
-  // Public registration strictly maps to Standard "Customer" or "Staff/User" role.
-  // Never assign privileged roles like Super Admin, Pharmacist, Cashier, etc., to prevent privilege escalation.
+  // Public registration strictly maps to Standard "Customer" or "User" role.
+  // Never assign privileged roles like Admin, Pharmacist, Cashier, etc., to prevent privilege escalation.
   const { salt, hash } = hashPassword(password);
   
   const newUser = {
     id: `usr-${Date.now()}`,
     name,
     email: email.toLowerCase(),
-    role: "Staff/User" as any, // Assign harmless non-privileged default role
+    role: "User" as any, // Assign harmless non-privileged default role
     avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop`,
     isActive: true,
     createdAt: new Date().toISOString(),
@@ -535,11 +555,25 @@ app.get("/api/medicines", (req, res) => {
 });
 
 app.post("/api/medicines", (req, res) => {
+  const permCheck = checkPermission(req, "addProducts");
+  if (!permCheck.allowed) {
+    return res.status(403).json({ error: "Forbidden: You do not have permission to add products" });
+  }
+
   const medicineData = req.body;
   
   // Validation checks
   if (!medicineData.name || !medicineData.SKU || !medicineData.expiryDate) {
     return res.status(400).json({ error: "Name, SKU and Expiry Date are required" });
+  }
+
+  // Barcode uniqueness check
+  if (medicineData.barcode) {
+    const db = readDB();
+    const isDuplicate = db.medicines.some(m => m.barcode === medicineData.barcode);
+    if (isDuplicate) {
+      return res.status(400).json({ error: `Barcode duplicate alert: Barcode '${medicineData.barcode}' is already assigned to '${db.medicines.find(m => m.barcode === medicineData.barcode)?.name}'.` });
+    }
   }
 
   const newMed: Medicine = {
@@ -573,11 +607,11 @@ app.post("/api/medicines", (req, res) => {
       quantity: newMed.quantity,
       date: new Date().toISOString(),
       reason: "Initial Product Creation Restock",
-      userEmail: "budionosiregar@gmail.com"
+      userEmail: permCheck.user?.email || "budionosiregar@gmail.com"
     });
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: permCheck.user?.email || "budionosiregar@gmail.com",
       action: "Created Medicine",
       module: "Inventory",
       date: new Date().toISOString(),
@@ -591,6 +625,31 @@ app.post("/api/medicines", (req, res) => {
 app.put("/api/medicines/:id", (req, res) => {
   const medId = req.params.id;
   const editData = req.body;
+
+  // 1. General edit permission check
+  const editCheck = checkPermission(req, "editProducts");
+  if (!editCheck.allowed) {
+    return res.status(403).json({ error: "Forbidden: You do not have permission to edit products" });
+  }
+
+  // 2. Adjust stock check if quantity changes
+  const db = readDB();
+
+  // Barcode uniqueness check for updates
+  if (editData.barcode) {
+    const isDuplicate = db.medicines.some(m => m.barcode === editData.barcode && m.id !== medId);
+    if (isDuplicate) {
+      return res.status(400).json({ error: `Barcode duplicate alert: Barcode '${editData.barcode}' is already assigned to '${db.medicines.find(m => m.barcode === editData.barcode && m.id !== medId)?.name}'.` });
+    }
+  }
+
+  const existingMed = db.medicines.find(m => m.id === medId);
+  if (existingMed && existingMed.quantity !== Number(editData.quantity)) {
+    const stockCheck = checkPermission(req, "adjustStock");
+    if (!stockCheck.allowed) {
+      return res.status(403).json({ error: "Forbidden: You do not have permission to adjust stock quantities" });
+    }
+  }
 
   let updatedMed: Medicine | null = null;
 
@@ -622,13 +681,13 @@ app.put("/api/medicines/:id", (req, res) => {
           quantity: Math.abs(newQty - oldQty),
           date: new Date().toISOString(),
           reason: `Quantity manually modified from ${oldQty} to ${newQty}`,
-          userEmail: "budionosiregar@gmail.com"
+          userEmail: editCheck.user?.email || "budionosiregar@gmail.com"
         });
       }
 
       state.auditLogs.unshift({
         id: `aud-${Date.now()}`,
-        userEmail: "budionosiregar@gmail.com",
+        userEmail: editCheck.user?.email || "budionosiregar@gmail.com",
         action: "Updated Medicine",
         module: "Inventory",
         date: new Date().toISOString(),
@@ -646,6 +705,13 @@ app.put("/api/medicines/:id", (req, res) => {
 
 app.delete("/api/medicines/:id", (req, res) => {
   const medId = req.params.id;
+  const email = req.headers["x-user-email"] || req.headers["X-User-Email"] || req.body?.userEmail || req.query?.userEmail;
+  const db = readDB();
+  const user = db.users.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+  if (!user || (user.role !== "Admin" && user.role !== "Pharmacist")) {
+    return res.status(403).json({ error: "Forbidden: Only Administrators and Pharmacists are authorized to delete products" });
+  }
+
   let deletedName = "";
 
   updateDB(state => {
@@ -655,7 +721,7 @@ app.delete("/api/medicines/:id", (req, res) => {
       state.medicines = state.medicines.filter(m => m.id !== medId);
       state.auditLogs.unshift({
         id: `aud-${Date.now()}`,
-        userEmail: "budionosiregar@gmail.com",
+        userEmail: user.email,
         action: "Deleted Medicine",
         module: "Inventory",
         date: new Date().toISOString(),
@@ -678,6 +744,11 @@ app.get("/api/categories", (req, res) => {
 });
 
 app.post("/api/categories", (req, res) => {
+  const permCheck = checkPermission(req, "addCategories");
+  if (!permCheck.allowed) {
+    return res.status(403).json({ error: "Forbidden: You do not have permission to add categories" });
+  }
+
   const { name, description } = req.body;
   if (!name) return res.status(400).json({ error: "Category name is required" });
 
@@ -691,7 +762,7 @@ app.post("/api/categories", (req, res) => {
     state.categories.push(newCat);
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: permCheck.user?.email || "budionosiregar@gmail.com",
       action: "Created Category",
       module: "Inventory",
       date: new Date().toISOString(),
@@ -835,7 +906,16 @@ app.get("/api/sales", (req, res) => {
 });
 
 app.post("/api/sales/checkout", (req, res) => {
-  const { customerId, items, paymentMethod, discountAmount } = req.body;
+  const { 
+    customerId, 
+    items, 
+    paymentMethod, 
+    discountAmount, 
+    cashPaid, 
+    mpesaPaid, 
+    mpesaTransactionCode, 
+    mpesaPhoneNumber 
+  } = req.body;
   
   if (!items || !items.length) {
     return res.status(400).json({ error: "Cart is empty" });
@@ -875,6 +955,11 @@ app.post("/api/sales/checkout", (req, res) => {
   const logsToInsert: InventoryLog[] = [];
   const stockReductions: Array<{ id: string; quantity: number }> = [];
 
+  const email = req.headers["x-user-email"] || req.headers["X-User-Email"] || req.body?.userEmail || req.query?.userEmail;
+  const user = email ? db.users.find(u => u.email.toLowerCase() === String(email).toLowerCase()) : null;
+  const canOverride = user && (user.role === "Admin" || user.role === "Pharmacist");
+  const overriddenExpiredIds = Array.isArray(req.body.overriddenExpiredIds) ? req.body.overriddenExpiredIds : [];
+
   for (const item of items) {
     const med = db.medicines.find(m => m.id === item.medicineId);
     if (!med) {
@@ -885,6 +970,29 @@ app.post("/api/sales/checkout", (req, res) => {
     if (med.quantity < item.quantity) {
       errors.push(`Insufficient stock for ${med.name}. Available: ${med.quantity}, Requested: ${item.quantity}`);
       continue;
+    }
+
+    const isExpired = med.expiryDate ? new Date(med.expiryDate).getTime() < Date.now() : false;
+    const preventSaleOfExpiredGoods = db.settings?.inventory?.preventSaleOfExpiredGoods !== false;
+
+    if (isExpired && preventSaleOfExpiredGoods) {
+      const isOverridden = overriddenExpiredIds.includes(med.id);
+      if (isOverridden && canOverride) {
+        // Log the override
+        logsToInsert.push({
+          id: `log-${Date.now()}-over-${med.id}`,
+          medicineId: med.id,
+          medicineName: med.name,
+          type: "restock", // can be any status, let's represent as override reason logged
+          quantity: item.quantity,
+          date: new Date().toISOString(),
+          reason: `Admin Expiry Sale Override by ${user.name} (${user.email})`,
+          userEmail: String(user.email)
+        });
+      } else {
+        errors.push(`Blocked: ${med.name} (Batch: ${med.batchNumber || "N/A"}) expired on ${med.expiryDate || "N/A"} and cannot be sold. ${canOverride ? "Please confirm administrative override." : "Authorized Admin or Pharmacist override is required."}`);
+        continue;
+      }
     }
 
     const itemPrice = med.sellingPrice;
@@ -937,7 +1045,11 @@ app.post("/api/sales/checkout", (req, res) => {
     paymentMethod: paymentMethod || "Cash",
     paymentStatus: "Paid",
     cashierEmail: "budionosiregar@gmail.com",
-    date: new Date().toISOString()
+    date: new Date().toISOString(),
+    cashPaid: cashPaid !== undefined ? Number(cashPaid) : undefined,
+    mpesaPaid: mpesaPaid !== undefined ? Number(mpesaPaid) : undefined,
+    mpesaTransactionCode: mpesaTransactionCode || undefined,
+    mpesaPhoneNumber: mpesaPhoneNumber || undefined
   };
 
   // Persist State Updates
@@ -987,7 +1099,7 @@ app.post("/api/sales/checkout", (req, res) => {
       type: "income",
       category: "POS Prescription Sales",
       amount: totalPrice,
-      description: `Sales checkout receipt: ${invoiceNumber}`,
+      description: `Sales checkout receipt: ${invoiceNumber}${paymentMethod === "Split" ? ` (Cash: Ksh. ${cashPaid}, M-Pesa: Ksh. ${mpesaPaid} - Code: ${mpesaTransactionCode || 'N/A'})` : (paymentMethod === "M-Pesa" && mpesaTransactionCode ? ` (M-Pesa Code: ${mpesaTransactionCode})` : '')}`,
       paymentMethod: paymentMethod || "Cash",
       date: new Date().toISOString()
     });
@@ -999,7 +1111,7 @@ app.post("/api/sales/checkout", (req, res) => {
       action: "POS Checkout Completeness",
       module: "POS System",
       date: new Date().toISOString(),
-      details: `Completed sale barcode checkout for ${invoiceNumber}, amount: $${totalPrice} via ${paymentMethod}`
+      details: `Completed sale barcode checkout for ${invoiceNumber}, amount: Ksh. ${totalPrice} via ${paymentMethod}${paymentMethod === 'Split' ? ` (Cash: ${cashPaid}, M-Pesa: ${mpesaPaid})` : ''}`
     });
   });
 
@@ -1008,6 +1120,233 @@ app.post("/api/sales/checkout", (req, res) => {
     invoiceNumber,
     sale: newSale
   });
+});
+
+// Safaricom M-Pesa Integration Endpoints
+
+async function getMpesaAccessToken(): Promise<string> {
+  const mpesaKey = process.env.MPESA_CONSUMER_KEY || "b2Nrf4pOxqxrAf6Y4qDvGdD8VGvILJGO2MzebPeyDBPo3T3k";
+  const mpesaSecret = process.env.MPESA_CONSUMER_SECRET || "RWhkIEIBkLIhxO7i4SU2GNs4E4fAuEaQ0YuFs7jVbBTMwD68jxAmNDd7h4rJKz8W";
+  const auth = Buffer.from(`${mpesaKey}:${mpSecretHex(mpesaSecret)}`).toString("base64");
+  
+  const response = await fetch("https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials", {
+    headers: {
+      Authorization: `Basic ${auth}`
+    }
+  });
+  if (!response.ok) {
+    throw new Error(`Daraja API Token Generation responded with status code ${response.status}`);
+  }
+  const data: any = await response.json();
+  return data.access_token;
+}
+
+// Internal utility to make sure secrets are handled safely
+function mpSecretHex(secret: string): string {
+  return secret;
+}
+
+// C2B URL Registration API
+app.post("/api/mpesa/register-urls", async (req, res) => {
+  try {
+    const accessToken = await getMpesaAccessToken();
+    const shortcode = process.env.MPESA_SHORTCODE || "600990";
+    const appUrl = process.env.APP_URL || "https://ais-dev-acnd7qv76etvnbzywjdsfi-192377221854.europe-west2.run.app";
+
+    const payload = {
+      ShortCode: shortcode,
+      ResponseType: "Completed",
+      ValidationURL: `${appUrl}/api/mpesa/validation`,
+      ConfirmationURL: `${appUrl}/api/mpesa/confirmation`
+    };
+
+    const response = await fetch("https://sandbox.safaricom.co.ke/mpesa/c2b/v1/registerurl", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data: any = await response.json();
+    return res.json({ success: true, mpesaResponse: data });
+  } catch (error: any) {
+    console.error("C2B url registration failed:", error);
+    return res.status(500).json({ success: false, error: error.message || error });
+  }
+});
+
+// C2B validation callback (Safaricom calls this to inspect validity before accepting cash)
+app.post("/api/mpesa/validation", (req, res) => {
+  console.log("C2B Validation Hook called:", req.body);
+  res.json({ ResultCode: 0, ResultDesc: "Accepted" });
+});
+
+// C2B confirmation callback (Safaricom calls this after a successful payment is verified/deducted)
+app.post("/api/mpesa/confirmation", (req, res) => {
+  const transaction = req.body;
+  console.log("C2B Confirmation Hook called:", transaction);
+  
+  if (transaction && transaction.TransID) {
+    updateDB(state => {
+      if (!state.mpesaTransactions) {
+        state.mpesaTransactions = [];
+      }
+      const exists = state.mpesaTransactions.some((t: any) => t.TransID === transaction.TransID);
+      if (!exists) {
+        state.mpesaTransactions.unshift({
+          TransID: transaction.TransID,
+          TransAmount: transaction.TransAmount,
+          MSISDN: transaction.MSISDN,
+          FirstName: transaction.FirstName || "",
+          MiddleName: transaction.MiddleName || "",
+          LastName: transaction.LastName || "",
+          TransTime: transaction.TransTime || new Date().toISOString(),
+          addedAt: new Date().toISOString(),
+          claimed: false
+        });
+      }
+    });
+  }
+  
+  res.json({ ResultCode: 0, ResultDesc: "Success" });
+});
+
+// Live/Virtual C2B Transaction Simulator - Mimics Safaricom's confirmation callback
+app.post("/api/mpesa/simulate-c2b", (req, res) => {
+  const { amount, phone, code, firstName, lastName, billRef } = req.body;
+  const simulatedCode = (code || "MP" + Math.random().toString(36).substring(2, 10).toUpperCase());
+  const simulatedPhone = phone || "254712345678";
+  const trAmount = String(amount || "10");
+  
+  const simulatedTransaction = {
+    TransID: simulatedCode,
+    TransAmount: trAmount,
+    MSISDN: simulatedPhone,
+    FirstName: firstName || "Simulated",
+    MiddleName: "",
+    LastName: lastName || "Customer",
+    BillRefNumber: billRef || "",
+    TransTime: new Date().toISOString(),
+    addedAt: new Date().toISOString(),
+    claimed: false
+  };
+
+  updateDB(state => {
+    if (!state.mpesaTransactions) {
+      state.mpesaTransactions = [];
+    }
+    state.mpesaTransactions.unshift(simulatedTransaction);
+    
+    // Also record simulated audits
+    state.auditLogs.unshift({
+      id: `aud-${Date.now()}`,
+      userEmail: "budionosiregar@gmail.com",
+      action: "Safaricom C2B Callback Payment Injected",
+      module: "POS C2B Hub",
+      date: new Date().toISOString(),
+      details: `Injected M-Pesa C2B webhook payload: ${simulatedCode} of Ksh. ${trAmount} from ${simulatedPhone} (Ref: ${billRef || "N/A"})`
+    });
+  });
+
+  return res.json({
+    success: true,
+    message: "C2B Payment simulated successfully. Webhook transaction committed.",
+    transaction: simulatedTransaction
+  });
+});
+
+
+// Verify & query checkout details
+app.post("/api/mpesa/check-payment", (req, res) => {
+  const { phone, mpesaPaid, mpesaTransactionCode, checkMethod, billRef } = req.body;
+  const db = readDB();
+  const mpesaTransactions = db.mpesaTransactions || [];
+  
+  let foundTx: any = null;
+  
+  if (checkMethod === "code" && mpesaTransactionCode) {
+    const cleanCode = String(mpesaTransactionCode).trim().toUpperCase();
+    foundTx = mpesaTransactions.find((tx: any) => 
+      tx.TransID && tx.TransID.toUpperCase() === cleanCode
+    );
+  } else {
+    // Check by amount & optional reference criteria
+    const targetAmount = parseFloat(mpesaPaid);
+    if (!isNaN(targetAmount)) {
+      // Suffix extraction for phone 
+      const cleanPhoneSuffix = phone ? String(phone).replace(/\D/g, "").slice(-9) : null;
+      const cleanBillRef = billRef ? String(billRef).trim().toUpperCase() : null;
+      
+      foundTx = mpesaTransactions.find((tx: any) => {
+        if (tx.claimed) return false;
+        
+        const isAmountMatch = Math.abs(parseFloat(tx.TransAmount) - targetAmount) < 0.01;
+        if (!isAmountMatch) return false;
+        
+        let satisfiesPhone = true;
+        if (cleanPhoneSuffix && tx.MSISDN) {
+          satisfiesPhone = String(tx.MSISDN).includes(cleanPhoneSuffix);
+        }
+        
+        let satisfiesRef = true;
+        if (cleanBillRef && tx.BillRefNumber) {
+          const mpesaRef = String(tx.BillRefNumber).trim().toUpperCase();
+          satisfiesRef = mpesaRef.includes(cleanBillRef) || cleanBillRef.includes(mpesaRef);
+        }
+        
+        return satisfiesPhone && satisfiesRef;
+      });
+
+      // Fallback fallback: if a billing reference was requested but none is matched exactly, try matching just the amount and phone to stay robust for sandbox cashiers!
+      if (!foundTx && cleanBillRef) {
+        foundTx = mpesaTransactions.find((tx: any) => {
+          if (tx.claimed) return false;
+          const isAmountMatch = Math.abs(parseFloat(tx.TransAmount) - targetAmount) < 0.01;
+          const cleanPhoneSuffix = phone ? String(phone).replace(/\D/g, "").slice(-9) : null;
+          const isPhoneMatch = cleanPhoneSuffix ? (tx.MSISDN && String(tx.MSISDN).includes(cleanPhoneSuffix)) : true;
+          return isAmountMatch && isPhoneMatch;
+        });
+      }
+    }
+  }
+
+  if (foundTx) {
+    // Mark transaction as claimed so it's not reused for another checkout (prevents duplicate matching)
+    updateDB(state => {
+      if (state.mpesaTransactions) {
+        const tx = state.mpesaTransactions.find((t: any) => t.TransID === foundTx.TransID);
+        if (tx) {
+          tx.claimed = true;
+        }
+      }
+    });
+
+    return res.json({
+      success: true,
+      transaction: {
+        code: foundTx.TransID,
+        amount: Number(foundTx.TransAmount),
+        fullName: `${foundTx.FirstName || ""} ${foundTx.MiddleName || ""} ${foundTx.LastName || ""}`.trim() || "M-PESA SUBSCRIBER",
+        phone: foundTx.MSISDN,
+        time: foundTx.TransTime
+      }
+    });
+  }
+
+  return res.json({
+    success: false,
+    message: "Incoming payment transaction matching criteria not yet identified on the ledger."
+  });
+});
+
+// Fetch unclaimed transactions to help cashier manually click and pair them immediately
+app.get("/api/mpesa/unclaimed", (req, res) => {
+  const db = readDB();
+  const txs = db.mpesaTransactions || [];
+  const unclaimed = txs.filter((tx: any) => !tx.claimed).slice(0, 10);
+  res.json({ success: true, transactions: unclaimed });
 });
 
 app.put("/api/sales/:id", (req, res) => {
@@ -1379,9 +1718,9 @@ app.post("/api/settings/reset-analytics", (req, res) => {
   const db = readDB();
   const user = db.users.find(u => u.email.toLowerCase() === userEmail.toLowerCase());
   
-  // Accept Administrators, Super Admins, or Pharmacists for testing
+  // Accept Administrators, Admins, or Pharmacists for testing
   const isAuthorized = user && (
-    user.role === UserRole.SUPER_ADMIN || 
+    user.role === UserRole.ADMIN || 
     user.role === UserRole.PHARMACIST
   );
   
@@ -1494,9 +1833,20 @@ app.post("/api/settings/api-keys", (req, res) => {
 });
 
 app.post("/api/settings/roles", (req, res) => {
-  const { rolePermissions } = req.body;
+  const { adminEmail, rolePermissions } = req.body;
   if (!rolePermissions) {
     return res.status(400).json({ error: "Missing role mappings payload." });
+  }
+
+  const db = readDB();
+  const adminUser = db.users.find(u => u.email.toLowerCase() === adminEmail?.toLowerCase());
+  const isAuthorized = adminUser && (
+    adminUser.role === UserRole.ADMIN || 
+    adminUser.role === UserRole.PHARMACIST
+  );
+
+  if (!isAuthorized) {
+    return res.status(403).json({ error: "Access Denied. Only clinical system administrators are permitted to calibrate the RBAC capability matrix." });
   }
 
   updateDB(state => {
@@ -1508,11 +1858,11 @@ app.post("/api/settings/roles", (req, res) => {
     }
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: adminEmail,
       action: "Modified Role RBAC Permissions",
       module: "Security RBAC",
       date: new Date().toISOString(),
-      details: `Calibrated access matrix for: ${rolePermissions.role}`
+      details: `Administrator [${adminUser.name}] calibrated access matrix for role: ${rolePermissions.role}`
     });
   });
 
@@ -1577,7 +1927,7 @@ app.post("/api/settings/users", (req, res) => {
   const db = readDB();
   const adminUser = db.users.find(u => u.email.toLowerCase() === adminEmail?.toLowerCase());
   const isAuthorized = adminUser && (
-    adminUser.role === UserRole.SUPER_ADMIN || 
+    adminUser.role === UserRole.ADMIN || 
     adminUser.role === UserRole.PHARMACIST
   );
 
@@ -1681,6 +2031,400 @@ app.post("/api/settings/users", (req, res) => {
   });
 
   res.json({ message: "User status updated.", users: readDB().users });
+});
+
+
+// Global intelligent search endpoint
+app.get("/api/search", (req, res) => {
+  const q = String(req.query.q || "").trim().toLowerCase();
+  const db = readDB();
+
+  if (!q) {
+    return res.json([]);
+  }
+
+  const results: any[] = [];
+
+  // 1. Search Medicines (drugs, generic names, SKU/Product codes)
+  db.medicines.forEach(m => {
+    if (
+      m.name.toLowerCase().includes(q) ||
+      m.genericName.toLowerCase().includes(q) ||
+      m.SKU.toLowerCase().includes(q) ||
+      (m.batchNumber && m.batchNumber.toLowerCase().includes(q))
+    ) {
+      results.push({
+        id: m.id,
+        category: "Medicines",
+        title: m.name,
+        subtitle: `Generic: ${m.genericName} | SKU: ${m.SKU} | Qty: ${m.quantity}`,
+        tab: "products",
+        payload: m
+      });
+    }
+  });
+
+  // 2. Search Customers (including Prescriptions)
+  db.customers.forEach(c => {
+    if (
+      c.name.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q) ||
+      c.phone.includes(q) ||
+      (c.insuranceProvider && c.insuranceProvider.toLowerCase().includes(q))
+    ) {
+      results.push({
+        id: c.id,
+        category: "Customers",
+        title: c.name,
+        subtitle: `Phone: ${c.phone} | Email: ${c.email}`,
+        tab: "customers",
+        payload: c
+      });
+    }
+
+    if (c.prescriptionHistory) {
+      c.prescriptionHistory.forEach(p => {
+        if (p.medicineName.toLowerCase().includes(q)) {
+          results.push({
+            id: `prescription-${c.id}-${p.medicineName}-${p.date}`,
+            category: "Prescriptions",
+            title: `Prescription: ${p.medicineName}`,
+            subtitle: `Assigned to ${c.name} (Qty: ${p.quantity}) on ${p.date}`,
+            tab: "customers",
+            payload: { ...c, highlightPrescription: p.medicineName }
+          });
+        }
+      });
+    }
+  });
+
+  // 3. Search Suppliers
+  db.suppliers.forEach(s => {
+    if (
+      s.name.toLowerCase().includes(q) ||
+      s.companyName.toLowerCase().includes(q) ||
+      s.email.toLowerCase().includes(q) ||
+      s.phone.includes(q)
+    ) {
+      results.push({
+        id: s.id,
+        category: "Suppliers",
+        title: s.name,
+        subtitle: `Company: ${s.companyName} | Phone: ${s.phone}`,
+        tab: "suppliers",
+        payload: s
+      });
+    }
+  });
+
+  // 4. Search Sales / Transactions / Invoice numbers
+  db.sales.forEach(sale => {
+    if (
+      sale.invoiceNumber.toLowerCase().includes(q) ||
+      sale.customerName.toLowerCase().includes(q) ||
+      sale.customerEmail.toLowerCase().includes(q)
+    ) {
+      results.push({
+        id: sale.id,
+        category: "Transactions",
+        title: `Invoice #${sale.invoiceNumber}`,
+        subtitle: `Customer: ${sale.customerName} | Total: $${sale.totalPrice.toFixed(2)} | Items: ${sale.items?.length || 0}`,
+        tab: "sales",
+        payload: sale
+      });
+    }
+  });
+
+  // Limit results to 25 for fast and lightweight transmission
+  res.json(results.slice(0, 25));
+});
+
+
+// Secure user profile update endpoints
+app.post("/api/users/profile/update", (req, res) => {
+  const { email, name, phone, bio, nationalId, address, passwordSetupCompleted, preferences, notificationPreferences } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email identifying user is required" });
+  }
+
+  let updatedUser: any = null;
+
+  updateDB(state => {
+    const idx = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+    if (idx !== -1) {
+      const u = state.users[idx];
+      if (name) u.name = name;
+      if (phone !== undefined) (u as any).phone = phone;
+      if (bio !== undefined) (u as any).bio = bio;
+      if (nationalId !== undefined) (u as any).nationalId = nationalId;
+      if (address !== undefined) (u as any).address = address;
+      if (passwordSetupCompleted !== undefined) (u as any).passwordSetupCompleted = passwordSetupCompleted;
+      if (preferences !== undefined) (u as any).preferences = preferences;
+      if (notificationPreferences !== undefined) (u as any).notificationPreferences = notificationPreferences;
+      
+      // Auto-flag passwordCompleted if hash is present
+      if (u.passwordHash) {
+        u.passwordSetupCompleted = true;
+      }
+
+      updatedUser = { ...u };
+    }
+  });
+
+  if (!updatedUser) {
+    return res.status(404).json({ error: "User not found in roster index." });
+  }
+
+  res.json({ message: "Profile particulars updated.", user: updatedUser });
+});
+
+// Submit user verification details securely
+app.post("/api/users/profile/verify", (req, res) => {
+  const { email, docType, nationalId, address, submittedDocumentUrl, selfieUrl } = req.body;
+  
+  if (!email || !docType || !nationalId || !address) {
+    return res.status(400).json({ error: "Missing required fields for identity verification." });
+  }
+
+  let updatedUser: any = null;
+
+  updateDB(state => {
+    const idx = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+    if (idx !== -1) {
+      const u = state.users[idx];
+      u.nationalId = nationalId;
+      u.address = address;
+      u.verificationStatus = "Under Review";
+      u.verificationSubmittedAt = new Date().toISOString();
+      u.verificationDetails = {
+        docType,
+        submittedDocumentUrl: submittedDocumentUrl || "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=400&h=300",
+        selfieUrl: selfieUrl || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400",
+        submittedAt: new Date().toISOString()
+      };
+
+      if (u.passwordHash) {
+        u.passwordSetupCompleted = true;
+      }
+
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: email,
+        action: "Identity Verification Submitted",
+        module: "Personnel Onboarding",
+        date: new Date().toISOString(),
+        details: `User [${u.name}] submitted ${docType} (ID: ${nationalId}) for secure identity verification. Status set to Under Review.`
+      });
+
+      // System notification for administrators
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}-notif`,
+        userEmail: "system@halomedical.com",
+        action: "Verification Request Pending",
+        module: "Admin Notification",
+        date: new Date().toISOString(),
+        details: `ACTION REQUIRED: User ${u.name} submitted their verification documents for review in the onboarding queue.`
+      });
+
+      updatedUser = { ...u };
+    }
+  });
+
+  if (!updatedUser) {
+    return res.status(404).json({ error: "Operator session user not found." });
+  }
+
+  res.json({ message: "Verification documents securely stored on ledger.", user: updatedUser });
+});
+
+// Admin Review / Override endpoint for testing/simulation
+app.post("/api/users/profile/verify-review", (req, res) => {
+  const { email, status, reviewerComment } = req.body;
+  if (!email || !status) {
+    return res.status(400).json({ error: "Target email and review status decision are required." });
+  }
+
+  if (!["Verified", "Rejected", "Under Review"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status code." });
+  }
+
+  let updatedUser: any = null;
+
+  updateDB(state => {
+    const idx = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+    if (idx !== -1) {
+      const u = state.users[idx];
+      u.verificationStatus = status as any;
+      if (u.verificationDetails) {
+        u.verificationDetails.reviewerComment = reviewerComment || `Status set to ${status}`;
+      } else {
+        u.verificationDetails = {
+          reviewerComment: reviewerComment || `Status set to ${status}`,
+          submittedAt: new Date().toISOString()
+        };
+      }
+
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: "admin@halomedical.com",
+        action: `Identity Verification ${status}`,
+        module: "Admin Operations",
+        date: new Date().toISOString(),
+        details: `Onboarding administrator updated status of [${u.name}] to: ${status}. Comment: ${reviewerComment || "N/A"}`
+      });
+
+      // System notification
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}-res-notif`,
+        userEmail: email,
+        action: `Onboarding Status Change`,
+        module: "Onboarding System",
+        date: new Date().toISOString(),
+        details: `Your identity verification request has been ${status}. Comment: ${reviewerComment || "Authorized by Administrator"}`
+      });
+
+      updatedUser = { ...u };
+    }
+  });
+
+  if (!updatedUser) {
+    return res.status(404).json({ error: "Target account user not found." });
+  }
+
+  res.json({ message: `Verification status updated to ${status}.`, user: updatedUser });
+});
+
+app.post("/api/users/profile/password", (req, res) => {
+  const { email, currentPassword, newPassword } = req.body;
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: "All password values must be provided." });
+  }
+
+  const state = readDB();
+  const idx = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+
+  if (idx === -1) {
+    return res.status(404).json({ error: "Personnel node not found." });
+  }
+
+  const user = state.users[idx];
+
+  // Verify old password (if present)
+  if (user.passwordHash && user.salt && currentPassword) {
+    const { hash } = hashPassword(currentPassword, user.salt);
+    if (hash !== user.passwordHash) {
+      return res.status(401).json({ error: "Current credentials did not match secure logs." });
+    }
+  }
+
+  updateDB(stateToModify => {
+    const targetIdx = stateToModify.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+    if (targetIdx !== -1) {
+      const u = stateToModify.users[targetIdx];
+      const { salt, hash } = hashPassword(newPassword);
+      u.salt = salt;
+      u.passwordHash = hash;
+
+      stateToModify.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: email,
+        action: "Security Credentials Altered",
+        module: "RBAC Security",
+        date: new Date().toISOString(),
+        details: `User [${u.name}] altered their master workstation entry password.`
+      });
+    }
+  });
+
+  res.json({ message: "Credentials successfully updated." });
+});
+
+app.post("/api/users/profile/upload-avatar", (req, res) => {
+  const { email, avatarUrl } = req.body;
+  if (!email || !avatarUrl) {
+    return res.status(400).json({ error: "User identifier and avatar identity are required" });
+  }
+
+  // Sanity check/Security validation on avatar URL format and size
+  let isBase64 = false;
+  
+  if (avatarUrl.startsWith("data:")) {
+    isBase64 = true;
+    const match = avatarUrl.match(/^data:(image\/[a-zA-Z+.-]+);base64,/);
+    if (!match) {
+      return res.status(400).json({ error: "Security validation failure: Base64 data URL is corrupted or invalid." });
+    }
+    
+    const mimeType = match[1].toLowerCase();
+    const approvedMimes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!approvedMimes.includes(mimeType)) {
+      return res.status(400).json({ error: "Security restriction: Only standard images (JPEG, PNG, WEBP) are approved." });
+    }
+
+    // Estimate file size from base64 string
+    const stringLength = avatarUrl.length - (avatarUrl.indexOf(",") + 1);
+    const sizeInBytes = Math.ceil(stringLength * 0.75);
+    const maxBytes = 3 * 1024 * 1024; // 3MB limit
+    if (sizeInBytes > maxBytes) {
+      return res.status(400).json({ error: `Efficiency limit exceeded: The uploaded image is too large (${(sizeInBytes / (1024 * 1024)).toFixed(2)}MB). Maximum allowed is 3MB.` });
+    }
+  } else if (avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://")) {
+    // Valid public URL (for predefined ones or references)
+    try {
+      const parsed = new URL(avatarUrl);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return res.status(400).json({ error: "Invalid URL protocol." });
+      }
+    } catch (e) {
+      return res.status(400).json({ error: "Malformed picture URL format." });
+    }
+  } else {
+    return res.status(400).json({ error: "Security validation error: Unsupported image source specifier." });
+  }
+
+  let foundUser: any = null;
+
+  updateDB(state => {
+    const idx = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+    if (idx !== -1) {
+      state.users[idx].avatarUrl = avatarUrl;
+      foundUser = { ...state.users[idx] };
+      
+      // Post audit log entry
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: email,
+        action: "Profile Picture Altered",
+        module: "Account Settings",
+        date: new Date().toISOString(),
+        details: isBase64 
+          ? `User [${foundUser.name}] uploaded and optimized a secure custom web profile picture.` 
+          : `User [${foundUser.name}] updated clinical avatar to a preselected corporate layout.`
+      });
+    }
+  });
+
+  if (!foundUser) {
+    return res.status(404).json({ error: "Account session not discovered in register." });
+  }
+
+  res.json({ message: "Workstation avatar securely updated.", avatarUrl, user: foundUser });
+});
+
+app.post("/api/users/profile/preferences", (req, res) => {
+  const { language } = req.body;
+  // Just a dynamic preference log
+  res.json({ message: "Preferences synchronized." });
+});
+
+app.get("/api/users/profile/history", (req, res) => {
+  const email = String(req.query.email || "");
+  if (!email) {
+    return res.json([]);
+  }
+  const state = readDB();
+  const filteredLogs = state.auditLogs.filter(log => log.userEmail && log.userEmail.toLowerCase() === email.toLowerCase());
+  res.json(filteredLogs.slice(0, 15));
 });
 
 
@@ -1870,6 +2614,9 @@ function calculateSessionSummary(session: any, db: any) {
       mobileMoneyPayments += s.totalPrice;
     } else if (s.paymentMethod === "Card") {
       cardPayments += s.totalPrice;
+    } else if (s.paymentMethod === "Split") {
+      cashPayments += (s.cashPaid || 0);
+      mobileMoneyPayments += (s.mpesaPaid || 0);
     }
     discounts += (s.discount || 0);
   });

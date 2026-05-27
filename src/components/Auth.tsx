@@ -6,17 +6,19 @@
 import { useState, FormEvent } from "react";
 import { 
   LogIn, Key, Mail, UserPlus, ShieldAlert, CheckCircle, 
-  RefreshCw, Globe, X, Heart, Shield, Landmark, Sparkles
+  RefreshCw, Globe, X, Heart, Shield, Landmark, Sparkles,
+  Eye, EyeOff
 } from "lucide-react";
-import { UserRole } from "../types";
+import { UserRole, SystemSettings } from "../types";
 
 const bgImage = "/src/assets/images/pharmacy_background_1779486266310.png";
 
 interface AuthProps {
   onLoginSuccess: (user: { id: string; name: string; email: string; role: UserRole; avatarUrl?: string }) => void;
+  settings: SystemSettings | null;
 }
 
-export default function Auth({ onLoginSuccess }: AuthProps) {
+export default function Auth({ onLoginSuccess, settings }: AuthProps) {
   const [lang, setLang] = useState<"en" | "sw">("en");
   const [showFormModal, setShowFormModal] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
@@ -25,8 +27,11 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
   // Form values
   const [email, setEmail] = useState("budionosiregar@gmail.com");
   const [password, setPassword] = useState("password123");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [name, setName] = useState("");
-  const [role, setRole] = useState<UserRole>(UserRole.SUPER_ADMIN);
+  const [role, setRole] = useState<UserRole>(UserRole.ADMIN);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +39,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (loading) return; // Prevent duplicate submissions
     setError(null);
     setInfo(null);
     setLoading(true);
@@ -52,7 +58,7 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
     }
 
     if (isRegister) {
-      if (!name || !email || !password) {
+      if (!name || !email || !password || !confirmPassword) {
         setError(
           lang === "en" 
             ? "All fields are required to register" 
@@ -61,23 +67,65 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         setLoading(false);
         return;
       }
+
+      if (password !== confirmPassword) {
+        setError(
+          lang === "en"
+            ? "Validation Refused: Password and Confirm Password do not match."
+            : "Sera ya Usalama: Nenosiri na Thibitisho la nenosiri hailingani na hili."
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Dynamic Security & Access Control settings
+      const minLength = settings?.security?.passwordMinLength || 8;
+      const requireSpecial = settings?.security?.requireSpecialChar !== undefined ? settings?.security?.requireSpecialChar : true;
+
+      if (password.length < minLength) {
+        setError(
+          lang === "en"
+            ? `Security Policy Refused: Password must be at least ${minLength} characters.`
+            : `Sera ya Usalama: Nenosiri lazima liwe na angalau herufi ${minLength} kujiandikisha.`
+        );
+        setLoading(false);
+        return;
+      }
+
+      if (requireSpecial) {
+        const specialCharRegex = /[!@#$%^&*(),.?":{}|<>]/;
+        if (!specialCharRegex.test(password)) {
+          setError(
+            lang === "en"
+              ? "Security Policy Refused: Password must contain at least one special character."
+              : "Sera ya Usalama: Nenosiri lazima liwe na angalau herufi moja maalum (k.m. @, #, $, Pesa)."
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
       try {
         const response = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, email, password })
         });
-        const data = await response.json();
+        let data: any = {};
+        if (response.headers.get("Content-Type")?.includes("json")) {
+          data = await response.json();
+        }
         
         if (!response.ok) {
           setError(data.error || (lang === "en" ? "Registration failed. Try again." : "Usajili umeshindwa. Jaribu tena."));
         } else {
           setInfo(
             lang === "en"
-              ? "Registration successful! You have been auto-assigned a secure Staff/User role. Log in now."
-              : "Usajili umefaulu! Umepewa jukumu la usalama la Staff/User. Ingia sasa."
+              ? "Registration successful! You have been auto-assigned a secure User role. Log in now."
+              : "Usajili umefaulu! Umepewa jukumu la usalama la User. Ingia sasa."
           );
           setIsRegister(false);
+          setConfirmPassword("");
         }
       } catch (err) {
         setError(lang === "en" ? "Unable to connect to register server." : "Imeshindwa kuunganisha kwenye seva ya usajili.");
@@ -94,7 +142,10 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
       });
-      const data = await response.json();
+      let data: any = {};
+      if (response.headers.get("Content-Type")?.includes("json")) {
+        data = await response.json();
+      }
       
       if (!response.ok) {
         setError(
@@ -140,6 +191,9 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
       authBtn: "Log in",
       sendOtp: "Send OTP Recovery Link",
       completeOnb: "Complete Security Onboarding",
+      confirmPassLabel: "Confirm Password",
+      passwordMismatch: "Passwords do not match",
+      passwordMatch: "Passwords matched successfully"
     },
     sw: {
       logo: "MFUMO WA FAMASI",
@@ -163,6 +217,9 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
       authBtn: "Ingia",
       sendOtp: "Tuma Kiungo cha OTP",
       completeOnb: "Kamilisha Usajili wa Usalama",
+      confirmPassLabel: "Thibitisha Nenosiri",
+      passwordMismatch: "Nenosiri hailingani",
+      passwordMatch: "Nenosiri linalingana kikamilifu"
     }
   };
 
@@ -182,11 +239,20 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
       {/* 1. Header Navigation Bar inside landing layout */}
       <header className="w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between z-20 relative">
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-lg bg-red-600/95 flex items-center justify-center text-white font-extrabold shadow-sm">
-            ✚
-          </div>
+          {settings?.general?.logoUrl ? (
+            <img 
+              src={settings.general.logoUrl} 
+              alt="Brand Logo" 
+              className="w-8 h-8 rounded-lg object-contain bg-white shadow-sm border border-slate-100"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-red-600/95 flex items-center justify-center text-white font-extrabold shadow-sm">
+              ✚
+            </div>
+          )}
           <span className="text-white font-bold tracking-widest text-sm font-sans">
-            {activeTrans.logo}
+            {settings?.general?.pharmacyName || activeTrans.logo}
           </span>
         </div>
 
@@ -221,15 +287,15 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
       {/* 2. Central Promo Messaging */}
       <main className="flex-1 w-full max-w-5xl mx-auto px-6 flex flex-col items-center justify-center text-center z-15 relative py-12">
         <h1 className="text-white font-sans font-black text-4xl sm:text-5xl md:text-6xl tracking-tight max-w-4xl leading-tight drop-shadow-lg">
-          {activeTrans.title}
+          {settings?.general?.pharmacyName || activeTrans.title}
         </h1>
         
         <p className="text-base sm:text-lg md:text-xl font-bold text-white mt-5 max-w-2xl drop-shadow">
-          {activeTrans.welcome}
+          {settings?.general?.pharmacyName ? `Welcome to the ${settings.general.pharmacyName} Hub` : activeTrans.welcome}
         </p>
 
         <p className="text-xs sm:text-sm text-slate-200 font-medium max-w-xl leading-relaxed mt-2.5 drop-shadow-sm">
-          {activeTrans.desc}
+          {settings?.general?.address ? `Authorized clinical personnel gateway for location at ${settings.general.address}` : activeTrans.desc}
         </p>
 
         {/* Double customized orange-red pill action buttons as screenshot */}
@@ -349,48 +415,10 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email */}
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-1">
-                  {activeTrans.emailLabel}
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="budionosiregar@gmail.com"
-                    className="w-full pl-10.5 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              {!isForgot && (
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-1">
-                    {activeTrans.passLabel}
-                  </label>
-                  <div className="relative">
-                    <Key className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="w-full pl-10.5 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-              )}
-
               {/* Full Legal Name - Register status */}
               {isRegister && !isForgot && (
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-1">
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-1">
                     {activeTrans.nameLabel}
                   </label>
                   <input
@@ -399,22 +427,93 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Dr. Budiono Siregar"
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-transparent"
+                    className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
                   />
                 </div>
               )}
 
-              {/* Security Policy Information instead of role select */}
+              {/* Email */}
+              <div>
+                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-1">
+                  {activeTrans.emailLabel}
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 select-none pointer-events-none" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="budionosiregar@gmail.com"
+                    className="w-full pl-10.5 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              {!isForgot && (
+                <div>
+                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-1">
+                    {activeTrans.passLabel}
+                  </label>
+                  <div className="relative">
+                    <Key className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 select-none pointer-events-none" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full pl-10.5 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
+                    />
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-all duration-150 p-1 rounded-md focus:outline-none cursor-pointer select-none"
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Confirm Password */}
               {isRegister && !isForgot && (
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-slate-300">
-                  <p className="text-[10px] font-bold tracking-wider text-red-500 uppercase mb-1">
-                     ⚡ SECURITY POLICY NOTICE
-                  </p>
-                  <p className="text-[11px] leading-normal font-semibold text-slate-450">
-                    {lang === "en" 
-                      ? "Workstation personnel self-registration defaults strictly to Staff/User role. Privileged role administration must be approved and configured by an active clinical system administrator." 
-                      : "Usajili wa kibinafsi wa wafanyakazi unaruhusu jukumu la Staff/User pekee. Idhini ya juu lazima ithibitishwe na kuendeshwa na msimamizi anayeendelea."}
-                  </p>
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-1">
+                    {activeTrans.confirmPassLabel}
+                  </label>
+                  <div className="relative">
+                    <Key className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 select-none pointer-events-none" />
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full pl-10.5 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
+                    />
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-all duration-150 p-1 rounded-md focus:outline-none cursor-pointer select-none"
+                      title={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  
+                  {confirmPassword.length > 0 && (
+                    <div className="mt-2 flex items-center space-x-1.5 px-1 animate-in fade-in duration-205">
+                      <div className={`w-1.5 h-1.5 rounded-full ${password === confirmPassword ? "bg-emerald-500" : "bg-rose-500"}`} />
+                      <span className={`text-[10px] font-bold tracking-wide ${password === confirmPassword ? "text-emerald-400" : "text-rose-400"}`}>
+                        {password === confirmPassword ? activeTrans.passwordMatch : activeTrans.passwordMismatch}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -422,22 +521,30 @@ export default function Auth({ onLoginSuccess }: AuthProps) {
               <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 px-1 pt-1">
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => {
                     setIsForgot(!isForgot);
                     setIsRegister(false);
+                    setError(null);
+                    setInfo(null);
+                    setConfirmPassword("");
                   }}
-                  className="hover:text-red-400 hover:underline cursor-pointer"
+                  className="hover:text-red-400 hover:underline cursor-pointer disabled:opacity-40"
                 >
                   {isForgot ? activeTrans.rememberPass : activeTrans.forgotPass}
                 </button>
                 
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => {
                     setIsRegister(!isRegister);
                     setIsForgot(false);
+                    setError(null);
+                    setInfo(null);
+                    setConfirmPassword("");
                   }}
-                  className="text-red-400 hover:text-red-300 hover:underline inline-flex items-center cursor-pointer"
+                  className="text-red-400 hover:text-red-300 hover:underline inline-flex items-center cursor-pointer disabled:opacity-40"
                 >
                   <UserPlus className="w-3.5 h-3.5 mr-1" />
                   <span>{isRegister ? activeTrans.alreadyReg : activeTrans.regAcct}</span>

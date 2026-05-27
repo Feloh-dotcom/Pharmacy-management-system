@@ -11,25 +11,25 @@ import {
   Power, Play, Plus, Server, CheckCircle2, ChevronRight, X, AlertTriangle, 
   Cloud, Webhook, Download, KeyRound, Copy, CheckSquare, Square
 } from "lucide-react";
-import { AuditLog, SystemSettings, Branch, DeveloperApiKey, RolePermissions, BackupCheckpoint } from "../types";
+import { AuditLog, SystemSettings, Branch, DeveloperApiKey, RolePermissions, BackupCheckpoint, UserRole } from "../types";
 import { formatSafeDateTime, formatSafeDateOnly } from "../utils";
 
 const TABS = [
   { id: "general", label: "General Settings", icon: Globe, desc: "Pharmacy legal identifiers, address, contacts & currency specs" },
   { id: "security", label: "Security & MFA Policies", icon: ShieldCheck, desc: "Password metrics, workstation timeout registers, MFA setups" },
-  { id: "users", label: "User Access & RBAC", icon: Users, desc: "Activate corporate agents and map RBAC permission keys" },
-  { id: "financial", label: "Accounting & Tax Registry", icon: Receipt, desc: "National VAT rates, invoice numbering, payment streams" },
+  { id: "users", label: "User Access & RBAC", icon: Users, desc: "Manage staff accounts and custom role permissions" },
+  { id: "financial", label: "Accounting & Tax Registry", icon: Receipt, desc: "Configure VAT, invoices, and payments" },
   { id: "inventory", label: "Inventory Thresholds", icon: Package, desc: "Smart auto-reorder levels, batch scanning, low stock alerts" },
-  { id: "notifications", label: "Notification Gateways", icon: Bell, desc: "Configure secure SMTP relays, email loops, SMS trackers" },
-  { id: "integrations", label: "Integrations & S3 Storage", icon: Link2, desc: "Stripe secure gateways, Google trackers, AWS Cloud S3" },
-  { id: "audit-logs", label: "Workstation Audit timeline", icon: History, desc: "Comprehensive clinical log tracking workstation events" },
-  { id: "backup", label: "Backups & Recovery", icon: Database, desc: "Archived disaster snapshots, manual triggers" },
-  { id: "ai-automation", label: "AI Automation Models", icon: Sparkles, desc: "Calibrate stock predictive algorithms & Gemini models" },
-  { id: "appearance", label: "Appearance Theme Specs", icon: Palette, desc: "Corporate theme layouts, rounded borders, visual states" },
-  { id: "receipts", label: "Receipt & Invoice Layouts", icon: FileText, desc: "Template prefix formats, clinical footers, sizes" },
-  { id: "branches", label: "Branch Multi-Locations", icon: MapPin, desc: "Synchronize clinical stocks between corporate branch offices" },
-  { id: "maintenance", label: "Diagnostics & Cleanups", icon: Activity, desc: "Verify CPU cycles, clear system caches, lookups" },
-  { id: "api-management", label: "Programmatic App Keys", icon: Code, desc: "Manage developer security keys and outbound webhook triggers" },
+  { id: "notifications", label: "Notification Gateways", icon: Bell, desc: "Configure SMTP details, emails, and SMS alerts" },
+  { id: "integrations", label: "Integrations & S3 Storage", icon: Link2, desc: "Setup third-party integrations" },
+  { id: "audit-logs", label: "Workstation Audit timeline", icon: History, desc: "Track system action history and audit events" },
+  { id: "backup", label: "Backups & Recovery", icon: Database, desc: "Manage database snapshots and backups" },
+  { id: "ai-automation", label: "AI Automation Models", icon: Sparkles, desc: "Setup analytical forecasts and models" },
+  { id: "appearance", label: "Appearance Theme Specs", icon: Palette, desc: "Setup interface colors, fonts, and layouts" },
+  { id: "receipts", label: "Receipt & Invoice Layouts", icon: FileText, desc: "Format sales receipt details and templates" },
+  { id: "branches", label: "Branch Multi-Locations", icon: MapPin, desc: "Manage multi-branch locations" },
+  { id: "maintenance", label: "Diagnostics & Cleanups", icon: Activity, desc: "System maintenance and status checks" },
+  { id: "api-management", label: "Programmatic App Keys", icon: Code, desc: "Manage API keys and outgoing webhook triggers" },
 ];
 
 interface SettingsProps {
@@ -97,6 +97,12 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
 
   // Recovery overlay confirmation
   const [recoveryTargetId, setRecoveryTargetId] = useState<string | null>(null);
+
+  // User Management Admin Actions
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ name: "", email: "", password: "", role: "User" });
+  const [showResetPassword, setShowResetPassword] = useState<string | null>(null); // userId of target user
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
 
   // Show status toasts helper
   const triggerToast = (msg: string, typ: "success" | "error" = "success") => {
@@ -189,7 +195,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
       const res = await fetch("/api/settings/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, isActive: activeState, role: userRole })
+        body: JSON.stringify({ adminEmail: user?.email, userId, isActive: activeState, role: userRole })
       });
       if (res.ok) {
         const data = await res.json();
@@ -200,6 +206,115 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
     } catch (err) {
       console.error(err);
       triggerToast("Failed to modify user credentials state.", "error");
+    }
+  };
+
+  const handleCreateUser = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newUserForm.name || !newUserForm.email || !newUserForm.password || !newUserForm.role) {
+      triggerToast("Please populate all form parameters correctly.", "error");
+      return;
+    }
+    try {
+      setSubmitLoading(true);
+      const res = await fetch("/api/settings/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminEmail: user?.email,
+          action: "create",
+          name: newUserForm.name,
+          email: newUserForm.email,
+          password: newUserForm.password,
+          role: newUserForm.role
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setUsers(data.users);
+        setNewUserForm({ name: "", email: "", password: "", role: "User" });
+        setShowAddUser(false);
+        triggerToast("Operational workstation user enrolled successfully.", "success");
+        loadAllSettings();
+      } else {
+        triggerToast(data.error || "Failed to create workstation operator.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Failed to communicate with authorization server.", "error");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!showResetPassword || !resetPasswordValue) {
+      triggerToast("Please specify a valid new security password.", "error");
+      return;
+    }
+    try {
+      setSubmitLoading(true);
+      const res = await fetch("/api/settings/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminEmail: user?.email,
+          action: "reset-password",
+          userId: showResetPassword,
+          password: resetPasswordValue
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setResetPasswordValue("");
+        setShowResetPassword(null);
+        triggerToast("Password security credentials updated successfully.", "success");
+      } else {
+        triggerToast(data.error || "Failed to reset security keys.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("System Authentication Refused.", "error");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const handleTogglePermission = (roleName: string, permKey: string) => {
+    setRolePermissions(prev => prev.map(rp => {
+      if (rp.role === roleName) {
+        return {
+          ...rp,
+          permissions: {
+            ...rp.permissions,
+            [permKey]: !rp.permissions[permKey as keyof typeof rp.permissions]
+          }
+        };
+      }
+      return rp;
+    }));
+  };
+
+  const handleSaveRolePermissions = async (roleName: string) => {
+    const targetRp = rolePermissions.find(rp => rp.role === roleName);
+    if (!targetRp) return;
+    try {
+      const res = await fetch("/api/settings/roles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rolePermissions: targetRp })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        triggerToast(`Permissions matrix for [${roleName}] calibrated successfully!`, "success");
+        loadAllSettings();
+      } else {
+        triggerToast(data.error || "Verification failure during saving matrix.", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      triggerToast("Connection error while updating operational permissions.", "error");
     }
   };
 
@@ -400,12 +515,12 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
 
   const saveAiAutomationTab = (e: FormEvent) => {
     e.preventDefault();
-    if (aiForm) handleSaveSettingsMap("Gemini Forecasting Engine", { aiAutomation: aiForm });
+    if (aiForm) handleSaveSettingsMap("Forecasting Insights", { aiAutomation: aiForm });
   };
 
   const saveAppearanceTab = (e: FormEvent) => {
     e.preventDefault();
-    if (appearanceForm) handleSaveSettingsMap("SaaS Visual Canvas", { appearance: appearanceForm });
+    if (appearanceForm) handleSaveSettingsMap("Visual Theme", { appearance: appearanceForm });
   };
 
   const saveReceiptsTab = (e: FormEvent) => {
@@ -498,12 +613,12 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
       {/* Corporate Dashboard Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="font-sans font-extrabold text-2xl text-slate-800 tracking-tight flex items-center">
-            <SettingsIcon className="w-7 h-7 text-teal-600 mr-2.5 animate-spin-slow" />
-            <span>SaaS Clinical Enterprise Control Console</span>
+          <h1 className="font-sans font-bold text-2xl text-slate-800 tracking-tight flex items-center">
+            <SettingsIcon className="w-6 h-6 text-teal-600 mr-2.5" />
+            <span>System Administration Console</span>
           </h1>
-          <p className="text-xs text-slate-400 font-medium mt-1">
-            System configuration console, custom role-based mapping access nodes, secure database backstops, and active server telemetry.
+          <p className="text-xs text-slate-500 font-medium mt-1">
+            Configure default variables, branch mappings, user roles, security, backups, and systemic preferences.
           </p>
         </div>
         
@@ -683,9 +798,9 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-800 flex items-center">
                       <ShieldCheck className="w-5 h-5 mr-2 text-teal-600" />
-                      <span>SaaS Cybersecurity Guardrails</span>
+                      <span>System Security Policy</span>
                     </h2>
-                    <p className="text-xs text-slate-400 font-medium mt-1">Configure active lockout sequences, session timers, and network whitelists.</p>
+                    <p className="text-xs text-slate-500 font-medium mt-1 font-sans">Configure access control constraints, user pin timeouts, and authorization levels.</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -777,112 +892,273 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
               {/* TAB 3: USER & ROLE MANAGEMENT */}
               {currentTab === "users" && (
                 <div className="space-y-6">
-                  <div>
-                    <h2 className="text-sm font-extrabold text-slate-800 flex items-center">
-                      <Users className="w-5 h-5 mr-2 text-teal-600" />
-                      <span>Clinical Users & Authority Matrix (RBAC)</span>
-                    </h2>
-                    <p className="text-xs text-slate-400 font-medium mt-1">Supervise active medical staff, adjust operating credentials, and map secure permission cards.</p>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <div>
+                      <h2 className="text-sm font-extrabold text-slate-800 flex items-center">
+                        <Users className="w-5 h-5 mr-2 text-teal-600" />
+                        <span>Staff Configuration & Permissions (RBAC)</span>
+                      </h2>
+                      <p className="text-xs text-slate-500 font-medium mt-1 font-sans">Oversee registered staff members, adjust active credentials, and edit permission profiles.</p>
+                    </div>
+                    <button 
+                      onClick={() => setShowAddUser(!showAddUser)}
+                      className="self-start md:self-auto px-4 py-2.5 bg-teal-650 hover:bg-teal-700 bg-teal-600 text-white font-extrabold text-xs rounded-xl shadow-md transition flex items-center space-x-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Register New Staff Account</span>
+                    </button>
                   </div>
+
+                  {/* Add User Form overlay */}
+                  {showAddUser && (
+                    <form onSubmit={handleCreateUser} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm relative transition duration-150 animate-in fade-in">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                        <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-700 flex items-center">
+                          <ShieldCheck className="w-4 h-4 mr-2 text-teal-600" />
+                          Enroll New Workforce Operator Account
+                        </h3>
+                        <button 
+                          type="button" 
+                          onClick={() => setShowAddUser(false)} 
+                          className="text-slate-400 hover:text-slate-600 text-[10px] font-bold font-mono"
+                        >
+                          ✕ CANCEL
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <label className="text-[9px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">Full Name</label>
+                          <input 
+                            type="text" required placeholder="e.g. Dr. Jane Doe"
+                            value={newUserForm.name}
+                            onChange={e => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                            className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">Email Address</label>
+                          <input 
+                            type="email" required placeholder="email@pharmacy.com"
+                            value={newUserForm.email}
+                            onChange={e => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                            className="w-full text-xs font-mono font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">Initial Password</label>
+                          <input 
+                            type="password" required placeholder="••••••••"
+                            value={newUserForm.password}
+                            onChange={e => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                            className="w-full text-xs font-mono font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">Assigned Operational Role Node</label>
+                          <select 
+                            value={newUserForm.role}
+                            onChange={e => setNewUserForm({ ...newUserForm, role: e.target.value })}
+                            className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
+                          >
+                            {Object.values(UserRole).map((r) => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <button 
+                          type="submit" disabled={submitLoading}
+                          className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl shadow-md transition disabled:opacity-50"
+                        >
+                          {submitLoading ? "Authorizing Staff Credentials..." : "Enroll Active Workstation Member"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Reset Password secure popup */}
+                  {showResetPassword && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+                      <div className="bg-white border border-slate-200 w-full max-w-sm rounded-2xl p-6 space-y-4 shadow-2xl relative animate-in zoom-in-95">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                          <h3 className="text-xs font-black uppercase tracking-widest text-slate-700 flex items-center">
+                            <KeyRound className="w-4 h-4 mr-2 text-rose-500" />
+                            Secure Credentials Overwrite
+                          </h3>
+                          <button 
+                            type="button" 
+                            onClick={() => setShowResetPassword(null)} 
+                            className="text-slate-400 hover:text-slate-600 text-xs font-mono"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <form onSubmit={handleResetPassword} className="space-y-4">
+                          <p className="text-[11px] leading-normal text-slate-450 font-medium">
+                            Administrative override requested for: <br />
+                            <strong className="text-slate-700 font-semibold">{users.find(u => u.id === showResetPassword)?.name}</strong> 
+                            <span className="text-[10px] block font-mono">({users.find(u => u.id === showResetPassword)?.email})</span>
+                          </p>
+                          <div>
+                            <label className="text-[9px] font-bold tracking-wider text-slate-400 uppercase block mb-1">Overwrite Password</label>
+                            <input 
+                              type="password" required placeholder="••••••••"
+                              value={resetPasswordValue}
+                              onChange={e => setResetPasswordValue(e.target.value)}
+                              className="w-full text-xs font-mono font-semibold text-slate-700 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
+                            />
+                          </div>
+                          <div className="flex justify-end space-x-2 pt-2">
+                            <button 
+                              type="button" 
+                              onClick={() => setShowResetPassword(null)}
+                              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition"
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              type="submit" disabled={submitLoading}
+                              className="px-5 py-2.5 bg-rose-650 hover:bg-rose-700 bg-rose-600 text-white font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-50"
+                            >
+                              {submitLoading ? "Encrypting..." : "Commit Credentials Update"}
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Users Table */}
                   <div className="border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
                     <div className="bg-slate-100/60 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                      <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest font-mono">Workstation User Register ({users.length})</span>
+                      <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest font-mono font-bold">Workstation User Register ({users.length})</span>
                     </div>
 
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
-                          <th className="p-4">Clinical Staff Member</th>
-                          <th className="p-4">Assigned Role Node</th>
-                          <th className="p-4">Account Status</th>
-                          <th className="p-4 text-center">Toggle State Authority</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-150 bg-white">
-                        {users.map((usr) => (
-                          <tr key={usr.id} className="hover:bg-slate-50/60 transition duration-150">
-                            <td className="p-4">
-                              <div className="flex items-center space-x-3">
-                                <img 
-                                  src={usr.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=50&h=50&fit=crop"} 
-                                  referrerPolicy="no-referrer"
-                                  className="w-8 h-8 rounded-full border border-slate-200 object-cover" 
-                                />
-                                <div>
-                                  <p className="font-bold text-slate-700">{usr.name}</p>
-                                  <p className="text-[10px] text-slate-450 font-mono">{usr.email}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <select 
-                                value={usr.role}
-                                onChange={(e) => handleUserRoleOrActiveToggle(usr.id, undefined, e.target.value)}
-                                className="font-semibold text-[11px] text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg focus:outline-none"
-                              >
-                                <option value="Super Admin">Super Admin</option>
-                                <option value="Pharmacist">Pharmacist</option>
-                                <option value="Cashier">Cashier</option>
-                                <option value="Inventory Manager">Inventory Manager</option>
-                                <option value="Accountant">Accountant</option>
-                              </select>
-                            </td>
-                            <td className="p-4">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold tracking-wider font-mono ${
-                                usr.isActive 
-                                  ? "bg-teal-50 text-teal-700 border border-teal-100" 
-                                  : "bg-red-50 text-red-700 border border-red-100"
-                              }`}>
-                                {usr.isActive ? "ACTIVE WORKER" : "SUSPENDED NODE"}
-                              </span>
-                            </td>
-                            <td className="p-4 text-center">
-                              <button
-                                onClick={() => handleUserRoleOrActiveToggle(usr.id, !usr.isActive, undefined)}
-                                className={`px-3 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wide border transition shadow-sm ${
-                                  usr.isActive 
-                                    ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200" 
-                                    : "bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-200"
-                                }`}
-                              >
-                                {usr.isActive ? "DEACTIVATE STAFF" : "RESTORE ACCESS"}
-                              </button>
-                            </td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
+                            <th className="p-4">Clinical Staff Member</th>
+                            <th className="p-4">Assigned Role Node</th>
+                            <th className="p-4">Account Status</th>
+                            <th className="p-4 text-center">Workstation Security Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150 bg-white">
+                          {users.map((usr) => (
+                            <tr key={usr.id} className="hover:bg-slate-50/60 transition duration-150">
+                              <td className="p-4">
+                                <div className="flex items-center space-x-3">
+                                  <img 
+                                    src={usr.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=50&h=50&fit=crop"} 
+                                    referrerPolicy="no-referrer"
+                                    className="w-8 h-8 rounded-full border border-slate-200 object-cover" 
+                                  />
+                                  <div>
+                                    <p className="font-bold text-slate-700">{usr.name}</p>
+                                    <p className="text-[10px] text-slate-450 font-mono">{usr.email}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <select 
+                                  value={usr.role}
+                                  onChange={(e) => handleUserRoleOrActiveToggle(usr.id, undefined, e.target.value)}
+                                  className="font-semibold text-[11px] text-slate-700 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg focus:outline-none cursor-pointer"
+                                >
+                                  {Object.values(UserRole).map((r) => (
+                                    <option key={r} value={r}>{r}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="p-4">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold tracking-wider font-mono ${
+                                  usr.isActive 
+                                    ? "bg-teal-50 text-teal-700 border border-teal-100" 
+                                    : "bg-red-50 text-red-700 border border-red-100"
+                                }`}>
+                                  {usr.isActive ? "ACTIVE WORKER" : "SUSPENDED NODE"}
+                                </span>
+                              </td>
+                              <td className="p-4">
+                                <div className="flex items-center justify-center space-x-2">
+                                  <button
+                                    onClick={() => handleUserRoleOrActiveToggle(usr.id, !usr.isActive, undefined)}
+                                    className={`px-3 py-1.5 rounded-xl font-bold text-[10px] uppercase tracking-wide border transition shadow-sm ${
+                                      usr.isActive 
+                                        ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200" 
+                                        : "bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-200"
+                                    }`}
+                                  >
+                                    {usr.isActive ? "DEACTIVATE" : "ACTIVATE"}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setShowResetPassword(usr.id);
+                                      setResetPasswordValue("");
+                                    }}
+                                    className="px-3 py-1.5 bg-slate-50 hover:bg-slate-105 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-wide rounded-xl flex items-center space-x-1 transition shadow-sm"
+                                  >
+                                    <KeyRound className="w-3 h-3" />
+                                    <span>Reset Password</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
 
-                  {/* Permission Matrix */}
+                  {/* Role Permissions */}
                   <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-4">
-                    <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-widest flex items-center">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center">
                       <Lock className="w-4 h-4 mr-2 text-teal-600" />
-                      <span>Assigned Role Capability matrix</span>
+                      <span>Configure Role Capability Permissions</span>
                     </h3>
-                    <p className="text-[11px] text-slate-450 leading-normal">
-                      Verify authorizations. Standard constraints apply per account. Configure structural credentials locks.
+                    <p className="text-[11px] text-slate-500 leading-normal font-sans">
+                      Configure default permissions per staff role. Click checkboxes and click save to apply limits across all accounts of this role.
                     </p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
                       {rolePermissions.map((rp) => (
-                        <div key={rp.role} className="bg-white border border-slate-150 p-4 rounded-2xl shadow-sm space-y-3">
-                          <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                            <h4 className="text-xs font-bold text-slate-700">{rp.role}</h4>
-                            <span className="text-[8px] tracking-wider font-extrabold text-teal-600 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded uppercase font-mono">RBAC NODE</span>
+                        <div key={rp.role} className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
+                              <h4 className="text-xs font-bold text-slate-800">{rp.role}</h4>
+                              <span className="text-[8px] tracking-wider font-extrabold text-teal-600 bg-teal-50 border border-teal-100 px-1.5 py-0.5 rounded uppercase font-mono">RBAC NODE</span>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              {Object.entries(rp.permissions).map(([permName, isAllowed]) => (
+                                <label key={permName} className="flex justify-between items-center text-[10.5px] cursor-pointer bg-slate-50/40 hover:bg-slate-50 p-2 rounded-xl transition duration-150 select-none">
+                                  <span className="text-slate-500 font-semibold capitalize">{permName.replace(/([A-Z])/g, " $1")}</span>
+                                  <div className="flex items-center space-x-1.5">
+                                    <input 
+                                      type="checkbox"
+                                      checked={!!isAllowed}
+                                      onChange={() => handleTogglePermission(rp.role, permName)}
+                                      className="accent-teal-600 rounded cursor-pointer w-3.5 h-3.5"
+                                    />
+                                    <span className={`font-mono text-[8.5px] font-black ${isAllowed ? "text-emerald-600" : "text-amber-500"}`}>
+                                      {isAllowed ? "YES" : "NO"}
+                                    </span>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
                           </div>
-                          
-                          <div className="space-y-1.5">
-                            {Object.entries(rp.permissions).map(([permName, isAllowed]) => (
-                              <div key={permName} className="flex justify-between items-center text-[10.5px]">
-                                <span className="text-slate-400 capitalize">{permName.replace(/([A-Z])/g, " $1")}</span>
-                                <span className={`font-mono text-[9px] font-bold ${isAllowed ? "text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded" : "text-amber-500 bg-amber-50 px-1.5 py-0.2 rounded"}`}>
-                                  {isAllowed ? "GRANTED" : "MUTED"}
-                                </span>
-                              </div>
-                            ))}
+
+                          <div className="pt-2 border-t border-slate-100">
+                            <button
+                              type="button"
+                              onClick={() => handleSaveRolePermissions(rp.role)}
+                              className="w-full text-center py-2 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 text-[9px] font-black uppercase tracking-widest rounded-xl transition duration-150 shadow-sm"
+                            >
+                              Save {rp.role} Permissions
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1019,9 +1295,47 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                         className="w-full text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2.5 rounded-xl"
                       />
                     </div>
+                    <div className="md:col-span-2">
+                      <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-0.5">Expiry alert warning severity level</label>
+                      <select
+                        value={inventoryForm.expiryAlertSeverity || "high"}
+                        onChange={e => setInventoryForm({ ...inventoryForm, expiryAlertSeverity: e.target.value as any })}
+                        className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2.5 rounded-xl"
+                      >
+                        <option value="critical">Critical (Immediate System Red Flags)</option>
+                        <option value="high">High (Standard Level Alarm Alerting)</option>
+                        <option value="medium">Medium (Soft Highlight Diagnostics Only)</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-150 rounded-2xl">
+                      <div>
+                        <p className="text-xs font-bold text-slate-700 font-sans">Prevent Sale of Expired Goods</p>
+                        <p className="text-[9.5px] text-slate-400 leading-normal">Blocks POS checkouts automatically for safety regulations unless admin overrides.</p>
+                      </div>
+                      <input 
+                        type="checkbox"
+                        checked={inventoryForm.preventSaleOfExpiredGoods !== false}
+                        onChange={e => setInventoryForm({ ...inventoryForm, preventSaleOfExpiredGoods: e.target.checked })}
+                        className="rounded text-[#093530] focus:ring-teal-500 w-4.5 h-4.5 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-150 rounded-2xl">
+                      <div>
+                        <p className="text-xs font-bold text-slate-700 font-sans">Nearing Expiry Notifications</p>
+                        <p className="text-[9.5px] text-slate-400 leading-normal">Broadcast warning alerts into real-time notification managers and layouts.</p>
+                      </div>
+                      <input 
+                        type="checkbox"
+                        checked={inventoryForm.notifyOnExpiryNear !== false}
+                        onChange={e => setInventoryForm({ ...inventoryForm, notifyOnExpiryNear: e.target.checked })}
+                        className="rounded text-[#093530] focus:ring-teal-500 w-4.5 h-4.5 cursor-pointer"
+                      />
+                    </div>
+
                     <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-150 rounded-2xl">
                       <div>
                         <p className="text-xs font-bold text-slate-700 font-sans">Enforce Batch/Lot Codes</p>
@@ -1031,7 +1345,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                         type="checkbox"
                         checked={inventoryForm.batchTrackingEnabled}
                         onChange={e => setInventoryForm({ ...inventoryForm, batchTrackingEnabled: e.target.checked })}
-                        className="rounded text-teal-600 focus:ring-teal-500 w-4.5 h-4.5 cursor-pointer"
+                        className="rounded text-[#093530] focus:ring-teal-500 w-4.5 h-4.5 cursor-pointer"
                       />
                     </div>
 
@@ -1457,14 +1771,14 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-800 flex items-center">
                       <Sparkles className="w-5 h-5 mr-2 text-teal-600" />
-                      <span>Gemini AI Smart Forecasting Parameters</span>
+                      <span>Smart Forecasting Parameters</span>
                     </h2>
-                    <p className="text-xs text-slate-400 font-medium mt-1">Calibrate neural triggers, threshold boundaries and temperature vectors for predictions.</p>
+                    <p className="text-xs text-slate-500 font-medium mt-1 font-sans">Configure threshold boundaries and options for smart predictive analytics.</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
-                      <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">Default Outbound Generation Engine</label>
+                      <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">Default AI Forecast Model</label>
                       <select 
                         value={aiForm.geminiModelSelection}
                         onChange={e => setAiForm({ ...aiForm, geminiModelSelection: e.target.value })}
@@ -1535,20 +1849,20 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-800 flex items-center">
                       <Palette className="w-5 h-5 mr-2 text-teal-600" />
-                      <span>SaaS Visual Canvas & UI Preferences</span>
+                      <span>Visual Theme & Layout Preferences</span>
                     </h2>
-                    <p className="text-xs text-slate-400 font-medium mt-1">Configure layout margins, border radius rounding curves, and clinical color themes.</p>
+                    <p className="text-xs text-slate-500 font-medium mt-1 font-sans">Select default interface color schemes, rounding curves, and visual layouts.</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
-                      <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">Clinical Dashboard Core Accent</label>
+                      <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5">System Core Color Theme</label>
                       <select 
                         value={appearanceForm.themeColors}
                         onChange={e => setAppearanceForm({ ...appearanceForm, themeColors: e.target.value })}
                         className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none"
                       >
-                        <option value="Teal-SaaS">Teal-SaaS Medical Professional (Default)</option>
+                        <option value="Teal-SaaS">Teal Pharmacy Professional (Default)</option>
                         <option value="Slate-Minimalist">Slate gray Minimalist Desk</option>
                         <option value="Warm-Sand">Warm Sand Clinic</option>
                         <option value="Cosmic-Midnight">Cosmic Twilight Dark Theme</option>
@@ -1832,9 +2146,9 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-800 flex items-center">
                       <Activity className="w-5 h-5 mr-2 text-teal-600 animate-pulse" />
-                      <span>System Maintenance & Telemetry report</span>
+                      <span>System Maintenance & Diagnostics</span>
                     </h2>
-                    <p className="text-xs text-slate-400 font-medium mt-1">Audit active server loops, rebuild clinical indices, clear local data caches, and audit server loads.</p>
+                    <p className="text-xs text-slate-500 font-medium mt-1 font-sans">Run integrity checks, optimize search lookups, and clear unused local system caches.</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1844,7 +2158,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                     >
                       <Activity className="w-5 h-5 text-teal-650" />
                       <p className="text-xs font-bold text-slate-700">Run Diagnostics Suite</p>
-                      <p className="text-[10px] text-slate-400 leading-normal">Interrogate Node V8 engine heap, JSON databases integrity, network latency and Cloud API tunnels.</p>
+                      <p className="text-[10px] text-slate-400 leading-normal">Perform diagnostic checks on database integrity, server connections, and API status.</p>
                     </button>
 
                     <button 
@@ -1855,8 +2169,8 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                       className="p-5 border border-slate-150 rounded-2xl hover:border-slate-350 bg-slate-50/30 text-left space-y-2 hover:bg-slate-50 transition"
                     >
                       <Server className="w-5 h-5 text-indigo-600" />
-                      <p className="text-xs font-bold text-slate-700">Clear Workspace Caching</p>
-                      <p className="text-[10px] text-slate-400 leading-normal">Removes clinical autocomplete buffers, fast-loading lookups caches, and force cold-load indexes.</p>
+                      <p className="text-xs font-bold text-slate-700">Clear System Caches</p>
+                      <p className="text-[10px] text-slate-400 leading-normal">Clear autocomplete lookup caches and force-reload system indexes.</p>
                     </button>
 
                     <button 
@@ -1867,8 +2181,8 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                       className="p-5 border border-slate-150 rounded-2xl hover:border-slate-350 bg-slate-50/30 text-left space-y-2 hover:bg-slate-50 transition"
                     >
                       <Code className="w-5 h-5 text-teal-600" />
-                      <p className="text-xs font-bold text-slate-705">Reconstruct Indexes</p>
-                      <p className="text-[10px] text-slate-400 leading-normal">Re-sort drug categories mapping lists and rebuild custom lookup keywords for staff search bars.</p>
+                      <p className="text-xs font-bold text-slate-705">Rebuild Search Indexes</p>
+                      <p className="text-[10px] text-slate-400 leading-normal">Optimize medicine catalog listings and rebuild quick search matching terms.</p>
                     </button>
                   </div>
 
@@ -1876,8 +2190,8 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                   {diagnosticReport.length > 0 && (
                     <div className="border border-slate-200 rounded-2xl bg-slate-50/50 p-6 space-y-4">
                       <div className="flex justify-between items-center border-b border-slate-200 pb-2">
-                        <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest font-mono">Live diagnostics telemetry logs</span>
-                        <span className="text-[9px] font-bold text-teal-700 font-mono">STATUS: SYSTEMS OPERATIONAL</span>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">System diagnostics check status</span>
+                        <span className="text-[9px] font-bold text-teal-700 font-mono">ALL SYSTEMS OPERATIONAL</span>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

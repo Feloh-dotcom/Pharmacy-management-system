@@ -11,6 +11,7 @@ import {
   Users
 } from "lucide-react";
 import { CashSession, CashTransaction, SystemSettings, UserRole } from "../types";
+import { formatCurrency } from "../utils";
 
 interface CashRegisterProps {
   user: { id: string; name: string; email: string; role: string; avatarUrl?: string } | null;
@@ -44,11 +45,11 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
   // Detailed modal for historical sessions
   const [selectedSession, setSelectedSession] = useState<CashSession | null>(null);
 
-  const currencySymbol = settings?.general?.currency || "$";
+  const currencySymbol = settings?.general?.currency || "Ksh.";
 
   // Helper roles validation
   const canOpenCloseSession = user ? [
-    UserRole.SUPER_ADMIN, 
+    UserRole.ADMIN, 
     UserRole.PHARMACIST, 
     UserRole.CASHIER, 
     UserRole.ACCOUNTANT

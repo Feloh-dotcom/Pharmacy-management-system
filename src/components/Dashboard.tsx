@@ -7,18 +7,22 @@ import { useState, useEffect } from "react";
 import { 
   ArrowUpRight, TrendingUp, Calendar, RefreshCw, 
   Search, Filter, ChevronLeft, ChevronRight, Edit2, 
-  Trash2, ShieldAlert, CheckCircle, Info, Sparkles
+  Trash2, ShieldAlert, CheckCircle, Info, Sparkles,
+  AlertTriangle, X, MapPin, Award, Pill, Receipt,
+  Shield, Package, Hourglass, Wallet, Users, Layout,
+  Activity, TrendingDown
 } from "lucide-react";
-import { DashboardMetrics, Sale, Medicine, SystemSettings } from "../types";
-import { parseSafeDate } from "../utils";
+import { Category, DashboardMetrics, Sale, Medicine, SystemSettings, UserRole } from "../types";
+import { parseSafeDate, formatCurrency, getDaysToExpiry, getExpiryStatus, formatSafeDateOnly } from "../utils";
 
 interface DashboardProps {
   onNavigate: (tab: string) => void;
   onEditMedicine: (med: Medicine) => void;
   settings?: SystemSettings | null;
+  user: { name: string; email: string; role: UserRole; avatarUrl?: string } | null;
 }
 
-export default function Dashboard({ onNavigate, onEditMedicine, settings }: DashboardProps) {
+export default function Dashboard({ onNavigate, onEditMedicine, settings, user }: DashboardProps) {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -33,27 +37,56 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
   const [entriesPerPage, setEntriesPerPage] = useState(3);
   const [showNotification, setShowNotification] = useState<string | null>(null);
 
-  const currencySymbol = settings?.general?.currency || "$";
+  // Expiry monitoring and data join states
+  const [showExpiryTrackingDialog, setShowExpiryTrackingDialog] = useState(false);
+  const [isExpiryTrayOpen, setIsExpiryTrayOpen] = useState(true);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+
+  const currencySymbol = settings?.general?.currency || "Ksh.";
 
   const fetchDashboardData = async (weekId?: string | null) => {
     try {
       setLoading(true);
       const targetWeek = weekId !== undefined ? weekId : selectedWeekId;
       const metricsRes = await fetch(`/api/dashboard/metrics?weekId=${targetWeek || ""}`);
-      const metricsData = await metricsRes.json();
-      setMetrics(metricsData);
-      
-      if (metricsData.selectedWeekId && !weekId && !selectedWeekId) {
-        setSelectedWeekId(metricsData.selectedWeekId);
+      if (metricsRes.ok && metricsRes.headers.get("Content-Type")?.includes("json")) {
+        const metricsData = await metricsRes.json();
+        setMetrics(metricsData);
+        if (metricsData.selectedWeekId && !weekId && !selectedWeekId) {
+          setSelectedWeekId(metricsData.selectedWeekId);
+        }
       }
 
       const salesRes = await fetch("/api/sales");
-      const salesData = await salesRes.json();
-      setSales(salesData);
+      if (salesRes.ok && salesRes.headers.get("Content-Type")?.includes("json")) {
+        const salesData = await salesRes.json();
+        setSales(salesData);
+      } else {
+        setSales([]);
+      }
 
       const medsRes = await fetch("/api/medicines");
-      const medsData = await medsRes.json();
-      setMedicines(medsData);
+      if (medsRes.ok && medsRes.headers.get("Content-Type")?.includes("json")) {
+        const medsData = await medsRes.json();
+        setMedicines(medsData);
+      } else {
+        setMedicines([]);
+      }
+
+      const catsRes = await fetch("/api/categories");
+      if (catsRes.ok && catsRes.headers.get("Content-Type")?.includes("json")) {
+        setCategories(await catsRes.json());
+      } else {
+        setCategories([]);
+      }
+
+      const supsRes = await fetch("/api/suppliers").catch(() => null);
+      if (supsRes && supsRes.ok && supsRes.headers.get("Content-Type")?.includes("json")) {
+        setSuppliers(await supsRes.json());
+      } else {
+        setSuppliers([]);
+      }
     } catch (e) {
       console.error("Failed to load dashboard payload:", e);
     } finally {
@@ -88,7 +121,11 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
         body: JSON.stringify({ items: updatedItems })
       });
 
-      const data = await res.json();
+      let data: any = {};
+      if (res.headers.get("Content-Type")?.includes("json")) {
+        data = await res.json();
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Failed to update quantity");
       }
@@ -112,7 +149,10 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
       const res = await fetch(`/api/sales/${saleId}`, {
         method: "DELETE"
       });
-      const data = await res.json();
+      let data: any = {};
+      if (res.headers.get("Content-Type")?.includes("json")) {
+        data = await res.json();
+      }
       if (!res.ok) {
         throw new Error(data.error || "Delete call failed");
       }
@@ -132,7 +172,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
       <div className="flex flex-col items-center justify-center h-96 py-12 space-y-4">
         <RefreshCw className="w-8 h-8 text-teal-600 animate-spin" />
         <p className="text-sm font-semibold text-slate-500">
-          Decrypting secure ERP core statistics...
+          Loading dashboard analytics...
         </p>
       </div>
     );
@@ -153,12 +193,21 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
   const circ = 238.76;
   const totalRevenue = metrics?.weeklyRevenue !== undefined ? metrics.weeklyRevenue : sales.reduce((sum, s) => sum + s.totalPrice, 0);
 
-  // Filter Sales list based on dynamic search term
-  const filteredSales = sales.filter(s => 
-    s.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.items.some(item => item.medicineName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    s.customerEmail.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter Sales list based on dynamic search term and role email bounds
+  const filteredSales = sales.filter(s => {
+    // Role filter
+    if (user?.role === UserRole.CUSTOMER) {
+      if (!s.customerEmail || s.customerEmail.toLowerCase() !== user.email.toLowerCase()) {
+        return false;
+      }
+    }
+    // Search term matching
+    return (
+      s.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.items.some(item => item.medicineName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (s.customerEmail && s.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  });
 
   // Pagination bounds
   const totalEntries = filteredSales.length;
@@ -168,6 +217,282 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
   const totalPages = Math.ceil(totalEntries / entriesPerPage);
 
   const lowStockMedicines = medicines.filter(m => m.quantity <= m.minStockLevel);
+
+  const renderRoleCards = () => {
+    if (!metrics) return null;
+
+    if (user?.role === UserRole.CUSTOMER) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-[#093530]/5 rounded-2xl border border-teal-200/50 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Award className="w-5 h-5 text-teal-600" />
+              <span className="text-[10px] font-extrabold text-[#093530] bg-[#093530]/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Loyalty Points Balance</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">450 Points</p>
+              <p className="text-[9px] text-teal-600 mt-1 font-medium">Consolidated 15% discount coupon unlocked</p>
+            </div>
+          </div>
+          <div className="bg-sky-50 rounded-2xl border border-sky-100 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Pill className="w-5 h-5 text-sky-600" />
+              <span className="text-[10px] font-extrabold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Refill Ready</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Registered Prescriptions</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">2 Active</p>
+              <p className="text-[9px] text-sky-600 mt-1 font-medium">Paracetamol, Amoxicillin on track</p>
+            </div>
+          </div>
+          <div className="bg-violet-50 rounded-2xl border border-violet-100 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Receipt className="w-5 h-5 text-violet-600" />
+              <span className="text-[10px] font-extrabold text-violet-800 bg-violet-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Invoices</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Purchase Logs</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">5 Transactions</p>
+              <p className="text-[9px] text-violet-600 mt-1 font-medium">Last payment processed today</p>
+            </div>
+          </div>
+          <div className="bg-amber-50 rounded-2xl border border-amber-100 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Shield className="w-5 h-5 text-amber-600" />
+              <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Protected</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Patient Profile Status</p>
+              <p className="font-bold text-xl text-slate-800 mt-1">Verified Member</p>
+              <p className="text-[9px] text-amber-600 mt-1 font-medium">Copay parameters synchronized with NHIF</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (user?.role === UserRole.SUPPLIER) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-[#093530]/5 rounded-2xl border border-teal-200/50 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Package className="w-5 h-5 text-teal-600" />
+              <span className="text-[10px] font-extrabold text-[#093530] bg-[#093530]/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Supplied</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Supplied Products</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">12 Products</p>
+              <p className="text-[9px] text-teal-600 mt-1 font-medium">Distributed across Antibiotics & Analgesics</p>
+            </div>
+          </div>
+          <div className="bg-amber-50 rounded-2xl border border-amber-100 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Hourglass className="w-5 h-5 text-amber-600" />
+              <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Pending Orders</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">3 Active POs</p>
+              <p className="text-[9px] text-amber-600 mt-1 font-medium">Awaiting physical shipment verification</p>
+            </div>
+          </div>
+          <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Wallet className="w-5 h-5 text-emerald-600" />
+              <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Received</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Settled Orders Value</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{currencySymbol}1,450.00</p>
+              <p className="text-[9px] text-emerald-600 mt-1 font-medium">Funds disbursed to legal supplier bank account</p>
+            </div>
+          </div>
+          <div className="bg-indigo-50 rounded-2xl border border-indigo-100 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Users className="w-5 h-5 text-indigo-600" />
+              <span className="text-[10px] font-extrabold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Certified</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Procurement Level</p>
+              <p className="font-bold text-xl text-slate-800 mt-1">Priority Supplier</p>
+              <p className="text-[9px] text-indigo-600 mt-1 font-medium">Supply lines active with auto-reordering</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (user?.role === UserRole.INVENTORY_MANAGER) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-[#093530]/5 rounded-2xl border border-teal-200/50 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Pill className="w-5 h-5 text-teal-600" />
+              <span className="text-[10px] font-extrabold text-[#093530] bg-[#093530]/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Database</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Products Registered</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{medicines.length} Products</p>
+              <p className="text-[9px] text-teal-600 mt-1 font-medium">Cataloged across active categories</p>
+            </div>
+          </div>
+          <div className="bg-amber-50 rounded-2xl border border-amber-100 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <TrendingDown className="w-5 h-5 text-amber-600" />
+              <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Below Target</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Low Stock Alert Count</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{lowStockMedicines.length} Warnings</p>
+              <p className="text-[9px] text-amber-600 mt-1 font-medium">Awaiting procurement orders processing</p>
+            </div>
+          </div>
+          <div 
+            onClick={() => setShowExpiryTrackingDialog(true)}
+            className="bg-rose-50 rounded-2xl border border-rose-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
+            <div className="flex items-center justify-between text-lg">
+              <AlertTriangle className="w-5 h-5 text-rose-600" />
+              <span className="text-[10px] font-extrabold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Expired</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Expired Batches</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{metrics ? metrics.expiredMedicines.count : 0} Warns</p>
+              <p className="text-[9px] text-rose-600 mt-1 font-medium">To be disposed of or returned to supplier</p>
+            </div>
+          </div>
+          <div className="bg-indigo-50 rounded-2xl border border-indigo-100 p-6 flex flex-col justify-between h-40">
+            <div className="flex items-center justify-between text-lg">
+              <Activity className="w-5 h-5 text-indigo-600" />
+              <span className="text-[10px] font-extrabold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Live Trace</span>
+            </div>
+            <div className="mt-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Active Inventory logs</p>
+              <p className="font-bold text-xl text-slate-800 mt-1">Secure Tracking</p>
+              <p className="text-[9px] text-indigo-600 mt-1 font-medium">Every stock adjustment is auditable</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Default layout (Admin, Pharmacist, Cashier, Accountant, User)
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Card 1: Todays Sales */}
+        <div className="p-6 bg-emerald-100/60 rounded-2xl border border-emerald-200/50 relative overflow-hidden flex flex-col justify-between h-40">
+          <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
+          <div className="flex items-center justify-between z-10">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-sm">
+              <Wallet className="w-5 h-5 text-emerald-600" />
+            </div>
+            <button className="text-slate-500 hover:text-slate-700 font-extrabold text-xs">···</button>
+          </div>
+          <div className="mt-4 z-10">
+            <p className="text-[11px] font-semibold text-emerald-800 tracking-wide uppercase">
+              Todays Sales
+            </p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <span className="font-sans font-bold text-2xl text-emerald-950">
+                {currencySymbol}{metrics.todaysSales.value.toFixed(2)}
+              </span>
+              <span className="text-[10px] font-extrabold text-emerald-700 bg-white/60 px-1.5 py-0.5 rounded-md">
+                {metrics.todaysSales.changePercent >= 0 ? "+" : ""}{metrics.todaysSales.changePercent.toFixed(1)}%
+              </span>
+            </div>
+            <p className="text-[10px] text-emerald-700 font-semibold mt-1">
+              {metrics.todaysSales.changePercent >= 0 ? "+" : ""}{metrics.todaysSales.changePercent.toFixed(1)}% growth rate today
+            </p>
+          </div>
+        </div>
+
+        {/* Card 2: Available Categories */}
+        <div className="p-6 bg-teal-100/60 rounded-2xl border border-teal-200/50 relative overflow-hidden flex flex-col justify-between h-40">
+          <div className="absolute right-0 top-0 w-32 h-32 bg-teal-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
+          <div className="flex items-center justify-between z-10">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-sm">
+              <Layout className="w-5 h-5 text-teal-600" />
+            </div>
+            <button className="text-slate-500 hover:text-slate-700 font-extrabold text-xs">···</button>
+          </div>
+          <div className="mt-4 z-10">
+            <p className="text-[11px] font-semibold text-teal-800 tracking-wide uppercase">
+              Available Categories
+            </p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <span className="font-sans font-bold text-2xl text-teal-950">
+                {metrics.availableCategories.value}
+              </span>
+              <span className="text-[10px] font-extrabold text-teal-700 bg-white/60 px-1.5 py-0.5 rounded-md">
+                Active
+              </span>
+            </div>
+            <p className="text-[10px] text-teal-700 font-semibold mt-1">
+              {metrics.availableCategories.value} product categories active
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Expired Medicines */}
+        <div 
+          onClick={() => setShowExpiryTrackingDialog(true)}
+          className="p-6 bg-rose-100/60 rounded-2xl border border-rose-200/50 relative overflow-hidden flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+        >
+          <div className="absolute right-0 top-0 w-32 h-32 bg-rose-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
+          <div className="flex items-center justify-between z-10">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-sm">
+              <AlertTriangle className="w-5 h-5 text-rose-600" />
+            </div>
+            <button className="text-slate-500 hover:text-slate-700 font-extrabold text-xs">···</button>
+          </div>
+          <div className="mt-4 z-10">
+            <p className="text-[11px] font-semibold text-rose-800 tracking-wide uppercase">
+              Expired Medicines
+            </p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <span className="font-sans font-bold text-2xl text-rose-950">
+                {metrics.expiredMedicines.count} List
+              </span>
+              <span className="text-[10px] font-extrabold text-rose-700 bg-white/60 px-1.5 py-0.5 rounded-md">
+                {medicines.length > 0 ? ((metrics.expiredMedicines.count / medicines.length) * 100).toFixed(1) : "0"}% Pct
+              </span>
+            </div>
+            <p className="text-[10px] text-rose-700 font-semibold mt-1">
+              {metrics.expiredMedicines.count} active product batches flagged expired
+            </p>
+          </div>
+        </div>
+
+        {/* Card 4: System Users */}
+        <div className="p-6 bg-indigo-100/60 rounded-2xl border border-indigo-200/50 relative overflow-hidden flex flex-col justify-between h-40">
+          <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
+          <div className="flex items-center justify-between z-10">
+            <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-sm">
+              <Users className="w-5 h-5 text-indigo-600" />
+            </div>
+            <button className="text-slate-500 hover:text-slate-700 font-extrabold text-xs">···</button>
+          </div>
+          <div className="mt-4 z-10">
+            <p className="text-[11px] font-semibold text-indigo-800 tracking-wide uppercase">
+              System/Staff Users
+            </p>
+            <div className="flex items-baseline space-x-2 mt-1">
+              <span className="font-sans font-bold text-2xl text-indigo-950">
+                {metrics.systemUsers.count}
+              </span>
+              <span className="text-[10px] font-extrabold text-indigo-700 bg-white/60 px-1.5 py-0.5 rounded-md">
+                Staff
+              </span>
+            </div>
+            <p className="text-[10px] text-indigo-700 font-semibold mt-1">
+              {metrics.systemUsers.count} staff members registered
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-8 pb-12 animate-in fade-in duration-300">
@@ -183,15 +508,19 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-sans font-bold text-2xl text-slate-900 tracking-tight">
-            Welcome to Smarteq Pharmacy
+            {user?.role === UserRole.CUSTOMER ? `Hello, ${user?.name}` : "Welcome to Smarteq Pharmacy"}
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-1">
-            Ready to oversee operations and dispensing cycles today.
+            {user?.role === UserRole.CUSTOMER 
+              ? "Your personalized customer self-service billing and prescription hub." 
+              : user?.role === UserRole.SUPPLIER 
+              ? "Supplier and procurement management console." 
+              : "Ready to oversee operations and dispensing cycles today."}
           </p>
         </div>
 
         <div className="flex items-center space-x-3">
-          {metrics?.weeklyCycles && metrics.weeklyCycles.length > 0 && (
+          {metrics?.weeklyCycles && metrics.weeklyCycles.length > 0 && [UserRole.ADMIN, UserRole.PHARMACIST, UserRole.ACCOUNTANT].includes(user?.role as any) && (
             <div className="flex items-center space-x-2 bg-white border border-slate-150 rounded-xl px-3 py-2 shadow-sm">
               <Calendar className="w-4 h-4 text-teal-600" />
               <select
@@ -209,25 +538,106 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
             </div>
           )}
 
-          <button 
-            id="btn-pos-navigation"
-            onClick={() => onNavigate("sales")}
-            className="flex items-center space-x-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-md shadow-teal-700/20 transition-all duration-200"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Launch POS Register</span>
-          </button>
+          {[UserRole.ADMIN, UserRole.PHARMACIST, UserRole.CASHIER].includes(user?.role as any) && (
+            <button 
+              id="btn-pos-navigation"
+              onClick={() => onNavigate("sales")}
+              className="flex items-center space-x-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-md shadow-teal-700/20 transition-all duration-200"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Launch POS Register</span>
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Expiry Alarm Collapsible Warning Banner panel */}
+      {medicines.length > 0 && [UserRole.ADMIN, UserRole.PHARMACIST, UserRole.INVENTORY_MANAGER, UserRole.CASHIER].includes(user?.role as any) && (() => {
+        const expiredCount = medicines.filter(m => getDaysToExpiry(m.expiryDate) <= 0).length;
+        const nearCount = medicines.filter(m => {
+          const d = getDaysToExpiry(m.expiryDate);
+          return d > 0 && d <= (settings?.inventory?.expiryWarningPeriodDays || 45);
+        }).length;
+
+        if (expiredCount === 0 && nearCount === 0) return null;
+
+        const totalAlerts = expiredCount + nearCount;
+        const severity = settings?.inventory?.expiryAlertSeverity || "high";
+
+        let severityBg = "bg-amber-50 border-amber-200 text-amber-950";
+        let severityLabel = "System Date Expiry warning buffer";
+        if (expiredCount > 0 || severity === "critical") {
+          severityBg = "bg-rose-50 border-rose-200 text-rose-950";
+          severityLabel = "Clinical Safety Expiry Alerts Triggered";
+        }
+
+        return (
+          <div className={`p-4 rounded-3xl border ${severityBg} shadow-sm space-y-3`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="w-5 h-5 text-rose-600 mt-0.5 shrink-0 animate-bounce" />
+                <div>
+                  <h3 className="text-xs font-black uppercase tracking-wider">{severityLabel}</h3>
+                  <p className="text-[10.5px] opacity-85 mt-0.5">
+                    The active monitor flagged <strong className="font-bold border-b border-current">{expiredCount} expired items</strong> and <strong className="font-bold border-b border-current">{nearCount} nearing clinical shelf-life limits</strong>.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 shrink-0 self-end sm:self-center">
+                <button
+                  onClick={() => setShowExpiryTrackingDialog(true)}
+                  className="px-3 py-1.5 bg-white/80 hover:bg-white text-slate-800 text-[10px] font-bold border border-slate-200 shadow-sm rounded-xl cursor-pointer transition select-none"
+                >
+                  View Details
+                </button>
+                <button
+                  onClick={() => setIsExpiryTrayOpen(!isExpiryTrayOpen)}
+                  className="px-3 py-1.5 bg-black/5 hover:bg-black/10 text-[10px] font-bold rounded-xl cursor-pointer transition select-none"
+                >
+                  {isExpiryTrayOpen ? "Collapse Warnings" : `Show ${totalAlerts} Warnings`}
+                </button>
+              </div>
+            </div>
+
+            {isExpiryTrayOpen && (
+              <div className="mt-2 text-[10.5px] max-h-36 overflow-y-auto space-y-1.5 border-t border-black/5 pt-3 divide-y divide-slate-100 divide-black/5">
+                {medicines
+                  .map(m => {
+                    const days = getDaysToExpiry(m.expiryDate);
+                    return { m, days };
+                  })
+                  .filter(({ days }) => days <= (settings?.inventory?.expiryWarningPeriodDays || 45))
+                  .sort((a, b) => a.days - b.days)
+                  .map(({ m, days }) => {
+                    const isExp = days <= 0;
+                    return (
+                      <div key={m.id} className="pt-2 flex items-center justify-between hover:translate-x-0.5 transition duration-150">
+                        <div className="flex items-center space-x-2">
+                          <span className={isExp ? "text-rose-650" : "text-amber-600 font-bold"}>●</span>
+                          <span>
+                            <strong>{m.name}</strong> (Batch: {m.batchNumber || "N/A"}) — Clinical stock is compromised.
+                          </span>
+                        </div>
+                        <span className={`font-mono font-black shrink-0 ml-3 ${isExp ? "text-rose-700" : "text-amber-800"}`}>
+                          {isExp ? `Expired ${-days} days ago` : `Expires in ${days} days`}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Low Stock Alerts Banner Panel */}
-      {lowStockMedicines.length > 0 && (
+      {lowStockMedicines.length > 0 && [UserRole.ADMIN, UserRole.PHARMACIST, UserRole.INVENTORY_MANAGER].includes(user?.role as any) && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start space-x-3.5 shadow-sm">
           <ShieldAlert className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
           <div className="flex-1">
             <h4 className="text-xs font-bold text-amber-900">Critical Low Stock Warning</h4>
             <p className="text-[11.5px] text-amber-800 leading-normal mt-0.5">
-              There are <strong className="font-semibold">{lowStockMedicines.length} medicines</strong> running extremely close to safe margin levels. Click below to view restock recommendations.
+              There are <strong className="font-semibold">{lowStockMedicines.length} products</strong> running extremely close to safe margin levels. Click below to view restock recommendations.
             </p>
             <div className="flex space-x-4 mt-2.5">
               {lowStockMedicines.slice(0, 3).map(med => (
@@ -267,119 +677,12 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Card 1: Todays Sales */}
-          <div className="p-6 bg-emerald-100/60 rounded-2xl border border-emerald-200/50 relative overflow-hidden flex flex-col justify-between h-40">
-            <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
-            <div className="flex items-center justify-between z-10">
-              <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-lg shadow-sm">
-                💵
-              </div>
-              <button className="text-slate-500 hover:text-slate-700 font-extrabold text-xs">···</button>
-            </div>
-            <div className="mt-4 z-10">
-              <p className="text-[11px] font-semibold text-emerald-800 tracking-wide uppercase">
-                Todays Sales
-              </p>
-              <div className="flex items-baseline space-x-2 mt-1">
-                <span className="font-sans font-bold text-2xl text-emerald-950">
-                  {currencySymbol}{metrics.todaysSales.value.toFixed(2)}
-                </span>
-                <span className="text-[10px] font-extrabold text-emerald-700 bg-white/60 px-1.5 py-0.5 rounded-md">
-                  {metrics.todaysSales.changePercent >= 0 ? "+" : ""}{metrics.todaysSales.changePercent.toFixed(1)}%
-                </span>
-              </div>
-              <p className="text-[10px] text-emerald-700 font-semibold mt-1">
-                {metrics.todaysSales.changePercent >= 0 ? "+" : ""}{metrics.todaysSales.changePercent.toFixed(1)}% growth rate today
-              </p>
-            </div>
-          </div>
-
-          {/* Card 2: Available Categories */}
-          <div className="p-6 bg-teal-100/60 rounded-2xl border border-teal-200/50 relative overflow-hidden flex flex-col justify-between h-40">
-            <div className="absolute right-0 top-0 w-32 h-32 bg-teal-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
-            <div className="flex items-center justify-between z-10">
-              <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-lg shadow-sm">
-                🗂️
-              </div>
-              <button className="text-slate-500 hover:text-slate-700 font-extrabold text-xs">···</button>
-            </div>
-            <div className="mt-4 z-10">
-              <p className="text-[11px] font-semibold text-teal-800 tracking-wide uppercase">
-                Available Categories
-              </p>
-              <div className="flex items-baseline space-x-2 mt-1">
-                <span className="font-sans font-bold text-2xl text-teal-950">
-                  {metrics.availableCategories.value}
-                </span>
-                <span className="text-[10px] font-extrabold text-teal-700 bg-white/60 px-1.5 py-0.5 rounded-md">
-                  Active
-                </span>
-              </div>
-              <p className="text-[10px] text-teal-700 font-semibold mt-1">
-                {metrics.availableCategories.value} categorization matrices registered
-              </p>
-            </div>
-          </div>
-
-          {/* Card 3: Expired Medicines */}
-          <div className="p-6 bg-rose-100/60 rounded-2xl border border-rose-200/50 relative overflow-hidden flex flex-col justify-between h-40">
-            <div className="absolute right-0 top-0 w-32 h-32 bg-rose-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
-            <div className="flex items-center justify-between z-10">
-              <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-lg shadow-sm">
-                ⚠️
-              </div>
-              <button className="text-slate-500 hover:text-slate-700 font-extrabold text-xs">···</button>
-            </div>
-            <div className="mt-4 z-10">
-              <p className="text-[11px] font-semibold text-rose-800 tracking-wide uppercase">
-                Expired Medicines
-              </p>
-              <div className="flex items-baseline space-x-2 mt-1">
-                <span className="font-sans font-bold text-2xl text-rose-950">
-                  {metrics.expiredMedicines.count} List
-                </span>
-                <span className="text-[10px] font-extrabold text-rose-700 bg-white/60 px-1.5 py-0.5 rounded-md">
-                  {medicines.length > 0 ? ((metrics.expiredMedicines.count / medicines.length) * 100).toFixed(1) : "0"}% Pct
-                </span>
-              </div>
-              <p className="text-[10px] text-rose-700 font-semibold mt-1">
-                {metrics.expiredMedicines.count} active product batches flagged expired
-              </p>
-            </div>
-          </div>
-
-          {/* Card 4: System Users */}
-          <div className="p-6 bg-indigo-100/60 rounded-2xl border border-indigo-200/50 relative overflow-hidden flex flex-col justify-between h-40">
-            <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
-            <div className="flex items-center justify-between z-10">
-              <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-lg shadow-sm">
-                👥
-              </div>
-              <button className="text-slate-500 hover:text-slate-700 font-extrabold text-xs">···</button>
-            </div>
-            <div className="mt-4 z-10">
-              <p className="text-[11px] font-semibold text-indigo-800 tracking-wide uppercase">
-                System Users
-              </p>
-              <div className="flex items-baseline space-x-2 mt-1">
-                <span className="font-sans font-bold text-2xl text-indigo-950">
-                  {metrics.systemUsers.count}
-                </span>
-                <span className="text-[10px] font-extrabold text-indigo-700 bg-white/60 px-1.5 py-0.5 rounded-md">
-                  Staff
-                </span>
-              </div>
-              <p className="text-[10px] text-indigo-700 font-semibold mt-1">
-                {metrics.systemUsers.count} workstation operators active
-              </p>
-            </div>
-          </div>
-        </div>
+        {renderRoleCards()}
       </div>
 
       {/* Charts Section: Graph Report & Total Sales Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+      {[UserRole.ADMIN, UserRole.PHARMACIST, UserRole.CASHIER, UserRole.ACCOUNTANT].includes(user?.role as any) && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
         
         {/* Graph Report: Donut charts */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between">
@@ -581,6 +884,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
           })()}
         </div>
       </div>
+      )}
 
       {/* Recent Sales List Section */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm overflow-hidden">
@@ -664,8 +968,9 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
                       <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200/60 p-0.5">
                         <button
                           id={`btn-qty-dec-${sale.id}`}
+                          disabled={user?.role !== UserRole.ADMIN}
                           onClick={() => handleQuantityChange(sale.id, 0, -1)}
-                          className="w-5 h-5 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all font-bold"
+                          className={`w-5 h-5 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all font-bold ${user?.role !== UserRole.ADMIN ? "opacity-35 cursor-not-allowed" : ""}`}
                         >
                           -
                         </button>
@@ -674,8 +979,9 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
                         </span>
                         <button
                           id={`btn-qty-inc-${sale.id}`}
+                          disabled={user?.role !== UserRole.ADMIN}
                           onClick={() => handleQuantityChange(sale.id, 0, 1)}
-                          className="w-5 h-5 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all font-bold"
+                          className={`w-5 h-5 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all font-bold ${user?.role !== UserRole.ADMIN ? "opacity-35 cursor-not-allowed" : ""}`}
                         >
                           +
                         </button>
@@ -708,13 +1014,15 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                      <button 
-                        id={`btn-sale-delete-${sale.id}`}
-                        onClick={() => handleDeleteSale(sale.id, sale.invoiceNumber)}
-                        className="p-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {user?.role === UserRole.ADMIN && (
+                        <button 
+                          id={`btn-sale-delete-${sale.id}`}
+                          onClick={() => handleDeleteSale(sale.id, sale.invoiceNumber)}
+                          className="p-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -779,6 +1087,126 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings }: Dash
           </div>
         </div>
       </div>
+
+      {/* Detailed Expiry Monitoring Dialog */}
+      {showExpiryTrackingDialog && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-150 shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-5 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center text-rose-650">
+                  <AlertTriangle className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-rose-950 uppercase tracking-wide">Integrated Expiry Risk Registry</h3>
+                  <p className="text-xs text-rose-700 font-medium">Auto-tracking expired and expiring clinical formulations in real time.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExpiryTrackingDialog(false)}
+                className="p-1.5 hover:bg-rose-100 rounded-xl text-rose-800 transition cursor-pointer select-none"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-5">
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-150 p-4 rounded-2xl select-none">
+                <div className="text-xs">
+                  <span className="font-extrabold text-slate-700">Warning Days Buffer Threshold: </span>
+                  <span className="font-mono font-bold text-teal-700">{settings?.inventory?.expiryWarningPeriodDays || 45} Days</span>
+                </div>
+                <div className="text-xs">
+                  <span className="font-extrabold text-slate-700">Total Flagged Batches: </span>
+                  <span className="font-mono font-bold text-rose-700">
+                    {medicines.filter(m => getDaysToExpiry(m.expiryDate) <= (settings?.inventory?.expiryWarningPeriodDays || 45)).length} Products
+                  </span>
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-4">
+                {medicines.filter(m => getDaysToExpiry(m.expiryDate) <= (settings?.inventory?.expiryWarningPeriodDays || 45)).length === 0 ? (
+                  <div className="text-center py-12 bg-slate-50/60 rounded-2xl border border-dashed border-slate-205">
+                    <p className="text-xs font-bold text-slate-400">No active products match system expiration warning conditions.</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Every medicine stored in warehouse has valid and safe shelf durations.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden border border-slate-150 rounded-2xl divide-y divide-slate-100">
+                    {medicines
+                      .map(m => {
+                        const days = getDaysToExpiry(m.expiryDate);
+                        return { m, days };
+                      })
+                      .filter(({ days }) => days <= (settings?.inventory?.expiryWarningPeriodDays || 45))
+                      .sort((a, b) => a.days - b.days)
+                      .map(({ m, days }) => {
+                        const isExpired = days <= 0;
+                        const cat = categories.find(c => c.id === m.categoryId)?.name || "N/A Category";
+                        const supplierName = suppliers.find(s => s.id === m.supplierId)?.name || "N/A Supplier";
+                        const supplierEmail = suppliers.find(s => s.id === m.supplierId)?.email || "N/A Email";
+                        
+                        return (
+                          <div key={m.id} className={`p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition ${isExpired ? "bg-rose-50/20 hover:bg-rose-50/40" : "hover:bg-slate-50/50"}`}>
+                            <div className="space-y-1 md:max-w-md">
+                              <div className="flex items-center space-x-2">
+                                <span className={`text-[9.5px] font-black uppercase px-2 py-0.5 rounded-md border ${isExpired ? "bg-rose-105 border-rose-200 text-rose-800" : "bg-amber-100 border-amber-205 text-amber-800"}`}>
+                                  {isExpired ? "EXPIRED" : "NEAR EXPIRY"}
+                                </span>
+                                <h4 className="text-xs font-black text-slate-800">{m.name}</h4>
+                              </div>
+                              <p className="text-[10.5px] text-slate-400 italic font-mono font-medium leading-tight">Generic Name: {m.genericName}</p>
+                              
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-slate-505 text-slate-500 font-semibold pt-1">
+                                <div>SKU: <span className="font-mono text-slate-700">{m.SKU}</span></div>
+                                <div>Batch: <span className="font-mono text-slate-700">{m.batchNumber || "N/A"}</span></div>
+                                <div>Category: <span className="text-slate-700">{cat}</span></div>
+                                <div>Cost Price: <span className="font-mono text-slate-705 text-slate-700">{formatCurrency(m.buyingPrice || m.sellingPrice * 0.7, currencySymbol)}</span></div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-row md:flex-col md:items-end justify-between items-center text-right shrink-0">
+                              <div className="text-left md:text-right space-y-0.5">
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Status Alarm</div>
+                                {isExpired ? (
+                                  <div className="text-[10px] font-mono font-black text-rose-750 animate-pulse uppercase leading-none mt-1">
+                                    Passed by {-days} days
+                                  </div>
+                                ) : (
+                                  <div className="text-[10px] font-mono font-black text-amber-705 uppercase leading-none mt-1">
+                                    Retires in {days} days
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="mt-2 text-left md:text-right">
+                                <p className="text-[9.5px] text-slate-405 font-bold uppercase tracking-wide">Stock & Supplier</p>
+                                <p className="text-xs font-extrabold text-slate-700 mt-1 leading-none">{m.quantity} Boxes remaining</p>
+                                <p className="text-[9px] text-slate-400 mt-1 leading-tight">{supplierName} ({supplierEmail})</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-150 flex justify-end">
+              <button
+                onClick={() => setShowExpiryTrackingDialog(false)}
+                className="px-5 py-2 bg-[#093530] hover:bg-[#0c4a43] text-teal-300 font-bold text-xs rounded-xl shadow-md transition cursor-pointer select-none"
+              >
+                Acknowledge Warnings & Alarms
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

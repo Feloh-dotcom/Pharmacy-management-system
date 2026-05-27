@@ -4,12 +4,21 @@
  */
 
 import { useState, useEffect, FormEvent } from "react";
-import { ShoppingBag, Plus, Clipboard, CheckCircle2, ChevronRight, RefreshCw, X } from "lucide-react";
-import { PurchaseOrder, Supplier } from "../types";
+import { ShoppingBag, Plus, Clipboard, CheckCircle2, ChevronRight, RefreshCw, X, Camera, Sparkles } from "lucide-react";
+import { PurchaseOrder, Supplier, Medicine } from "../types";
+import { formatCurrency } from "../utils";
+import BarcodeScannerModal, { playScanBeep } from "./BarcodeScannerModal";
 
-export default function Orders() {
+interface OrdersProps {
+  settings?: any;
+}
+
+export default function Orders({ settings }: OrdersProps) {
+  const currencySymbol = settings?.general?.currency || "Ksh.";
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [isPOScannerOpen, setIsPOScannerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Form states
@@ -18,6 +27,27 @@ export default function Orders() {
   const [medicineName, setMedicineName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [buyingPrice, setBuyingPrice] = useState("");
+
+  const handleBarcodeScanInPO = (barcodeVal: string) => {
+    const clean = barcodeVal.trim();
+    if (!clean) return;
+
+    const matched = medicines.find(
+      m => m.barcode === clean || m.id === clean || m.SKU.toLowerCase() === clean.toLowerCase()
+    );
+
+    if (matched) {
+      playScanBeep(true);
+      setMedicineName(matched.name);
+      setBuyingPrice(String(matched.buyingPrice));
+      if (matched.supplierId) {
+        setSelectedSupplierId(matched.supplierId);
+      }
+    } else {
+      playScanBeep(false);
+      alert(`STOCK NOT FOUND: Product barcode "${clean}" did not match catalog indexes. Enter manually.`);
+    }
+  };
 
   const loadPOData = async () => {
     try {
@@ -28,6 +58,11 @@ export default function Orders() {
       const sRes = await fetch("/api/suppliers");
       const sList = await sRes.json();
       setSuppliers(sList);
+
+      const mRes = await fetch("/api/medicines");
+      if (mRes.ok) {
+        setMedicines(await mRes.json());
+      }
     } catch (e) {
       console.error(e);
     }
@@ -149,7 +184,7 @@ export default function Orders() {
                         <span>-</span>
                         <span className="text-slate-450 font-bold">Qty: {item.quantity}</span>
                         <span>-</span>
-                        <span>Price: ${item.buyingPrice.toFixed(2)}</span>
+                        <span>Price: {formatCurrency(item.buyingPrice, currencySymbol)}</span>
                       </div>
                     ))}
                   </div>
@@ -158,7 +193,7 @@ export default function Orders() {
                 <div className="text-right flex flex-col justify-between items-end gap-3 shrink-0">
                   <div>
                     <span className="text-[10px] text-slate-400 font-semibold block">Total Cost</span>
-                    <span className="text-base font-black text-slate-800 font-mono">${order.totalAmount.toLocaleString()}</span>
+                    <span className="text-base font-black text-slate-800 font-mono">{formatCurrency(order.totalAmount, currencySymbol)}</span>
                   </div>
 
                   <div className="flex space-x-2">
@@ -219,18 +254,51 @@ export default function Orders() {
                 </select>
               </div>
 
-              <div>
+               <div>
                 <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                  drug formulation Name
+                  Drug Formulation Name (or Scan Barcode)
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={medicineName}
-                  onChange={(e) => setMedicineName(e.target.value)}
-                  placeholder="e.g. Paracetamol Tablets 500mg"
-                  className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 p-2.5 rounded-xl"
-                />
+                <div className="flex space-x-2 items-center">
+                  <input
+                    type="text"
+                    required
+                    value={medicineName}
+                    onChange={(e) => setMedicineName(e.target.value)}
+                    placeholder="e.g. Paracetamol Tablets 500mg"
+                    className="flex-1 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsPOScannerOpen(true)}
+                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-900 rounded-xl transition cursor-pointer shrink-0"
+                    title="Scan supplier box barcode"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                </div>
+                {/* Quick Autofill Selector option */}
+                {medicines.length > 0 && (
+                  <div className="mt-1.5 font-sans">
+                    <select
+                      onChange={(e) => {
+                        const m = medicines.find(item => item.id === e.target.value);
+                        if (m) {
+                          setMedicineName(m.name);
+                          setBuyingPrice(String(m.buyingPrice));
+                          if (m.supplierId) setSelectedSupplierId(m.supplierId);
+                        }
+                      }}
+                      className="w-full text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded-xl p-1.5 outline-none cursor-pointer"
+                    >
+                      <option value="">-- Quick autofill from current products list --</option>
+                      {medicines.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} {m.barcode ? `(EAN: ${m.barcode})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -250,7 +318,7 @@ export default function Orders() {
 
                 <div>
                   <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                    Unit Buying Cost ($)
+                    Unit Buying Cost ({currencySymbol})
                   </label>
                   <input
                     type="number"
@@ -274,6 +342,18 @@ export default function Orders() {
           </div>
         </div>
       )}
+
+      {/* Webcam purchase scanner detection channel */}
+      <BarcodeScannerModal
+        isOpen={isPOScannerOpen}
+        onClose={() => setIsPOScannerOpen(false)}
+        onScanSuccess={(val) => {
+          handleBarcodeScanInPO(val);
+        }}
+        title="Procurement Barcode Scanner"
+        description="Scan any incoming formulation packaging barcode to instantly extract name, cost and supplier profiles."
+        customMedicines={medicines}
+      />
 
     </div>
   );

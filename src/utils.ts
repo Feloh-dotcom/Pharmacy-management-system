@@ -36,29 +36,51 @@ export function safeToISOString(dateVal: any, fallback = "N/A"): string {
 }
 
 /**
- * Formats date cleanly as "YYYY-MM-DD HH:MM:SS" or fallback
+ * Formats date cleanly as "YYYY-MM-DD HH:MM:SS" or customized format
  */
 export function formatSafeDateTime(dateVal: any, fallback = "N/A"): string {
   const d = parseSafeDate(dateVal);
   if (!d) return fallback;
   
   try {
-    const iso = d.toISOString();
-    return iso.replace("T", " ").slice(0, 19);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const seconds = String(d.getSeconds()).padStart(2, "0");
+    
+    const activeFormat = localStorage.getItem("halomedical_date_format") || "YYYY-MM-DD";
+    let formattedDate = `${year}-${month}-${day}`;
+    if (activeFormat === "DD/MM/YYYY") {
+      formattedDate = `${day}/${month}/${year}`;
+    } else if (activeFormat === "MM/DD/YYYY") {
+      formattedDate = `${month}/${day}/${year}`;
+    }
+    return `${formattedDate} ${hours}:${minutes}:${seconds}`;
   } catch (e) {
     return fallback;
   }
 }
 
 /**
- * Formats date as "YYYY-MM-DD" safely
+ * Formats date as "YYYY-MM-DD" safely or customized format
  */
 export function formatSafeDateOnly(dateVal: any, fallback = "N/A"): string {
   const d = parseSafeDate(dateVal);
   if (!d) return fallback;
   try {
-    const iso = d.toISOString();
-    return iso.slice(0, 10);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    
+    const activeFormat = localStorage.getItem("halomedical_date_format") || "YYYY-MM-DD";
+    if (activeFormat === "DD/MM/YYYY") {
+      return `${day}/${month}/${year}`;
+    } else if (activeFormat === "MM/DD/YYYY") {
+      return `${month}/${day}/${year}`;
+    }
+    return `${year}-${month}-${day}`;
   } catch (e) {
     return fallback;
   }
@@ -73,3 +95,120 @@ export function isDateExpired(expiryDate: any): boolean {
   if (!d) return false;
   return d.getTime() < Date.now();
 }
+
+/**
+ * Calculates remaining days from today to an expiry date.
+ * Returns negative if the date has passed.
+ */
+export function getDaysToExpiry(expiryDate: any): number {
+  const expiry = parseSafeDate(expiryDate);
+  if (!expiry) return 0;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const target = new Date(expiry.getTime());
+  target.setHours(0, 0, 0, 0);
+  
+  const diffTime = target.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+}
+
+/**
+ * Returns color-coded expiry status: 'expired' (<= 0 days), 'near' (<= warningPeriodDays), or 'safe'
+ */
+export function getExpiryStatus(expiryDate: any, warningPeriodDays = 45): "expired" | "near-expiry" | "safe" {
+  const days = getDaysToExpiry(expiryDate);
+  if (days <= 0) return "expired";
+  if (days <= warningPeriodDays) return "near-expiry";
+  return "safe";
+}
+
+/**
+ * Formats a given number into professional currency layout (e.g. Ksh. 1,500.00).
+ * Space is included after the currency symbol.
+ */
+export function formatCurrency(amount: number, symbol = "Ksh.", precision = 2): string {
+  const safeAmount = typeof amount === "number" && !isNaN(amount) ? amount : 0;
+  const formattedSymbol = symbol && !symbol.endsWith(" ") ? `${symbol} ` : symbol || "";
+  const formattedNumber = safeAmount.toLocaleString("en-US", {
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  });
+  return `${formattedSymbol}${formattedNumber}`;
+}
+
+interface ProfileCompletionUser {
+  avatarUrl?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  nationalId?: string;
+  address?: string;
+  passwordSetupCompleted?: boolean;
+  role?: string;
+}
+
+/**
+ * Computes profile completion progress based on 8 key benchmarks:
+ * Avatar, Name, Email, Phone, National ID, Address, Custom Password, and assigned Role.
+ */
+export function calculateProfileCompletion(user: ProfileCompletionUser | null): {
+  percent: number;
+  criteria: Record<string, boolean>;
+  missing: string[];
+} {
+  if (!user) {
+    return {
+      percent: 0,
+      criteria: {},
+      missing: ["Session unrecognized"]
+    };
+  }
+
+  // Standard placeholder avatar detection
+  const hasAvatar = !!user.avatarUrl && 
+    !user.avatarUrl.includes("photo-1535713875002-d1d0cf377fde");
+
+  const hasName = !!user.name && user.name.trim().length > 1;
+  const hasEmail = !!user.email && user.email.trim().length > 3;
+  const hasPhone = !!user.phone && user.phone.trim().length >= 7;
+  const hasNationalId = !!user.nationalId && user.nationalId.trim().length >= 4;
+  const hasAddress = !!user.address && user.address.trim().length >= 5;
+  const hasPassword = !!user.passwordSetupCompleted;
+  const hasRole = !!user.role;
+
+  const steps = [
+    { key: "avatar", label: "Profile Picture Unique Accent", val: hasAvatar },
+    { key: "name", label: "Full Corporate Name", val: hasName },
+    { key: "email", label: "Verified Email Address", val: hasEmail },
+    { key: "phone", label: "Direct Phone Number", val: hasPhone },
+    { key: "nationalId", label: "National ID / Passport No.", val: hasNationalId },
+    { key: "address", label: "Residence/Operational Address", val: hasAddress },
+    { key: "password", label: "Master Cryptographic Password", val: hasPassword },
+    { key: "role", label: "Assigned Structural Role", val: hasRole }
+  ];
+
+  const criteria: Record<string, boolean> = {};
+  const missing: string[] = [];
+  let completedCount = 0;
+
+  for (const step of steps) {
+    criteria[step.key] = step.val;
+    if (step.val) {
+      completedCount++;
+    } else {
+      missing.push(step.label);
+    }
+  }
+
+  const percent = Math.round((completedCount / steps.length) * 100);
+
+  return {
+    percent,
+    criteria,
+    missing
+  };
+}
+

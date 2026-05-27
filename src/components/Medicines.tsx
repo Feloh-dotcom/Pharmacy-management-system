@@ -7,18 +7,41 @@ import { useState, useEffect, FormEvent } from "react";
 import { 
   Plus, Search, Edit2, Trash2, Tag, 
   Layers, Package, ShieldAlert, Sparkles, Check, 
-  Database, RefreshCw, X
+  Database, RefreshCw, X, Camera, Barcode
 } from "lucide-react";
 import { Medicine, Category, Supplier } from "../types";
-import { formatSafeDateOnly, isDateExpired } from "../utils";
+import { formatSafeDateOnly, isDateExpired, formatCurrency, getDaysToExpiry } from "../utils";
+import BarcodeScannerModal from "./BarcodeScannerModal";
+import BarcodeRenderer from "./BarcodeRenderer";
+import { useHardwareBarcodeScanner } from "../hooks/useHardwareBarcodeScanner";
 
 interface MedicinesProps {
   editFocusMedicine: Medicine | null;
   clearEditFocus: () => void;
+  settings?: any;
+  user?: any;
+  rolePermissions?: any[];
 }
 
-export default function Medicines({ editFocusMedicine, clearEditFocus }: MedicinesProps) {
+export default function Medicines({ editFocusMedicine, clearEditFocus, settings, user, rolePermissions }: MedicinesProps) {
+  const currencySymbol = settings?.general?.currency || "Ksh.";
   const [medicines, setMedicines] = useState<Medicine[]>([]);
+
+  // RBAC Permission Resolution
+  const userPermissions = (rolePermissions || []).find(rp => rp.role === user?.role)?.permissions || {
+    manageMedicines: user?.role === "Admin" || user?.role === "Pharmacist",
+    manageInventory: user?.role === "Admin" || user?.role === "Pharmacist",
+    addProducts: user?.role === "Admin" || user?.role === "Pharmacist",
+    editProducts: user?.role === "Admin" || user?.role === "Pharmacist",
+    addCategories: user?.role === "Admin" || user?.role === "Pharmacist",
+    editCategories: user?.role === "Admin" || user?.role === "Pharmacist",
+    adjustStock: user?.role === "Admin" || user?.role === "Pharmacist"
+  };
+
+  const canAddProduct = !!userPermissions.addProducts;
+  const canEditProduct = !!userPermissions.editProducts;
+  const canAdjustStock = !!userPermissions.adjustStock;
+  const canDeleteProduct = user?.role === "Admin" || user?.role === "Pharmacist";
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +65,21 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
   const [prescriptionRequired, setPrescriptionRequired] = useState(false);
   const [barcode, setBarcode] = useState("");
   const [taxVat, setTaxVat] = useState("16");
+
+  const [isFormScannerOpen, setIsFormScannerOpen] = useState(false);
+  const [isGeneralScannerOpen, setIsGeneralScannerOpen] = useState(false);
+
+  // Auto-intercept background hardware physical wedge scans
+  useHardwareBarcodeScanner((scannedValue) => {
+    if (showFormModal) {
+      setBarcode(scannedValue);
+      setToastMessage(`Hardware Wedge: Captured "${scannedValue}" into product Form!`);
+    } else {
+      setSearchTerm(scannedValue);
+      setToastMessage(`Hardware Wedge: Lookup barcode "${scannedValue}"!`);
+    }
+    setTimeout(() => setToastMessage(null), 3000);
+  }, true);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -72,6 +110,12 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (settings?.financial?.vatPercentage !== undefined && !editingId) {
+      setTaxVat(String(settings.financial.vatPercentage));
+    }
+  }, [settings?.financial?.vatPercentage, editingId]);
 
   // Handle outside focus request to edit medicine (from Dashboard link clicks)
   useEffect(() => {
@@ -142,7 +186,10 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
     try {
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-User-Email": user?.email || ""
+        },
         body: JSON.stringify(payload)
       });
       if (res.ok) {
@@ -162,7 +209,12 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
   const handleDelete = async (medId: string) => {
     if (!confirm("Are you sure you want to retire this medicine profile?")) return;
     try {
-      const res = await fetch(`/api/medicines/${medId}`, { method: "DELETE" });
+      const res = await fetch(`/api/medicines/${medId}`, { 
+        method: "DELETE",
+        headers: {
+          "X-User-Email": user?.email || ""
+        }
+      });
       if (res.ok) {
         setToastMessage("Medicine securely flagged and removed from active list.");
         loadData();
@@ -206,20 +258,22 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-sans font-bold text-xl text-slate-800 tracking-tight">
-            Medicine Inventory
+            Product Inventory
           </h1>
           <p className="text-xs text-slate-400 font-medium mt-1">
             Browse corporate formulation profiles, barcode SKUs, drug categories, and expiry matrices.
           </p>
         </div>
 
-        <button
-          onClick={handleOpenCreate}
-          className="flex items-center space-x-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4.5 py-2.5 rounded-xl shadow-md cursor-pointer transition-all duration-200"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add New formulation</span>
-        </button>
+        {canAddProduct && (
+          <button
+            onClick={handleOpenCreate}
+            className="flex items-center space-x-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4.5 py-2.5 rounded-xl shadow-md cursor-pointer transition-all duration-200"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New formulation</span>
+          </button>
+        )}
       </div>
 
       {/* Statistics and alerts strip */}
@@ -261,15 +315,26 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
       {/* Filter and query controls */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row flex-wrap items-center gap-4">
         {/* Search Input */}
-        <div className="relative flex-1 min-w-[200px] w-full">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search SKU, trade or generic formulation..."
-            className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
-          />
+        <div className="relative flex-1 min-w-[200px] w-full flex space-x-2 items-center">
+          <div className="relative flex-1 font-sans">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search SKU, barcode or generic formulation..."
+              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsGeneralScannerOpen(true)}
+            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-[#093530] rounded-xl transition flex items-center space-x-1 border border-slate-200 cursor-pointer shadow-sm shrink-0"
+            title="Scan code to search database"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-black px-0.5 uppercase">Scan Search</span>
+          </button>
         </div>
 
         {/* Category filter dropdown selection */}
@@ -373,8 +438,8 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
                       </td>
                       <td className="py-4.5 px-5">
                         <div className="space-y-0.5 font-mono">
-                          <p className="text-[10.5px] text-slate-400">Buy: ${med.buyingPrice.toFixed(2)}</p>
-                          <p className="text-[11.5px] font-bold text-teal-700">Sell: ${med.sellingPrice.toFixed(2)}</p>
+                          <p className="text-[10.5px] text-slate-400">Buy: {formatCurrency(med.buyingPrice, currencySymbol)}</p>
+                          <p className="text-[11.5px] font-bold text-teal-700">Sell: {formatCurrency(med.sellingPrice, currencySymbol)}</p>
                         </div>
                       </td>
                       <td className="py-4.5 px-5">
@@ -395,15 +460,53 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
                         </div>
                       </td>
                       <td className="py-4.5 px-5">
-                        <span 
-                          className={`font-semibold tracking-wide font-mono ${
-                            isExpired 
-                              ? "text-rose-600 font-bold bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-lg" 
-                              : "text-slate-600"
-                          }`}
-                        >
-                          {formatSafeDateOnly(med.expiryDate)}
-                        </span>
+                        {(() => {
+                          const daysLeft = getDaysToExpiry(med.expiryDate);
+                          const isExp = daysLeft <= 0;
+                          const bufferDays = settings?.inventory?.expiryWarningPeriodDays || 45;
+                          const isNearExp = daysLeft > 0 && daysLeft <= bufferDays;
+
+                          if (isExp) {
+                            return (
+                              <div className="space-y-1">
+                                <span className="font-extrabold font-mono text-rose-700 bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-md text-[10px] uppercase inline-block">
+                                  EXPIRED
+                                </span>
+                                <p className="text-[9.5px] font-semibold text-rose-500 font-mono italic">
+                                  Passed by {-daysLeft}d
+                                </p>
+                                <p className="text-[8.5px] text-slate-400 font-mono font-medium">
+                                  {formatSafeDateOnly(med.expiryDate)}
+                                </p>
+                              </div>
+                            );
+                          } else if (isNearExp) {
+                            return (
+                              <div className="space-y-1">
+                                <span className="font-extrabold font-mono text-amber-805 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md text-[10px] uppercase inline-block">
+                                  NEAR EXPIRY
+                                </span>
+                                <p className="text-[9.5px] font-semibold text-amber-600 font-mono italic">
+                                  Expires in {daysLeft}d
+                                </p>
+                                <p className="text-[8.5px] text-slate-400 font-mono font-medium">
+                                  {formatSafeDateOnly(med.expiryDate)}
+                                </p>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div className="space-y-0.5">
+                                <span className="text-slate-600 font-extrabold font-mono text-[10.5px]">
+                                  {formatSafeDateOnly(med.expiryDate)}
+                                </span>
+                                <p className="text-[9px] text-teal-605 font-bold font-sans uppercase">
+                                  Safe ({daysLeft} days)
+                                </p>
+                              </div>
+                            );
+                          }
+                        })()}
                       </td>
                       <td className="py-4.5 px-5 text-center">
                         {med.prescriptionRequired ? (
@@ -418,20 +521,27 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
                       </td>
                       <td className="py-4.5 px-5 text-right pr-6">
                         <div className="flex items-center justify-end space-x-1.5">
-                          <button
-                            id={`btn-med-edit-${med.id}`}
-                            onClick={() => fillFormForEdit(med)}
-                            className="p-1 px-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            id={`btn-med-delete-${med.id}`}
-                            onClick={() => handleDelete(med.id)}
-                            className="p-1 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {canEditProduct && (
+                            <button
+                              id={`btn-med-edit-${med.id}`}
+                              onClick={() => fillFormForEdit(med)}
+                              className="p-1 px-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 transition"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {canDeleteProduct && (
+                            <button
+                              id={`btn-med-delete-${med.id}`}
+                              onClick={() => handleDelete(med.id)}
+                              className="p-1 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {!canEditProduct && !canDeleteProduct && (
+                            <span className="text-[10px] text-slate-400 font-medium italic">Read-only</span>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -529,19 +639,68 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
                 </div>
 
                 {/* Barcode representation */}
-                <div>
+                <div className="flex flex-col space-y-1">
                   <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    EAN Barcode / QR
+                    Barcode ID / EAN Range
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={barcode}
-                    onChange={(e) => setBarcode(e.target.value)}
-                    className="w-full text-xs font-mono text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
+                  <div className="flex space-x-1.5 items-center">
+                    <input
+                      type="text"
+                      required
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      placeholder="e.g. 8901234567890"
+                      className="flex-1 text-xs font-mono text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                    />
+                    
+                    {/* Active Form scan camera trigger */}
+                    <button
+                      type="button"
+                      onClick={() => setIsFormScannerOpen(true)}
+                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-900 rounded-xl transition cursor-pointer shrink-0"
+                      title="Scan using webcam"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </button>
+
+                    {/* Auto code creator */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const randomSuffix = Math.floor(1000000000 + Math.random() * 9000000000);
+                        setBarcode(`890${randomSuffix}`);
+                        setToastMessage("Created unique EAN barcode profile.");
+                        setTimeout(() => setToastMessage(null), 3000);
+                      }}
+                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-800 rounded-xl transition cursor-pointer shrink-0 flex items-center space-x-1 font-bold text-[10px]"
+                      title="Auto generate barcode"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Gen</span>
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              {/* Live interactive label printing block */}
+              {barcode.trim() && (
+                <div className="border border-teal-100 bg-teal-50/10 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="shrink-0 flex justify-center w-full md:w-auto">
+                    <BarcodeRenderer
+                      value={barcode}
+                      productName={name || "New Product Profile"}
+                      price={Number(sellingPrice) || 0}
+                      showPrint={true}
+                    />
+                  </div>
+                  <div className="space-y-1 text-left flex-1">
+                    <h4 className="text-[11px] font-extrabold text-[#093530] uppercase">Product Label Dispatch Sticker</h4>
+                    <p className="text-[10px] text-slate-500 leading-normal">
+                      The dynamically generated vector pattern updates in real-time as you modify pricing or description details. Click **Print** to send a 50mm x 30mm standard label payload to your thermal printers.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-3 gap-4">
                 {/* Category ID mapping */}
@@ -596,7 +755,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
                 {/* Pack Buying Price cost */}
                 <div>
                   <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Buying Price Cost ($)
+                    Buying Price Cost ({currencySymbol})
                   </label>
                   <input
                     type="number"
@@ -612,7 +771,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
                 {/* Pack Retail Selling Price */}
                 <div>
                   <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Selling Retail price ($)
+                    Selling Retail price ({currencySymbol})
                   </label>
                   <input
                     type="number"
@@ -636,7 +795,8 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
                     placeholder="100"
-                    className="w-full text-[12px] font-mono font-black text-slate-700 bg-slate-50 border border-slate-200 p-1.5 rounded-xl"
+                    disabled={!canAdjustStock}
+                    className="w-full text-[12px] font-mono font-black text-slate-700 bg-slate-50 border border-slate-200 p-1.5 rounded-xl disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                   />
                 </div>
 
@@ -650,7 +810,8 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
                     required
                     value={minStockLevel}
                     onChange={(e) => setMinStockLevel(e.target.value)}
-                    className="w-full text-[12px] font-mono font-black text-slate-700 bg-slate-50 border border-slate-200 p-1.5 rounded-xl"
+                    disabled={!canAdjustStock}
+                    className="w-full text-[12px] font-mono font-black text-slate-700 bg-slate-50 border border-slate-200 p-1.5 rounded-xl disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -721,6 +882,34 @@ export default function Medicines({ editFocusMedicine, clearEditFocus }: Medicin
           </div>
         </div>
       )}
+
+      {/* Form Barcode Scanning Station */}
+      <BarcodeScannerModal
+        isOpen={isFormScannerOpen}
+        onClose={() => setIsFormScannerOpen(false)}
+        onScanSuccess={(val) => {
+          setBarcode(val);
+          setToastMessage(`Form: Populated barcode sequence "${val}"`);
+          setTimeout(() => setToastMessage(null), 3500);
+        }}
+        title="Form Barcode Acquisition"
+        description="Scan any product container to automatically extract and register its barcode sequence."
+        customMedicines={medicines}
+      />
+
+      {/* General Catalog Search Scan Portal */}
+      <BarcodeScannerModal
+        isOpen={isGeneralScannerOpen}
+        onClose={() => setIsGeneralScannerOpen(false)}
+        onScanSuccess={(val) => {
+          setSearchTerm(val);
+          setToastMessage(`Searched product matching barcode sequence "${val}"`);
+          setTimeout(() => setToastMessage(null), 3500);
+        }}
+        title="Inventory Search Scan Station"
+        description="Scan any item packaging to instantly search and isolate matching inventory profiles."
+        customMedicines={medicines}
+      />
 
     </div>
   );

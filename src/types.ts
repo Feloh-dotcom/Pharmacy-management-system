@@ -4,15 +4,14 @@
  */
 
 export enum UserRole {
-  SUPER_ADMIN = "Super Admin",
+  ADMIN = "Admin",
   PHARMACIST = "Pharmacist",
   CASHIER = "Cashier",
   INVENTORY_MANAGER = "Inventory Manager",
   SUPPLIER = "Supplier",
   CUSTOMER = "Customer",
   ACCOUNTANT = "Accountant",
-  STORE_MANAGER = "Store Manager",
-  STAFF_USER = "Staff/User",
+  USER = "User",
 }
 
 export interface User {
@@ -27,6 +26,20 @@ export interface User {
   salt?: string;
   failedLoginAttempts?: number;
   lockedUntil?: string;
+  phone?: string;
+  bio?: string;
+  nationalId?: string;
+  address?: string;
+  verificationStatus?: "Pending" | "Verified" | "Rejected" | "Under Review";
+  verificationSubmittedAt?: string;
+  verificationDetails?: {
+    selfieUrl?: string;
+    docType?: string;
+    submittedDocumentUrl?: string;
+    submittedAt?: string;
+    reviewerComment?: string;
+  };
+  passwordSetupCompleted?: boolean;
 }
 
 export interface Category {
@@ -99,10 +112,14 @@ export interface Sale {
   totalPrice: number;
   discount: number;
   taxAmount: number;
-  paymentMethod: "Cash" | "M-Pesa" | "Card";
+  paymentMethod: "Cash" | "M-Pesa" | "Card" | "Split";
   paymentStatus: "Paid" | "Refunded" | "Pending";
   cashierEmail: string;
   date: string; // ISO string
+  cashPaid?: number;
+  mpesaPaid?: number;
+  mpesaTransactionCode?: string;
+  mpesaPhoneNumber?: string;
 }
 
 export interface InventoryLog {
@@ -253,6 +270,9 @@ export interface SystemSettings {
     barcodeScanningEnabled: boolean;
     lowStockAlertActive: boolean;
     aiStockPredictionActive: boolean;
+    expiryAlertSeverity?: "critical" | "high" | "medium";
+    preventSaleOfExpiredGoods?: boolean;
+    notifyOnExpiryNear?: boolean;
   };
   notifications: {
     emailAlerts: boolean;
@@ -324,6 +344,11 @@ export interface RolePermissions {
     approvePurchases: boolean;
     manageInventory: boolean;
     modifySettings: boolean;
+    addProducts?: boolean;
+    editProducts?: boolean;
+    addCategories?: boolean;
+    editCategories?: boolean;
+    adjustStock?: boolean;
   };
 }
 

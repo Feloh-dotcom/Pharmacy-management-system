@@ -1,1 +1,159 @@
 @import "tailwindcss";
+
+:root {
+  /* Dynamic Configuration Slots */
+  --app-radius: 16px;
+  --app-primary: #0d9488;
+  --app-primary-hover: #0f766e;
+  --app-primary-light: #f0fdfa;
+  --app-primary-dark: #115e59;
+  --app-primary-border: #99f6e4;
+  --app-primary-darker: #0c4a43;
+  --app-primary-darker-hover: #042f2b;
+
+  --app-bg: #f8fafc;
+  --card-bg: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  
+  --sidebar-bg: #f8fafc;
+  --sidebar-border: #e2e8f0;
+
+  /* Tailwind CSS override linkages */
+  --radius-2xl: var(--app-radius);
+  --radius-3xl: calc(var(--app-radius) * 1.5);
+  --radius-xl: calc(var(--app-radius) * 0.75);
+  --radius-lg: calc(var(--app-radius) * 0.5);
+  --radius-md: calc(var(--app-radius) * 0.375);
+
+  /* Animation delays */
+  --anim-speed: 0.3s;
+}
+
+/* Global Overrides mapping tailwind components dynamically to Settings */
+body {
+  background-color: var(--app-bg) !important;
+  color: var(--text-primary) !important;
+  transition: background-color var(--anim-speed) ease, color var(--anim-speed) ease;
+}
+
+/* Main Background and Card overlays dynamic scaling */
+.bg-slate-50 {
+  background-color: var(--app-bg) !important;
+}
+.bg-white {
+  background-color: var(--card-bg) !important;
+}
+.border-slate-200 {
+  border-color: var(--sidebar-border) !important;
+}
+
+/* Typography elements mapping */
+.text-slate-800 {
+  color: var(--text-primary) !important;
+}
+.text-slate-705, .text-slate-700, .text-slate-600 {
+  color: var(--text-secondary) !important;
+}
+
+/* Main primary theme overrides mapping */
+.bg-teal-600 {
+  background-color: var(--app-primary) !important;
+}
+.hover\:bg-teal-700:hover {
+  background-color: var(--app-primary-hover) !important;
+}
+.bg-teal-50 {
+  background-color: var(--app-primary-light) !important;
+}
+.text-teal-700 {
+  color: var(--app-primary) !important;
+}
+.text-teal-850, .text-teal-800 {
+  color: var(--app-primary-dark) !important;
+}
+.border-teal-100, .border-teal-200 {
+  border-color: var(--app-primary-border) !important;
+}
+
+/* Background for branding high-density panels */
+.bg-\[\#093530\], .bg-teal-950 {
+  background-color: var(--app-primary-darker) !important;
+}
+.hover\:bg-teal-950:hover, .hover\:bg-teal-900:hover {
+  background-color: var(--app-primary-darker-hover) !important;
+}
+
+/* Sidebar Custom mappings */
+#app-sidebar {
+  background-color: var(--sidebar-bg) !important;
+  border-color: var(--sidebar-border) !important;
+}
+
+/* Smooth transit scaling */
+.transition-all {
+  transition-duration: var(--anim-speed) !important;
+}
+
+/* Receipt Thermal Printing Media Overrules */
+@media print {
+  html, body {
+    background-color: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: 100% !important;
+    font-family: inherit !important;
+  }
+
+  /* Hide the rest of the workspace and navigation headers */
+  #root,
+  .no-print,
+  button,
+  aside,
+  header,
+  footer,
+  .bg-slate-900\/60,
+  div[role="dialog"] > div:first-child {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Style modal elements specifically during printer dispatch */
+  #printable-receipt-modal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    background-color: white !important;
+    z-index: 99999 !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  #printable-receipt-paper {
+    width: 76mm !important; /* Optimised Thermal Paper Width */
+    margin: 0 auto !important;
+    padding: 12px 10px !important;
+    background: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Disable scroll view margins during document extraction */
+  .overflow-y-auto {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Guarantee visible print lines for headers and dividers */
+  .border-b, .border-t {
+    border-color: #000 !important;
+  }
+}

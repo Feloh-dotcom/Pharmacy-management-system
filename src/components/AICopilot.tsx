@@ -9,8 +9,14 @@ import {
   RefreshCw, Info, Calendar, Box, Database, ArrowUpRight
 } from "lucide-react";
 import { AISmartForecast } from "../types";
+import { formatCurrency } from "../utils";
 
-export default function AICopilot() {
+interface AICopilotProps {
+  settings?: any;
+}
+
+export default function AICopilot({ settings }: AICopilotProps) {
+  const currencySymbol = settings?.general?.currency || "Ksh.";
   const [data, setData] = useState<AISmartForecast | null>(null);
   const [loading, setLoading] = useState(false);
   const [demoMode, setDemoMode] = useState(true);
@@ -41,10 +47,10 @@ export default function AICopilot() {
         <div>
           <h1 className="font-sans font-bold text-xl text-slate-800 tracking-tight flex items-center">
             <Sparkles className="w-5 h-5 text-teal-600 mr-2 animate-pulse" />
-            <span>AI Clinical Copilot & Forecasting</span>
+            <span>AI Demand & Forecasting Insights</span>
           </h1>
           <p className="text-xs text-slate-400 font-medium mt-1">
-            Leverage Google Gemini-3.5-Flash to predict inventory shelf lifespans, demand thresholds, and secure patient restock pipelines.
+            Leverage smart forecasts to predict stock lifespans, demand thresholds, and optimize purchase restocks.
           </p>
         </div>
 
@@ -54,7 +60,7 @@ export default function AICopilot() {
           className="flex items-center space-x-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white font-semibold text-xs px-4.5 py-2.5 rounded-xl shadow-md transition-all cursor-pointer"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          <span>Regenerate Clinical Predictions</span>
+          <span>Regenerate Forecasts</span>
         </button>
       </div>
 
@@ -74,8 +80,8 @@ export default function AICopilot() {
       {loading || !data ? (
         <div className="flex flex-col items-center justify-center p-24 space-y-4">
           <RefreshCw className="w-8 h-8 text-teal-600 animate-spin" />
-          <p className="text-xs font-bold text-slate-400 animate-pulse">
-            Querying Gemini neural models... Analyzing batch expiration trends and sales velocities...
+          <p className="text-xs font-semibold text-slate-400 animate-pulse">
+            Analyzing batch expiration trends and sales velocities...
           </p>
         </div>
       ) : (
@@ -124,7 +130,7 @@ export default function AICopilot() {
               </div>
               <div className="mt-4">
                 <p className="text-2xl font-black font-sans text-teal-950">
-                  ${(data.salesPredictions[0]?.predictedRevenue || 15400).toLocaleString()}
+                  {formatCurrency((data.salesPredictions[0]?.predictedRevenue || 15400), currencySymbol)}
                 </p>
                 <p className="text-[10.5px] font-bold text-teal-700 leading-normal mt-1">
                   Predicted growth cycle: {data.salesPredictions[0]?.growthTrend.split(" ")[0]} next calendar month.
@@ -136,11 +142,11 @@ export default function AICopilot() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             
-            {/* Shelf-Life Matrix predictions */}
+            {/* Shelf-Life predictions */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">Shelf Life & Expiry forecasting</h3>
-                <span className="text-[10px] font-bold text-slate-400">Clinical Shelf Analyzer</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">Shelf Life & Expiry Projections</h3>
+                <span className="text-[10px] font-bold text-slate-400">Shelf Life Planner</span>
               </div>
 
               <div className="space-y-3.5 max-h-96 overflow-y-auto">
@@ -194,8 +200,8 @@ export default function AICopilot() {
             {/* Smart Restock Suggestions */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">Automated Restock suggestions</h3>
-                <span className="text-[10px] font-bold text-slate-400">Inventory Optimizer</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono">Restock suggestions</h3>
+                <span className="text-[10px] font-bold text-slate-400">Stock Planner</span>
               </div>
 
               <div className="space-y-3.5 max-h-96 overflow-y-auto">
@@ -212,8 +218,8 @@ export default function AICopilot() {
                           <span className="text-[9.5px] text-slate-400 block mt-1.5">Supplier: {sug.supplierName}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-[10px] font-extrabold text-teal-700 bg-teal-50 border border-teal-100 px-2 py-1 rounded-lg">
-                            AI Confidence: {sug.confidenceLevel}%
+                          <span className="text-[10px] font-bold text-teal-750 bg-teal-50 border border-teal-100 px-2 py-1 rounded-lg">
+                            Forecast Match: {sug.confidenceLevel}%
                           </span>
                         </div>
                       </div>
@@ -248,7 +254,7 @@ export default function AICopilot() {
           {/* Monthly Revenue Trend Projection List */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono mb-4">
-              Predictive Sales and Growth forecasting
+              Predictive Sales and Growth projections
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -264,7 +270,7 @@ export default function AICopilot() {
                   <div className="z-10 mt-3">
                     <p className="text-xs text-slate-450 font-semibold uppercase">Projected Revenue</p>
                     <p className="text-lg font-black font-sans text-slate-700 mt-0.5">
-                      ${pred.predictedRevenue.toLocaleString()}
+                      {formatCurrency(pred.predictedRevenue, currencySymbol)}
                     </p>
                     <p className="text-[9.5px] font-bold text-teal-600 truncate mt-1">
                       {pred.growthTrend}

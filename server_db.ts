@@ -39,6 +39,7 @@ interface DBState {
   backups: BackupCheckpoint[];
   cashSessions: CashSession[];
   weeklyCycles?: any[];
+  mpesaTransactions?: any[];
 }
 
 const initialData: DBState = {
@@ -47,7 +48,7 @@ const initialData: DBState = {
       id: "usr-1",
       name: "Budiono Siregar",
       email: "budionosiregar@gmail.com",
-      role: UserRole.SUPER_ADMIN,
+      role: UserRole.ADMIN,
       avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop",
       isActive: true,
       createdAt: "2025-01-01T00:00:00Z"
@@ -69,6 +70,51 @@ const initialData: DBState = {
       avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
       isActive: true,
       createdAt: "2025-04-12T00:00:00Z"
+    },
+    {
+      id: "usr-4",
+      name: "Alice Cooper",
+      email: "alice@customer.com",
+      role: UserRole.CUSTOMER,
+      avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop",
+      isActive: true,
+      createdAt: "2025-05-01T00:00:00Z"
+    },
+    {
+      id: "usr-5",
+      name: "Robert Martin",
+      email: "robert@supplier.com",
+      role: UserRole.SUPPLIER,
+      avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop",
+      isActive: true,
+      createdAt: "2025-05-15T00:00:00Z"
+    },
+    {
+      id: "usr-6",
+      name: "Elizabeth Vance",
+      email: "elizabeth@accountant.com",
+      role: UserRole.ACCOUNTANT,
+      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&h=100&fit=crop",
+      isActive: true,
+      createdAt: "2025-06-01T00:00:00Z"
+    },
+    {
+      id: "usr-7",
+      name: "David Vance",
+      email: "david@inventory.com",
+      role: UserRole.INVENTORY_MANAGER,
+      avatarUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop",
+      isActive: true,
+      createdAt: "2025-06-10T00:00:00Z"
+    },
+    {
+      id: "usr-8",
+      name: "Felix Oumah",
+      email: "felix@workstation.com",
+      role: UserRole.USER,
+      avatarUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop",
+      isActive: true,
+      createdAt: "2025-07-01T00:00:00Z"
     }
   ],
   categories: [
@@ -404,7 +450,7 @@ const initialData: DBState = {
       address: "Biomedical Tower, Suite 402, Nairobi, KE",
       country: "Kenya",
       timezone: "Africa/Nairobi",
-      currency: "KES",
+      currency: "Ksh.",
       dateFormat: "YYYY-MM-DD",
       language: "en",
       logoUrl: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
@@ -433,7 +479,10 @@ const initialData: DBState = {
       batchTrackingEnabled: true,
       barcodeScanningEnabled: true,
       lowStockAlertActive: true,
-      aiStockPredictionActive: true
+      aiStockPredictionActive: true,
+      expiryAlertSeverity: "high",
+      preventSaleOfExpiredGoods: true,
+      notifyOnExpiryNear: true
     },
     notifications: {
       emailAlerts: true,
@@ -525,14 +574,19 @@ const initialData: DBState = {
   ],
   rolePermissions: [
     {
-      role: "Super Admin",
+      role: "Admin",
       permissions: {
         manageMedicines: true,
         deleteSales: true,
         viewReports: true,
         approvePurchases: true,
         manageInventory: true,
-        modifySettings: true
+        modifySettings: true,
+        addProducts: true,
+        editProducts: true,
+        addCategories: true,
+        editCategories: true,
+        adjustStock: true
       }
     },
     {
@@ -543,18 +597,108 @@ const initialData: DBState = {
         viewReports: true,
         approvePurchases: false,
         manageInventory: true,
-        modifySettings: false
+        modifySettings: false,
+        addProducts: true,
+        editProducts: true,
+        addCategories: true,
+        editCategories: true,
+        adjustStock: true
       }
     },
     {
       role: "Cashier",
+      permissions: {
+        manageMedicines: true,
+        deleteSales: false,
+        viewReports: false,
+        approvePurchases: false,
+        manageInventory: true,
+        modifySettings: false,
+        addProducts: false,
+        editProducts: false,
+        addCategories: false,
+        editCategories: false,
+        adjustStock: false
+      }
+    },
+    {
+      role: "Customer",
       permissions: {
         manageMedicines: false,
         deleteSales: false,
         viewReports: false,
         approvePurchases: false,
         manageInventory: false,
-        modifySettings: false
+        modifySettings: false,
+        addProducts: false,
+        editProducts: false,
+        addCategories: false,
+        editCategories: false,
+        adjustStock: false
+      }
+    },
+    {
+      role: "Supplier",
+      permissions: {
+        manageMedicines: false,
+        deleteSales: false,
+        viewReports: false,
+        approvePurchases: false,
+        manageInventory: false,
+        modifySettings: false,
+        addProducts: false,
+        editProducts: false,
+        addCategories: false,
+        editCategories: false,
+        adjustStock: false
+      }
+    },
+    {
+      role: "Accountant",
+      permissions: {
+        manageMedicines: false,
+        deleteSales: false,
+        viewReports: true,
+        approvePurchases: false,
+        manageInventory: false,
+        modifySettings: false,
+        addProducts: false,
+        editProducts: false,
+        addCategories: false,
+        editCategories: false,
+        adjustStock: false
+      }
+    },
+    {
+      role: "Inventory Manager",
+      permissions: {
+        manageMedicines: true,
+        deleteSales: false,
+        viewReports: true,
+        approvePurchases: false,
+        manageInventory: true,
+        modifySettings: false,
+        addProducts: true,
+        editProducts: true,
+        addCategories: true,
+        editCategories: true,
+        adjustStock: true
+      }
+    },
+    {
+      role: "User",
+      permissions: {
+        manageMedicines: false,
+        deleteSales: false,
+        viewReports: false,
+        approvePurchases: false,
+        manageInventory: false,
+        modifySettings: false,
+        addProducts: false,
+        editProducts: false,
+        addCategories: false,
+        editCategories: false,
+        adjustStock: false
       }
     }
   ],
@@ -593,6 +737,19 @@ export function readDB(): DBState {
     if (!data.settings) {
       data.settings = initialData.settings;
       changed = true;
+    } else if (data.settings.inventory) {
+      if (data.settings.inventory.expiryAlertSeverity === undefined) {
+        data.settings.inventory.expiryAlertSeverity = "high";
+        changed = true;
+      }
+      if (data.settings.inventory.preventSaleOfExpiredGoods === undefined) {
+        data.settings.inventory.preventSaleOfExpiredGoods = true;
+        changed = true;
+      }
+      if (data.settings.inventory.notifyOnExpiryNear === undefined) {
+        data.settings.inventory.notifyOnExpiryNear = true;
+        changed = true;
+      }
     }
     if (!data.branches) {
       data.branches = initialData.branches;
@@ -618,9 +775,35 @@ export function readDB(): DBState {
       data.weeklyCycles = [];
       changed = true;
     }
+    if (!data.mpesaTransactions) {
+      data.mpesaTransactions = [];
+      changed = true;
+    }
     // Secure passwords migration layer
     if (data.users && Array.isArray(data.users)) {
+      const existingEmails = new Set(data.users.map((u: any) => u.email.toLowerCase()));
+      initialData.users.forEach((du) => {
+        if (!existingEmails.has(du.email.toLowerCase())) {
+          const { salt, hash } = hashPassword("password123");
+          data.users.push({
+            ...du,
+            passwordHash: hash,
+            salt,
+            failedLoginAttempts: 0
+          });
+          existingEmails.add(du.email.toLowerCase());
+          changed = true;
+        }
+      });
       data.users.forEach((usr: any) => {
+        if (usr.role === "Super Admin") {
+          usr.role = "Admin";
+          changed = true;
+        }
+        if (usr.role === "Staff/User") {
+          usr.role = "User";
+          changed = true;
+        }
         if (!usr.passwordHash) {
           const { salt, hash } = hashPassword("password123");
           usr.passwordHash = hash;
@@ -628,6 +811,42 @@ export function readDB(): DBState {
           usr.failedLoginAttempts = 0;
           changed = true;
         }
+      });
+    }
+    if (data.rolePermissions && Array.isArray(data.rolePermissions)) {
+      const presentRoles = new Set(data.rolePermissions.map((rp: any) => rp.role));
+      initialData.rolePermissions.forEach((initialRp) => {
+        if (!presentRoles.has(initialRp.role)) {
+          data.rolePermissions.push(initialRp);
+          changed = true;
+        }
+      });
+      data.rolePermissions.forEach((rp: any) => {
+        if (rp.role === "Super Admin") {
+          rp.role = "Admin";
+          changed = true;
+        }
+        if (rp.role === "Staff/User") {
+          rp.role = "User";
+          changed = true;
+        }
+        const defaultYes = ["Admin", "Pharmacist", "Inventory Manager"].includes(rp.role);
+        const defaults: Record<string, boolean> = {
+          addProducts: defaultYes,
+          editProducts: defaultYes,
+          addCategories: defaultYes,
+          editCategories: defaultYes,
+          adjustStock: defaultYes
+        };
+        if (!rp.permissions) {
+          rp.permissions = {};
+        }
+        Object.keys(defaults).forEach(key => {
+          if (rp.permissions[key] === undefined) {
+            rp.permissions[key] = defaults[key];
+            changed = true;
+          }
+        });
       });
     }
     if (changed) {

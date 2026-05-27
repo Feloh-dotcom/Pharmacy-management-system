@@ -6,7 +6,7 @@
 import { useState, useEffect, FormEvent } from "react";
 import { DollarSign, ArrowUpRight, ArrowDownRight, TrendingUp, Plus, Clipboard, RefreshCw } from "lucide-react";
 import { FinanceRecord, SystemSettings } from "../types";
-import { formatSafeDateTime } from "../utils";
+import { formatSafeDateTime, formatCurrency } from "../utils";
 
 interface FinanceProps {
   settings?: SystemSettings | null;
@@ -14,7 +14,7 @@ interface FinanceProps {
 
 export default function Finance({ settings }: FinanceProps) {
   const [records, setRecords] = useState<FinanceRecord[]>([]);
-  const currencySymbol = settings?.general?.currency || "$";
+  const currencySymbol = settings?.general?.currency || "Ksh.";
   const [loading, setLoading] = useState(true);
 
   // Form states
