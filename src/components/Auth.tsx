@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { UserRole, SystemSettings } from "../types";
 
-const bgImage = "/src/assets/images/pharmacy_background_1779486266310.png";
+const bgImage = new URL("../assets/images/pharmacy_background_1779486266310.png", import.meta.url).href;
 
 interface AuthProps {
   onLoginSuccess: (user: { id: string; name: string; email: string; role: UserRole; avatarUrl?: string }) => void;

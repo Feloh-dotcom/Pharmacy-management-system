@@ -607,10 +607,7 @@
       "batchTrackingEnabled": true,
       "barcodeScanningEnabled": true,
       "lowStockAlertActive": true,
-      "aiStockPredictionActive": true,
-      "expiryAlertSeverity": "high",
-      "preventSaleOfExpiredGoods": true,
-      "notifyOnExpiryNear": true
+      "aiStockPredictionActive": true
     },
     "notifications": {
       "emailAlerts": true,
@@ -709,12 +706,7 @@
         "viewReports": true,
         "approvePurchases": true,
         "manageInventory": true,
-        "modifySettings": true,
-        "addProducts": true,
-        "editProducts": true,
-        "addCategories": true,
-        "editCategories": true,
-        "adjustStock": true
+        "modifySettings": true
       }
     },
     {
@@ -725,12 +717,7 @@
         "viewReports": true,
         "approvePurchases": false,
         "manageInventory": true,
-        "modifySettings": false,
-        "addProducts": true,
-        "editProducts": true,
-        "addCategories": true,
-        "editCategories": true,
-        "adjustStock": true
+        "modifySettings": false
       }
     },
     {
@@ -741,12 +728,7 @@
         "viewReports": false,
         "approvePurchases": false,
         "manageInventory": true,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "modifySettings": false
       }
     },
     {
@@ -757,12 +739,7 @@
         "viewReports": false,
         "approvePurchases": false,
         "manageInventory": false,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "modifySettings": false
       }
     },
     {
@@ -773,12 +750,7 @@
         "viewReports": false,
         "approvePurchases": false,
         "manageInventory": false,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "modifySettings": false
       }
     },
     {
@@ -789,12 +761,7 @@
         "viewReports": true,
         "approvePurchases": false,
         "manageInventory": false,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "modifySettings": false
       }
     },
     {
@@ -805,12 +772,7 @@
         "viewReports": true,
         "approvePurchases": false,
         "manageInventory": true,
-        "modifySettings": false,
-        "addProducts": true,
-        "editProducts": true,
-        "addCategories": true,
-        "editCategories": true,
-        "adjustStock": true
+        "modifySettings": false
       }
     },
     {
@@ -821,12 +783,7 @@
         "viewReports": false,
         "approvePurchases": false,
         "manageInventory": false,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "modifySettings": false
       }
     }
   ],
@@ -950,6 +907,5 @@
         }
       ]
     }
-  ],
-  "mpesaTransactions": []
+  ]
 }
