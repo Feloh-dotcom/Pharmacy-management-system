@@ -244,6 +244,158 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
     }
   };
 
+  const handlePrintReceipt = () => {
+    // Show 'Printing...' loader toast instantly to guide user
+    setSuccessToast("Printing...");
+    setTimeout(() => setSuccessToast(null), 3500);
+
+    try {
+      const receiptPaper = document.getElementById("printable-receipt-paper");
+      if (!receiptPaper) {
+        window.print();
+        return;
+      }
+
+      // Guard if an old printing iframe is lingering
+      const existingIframe = document.getElementById("receipt_temporary_iframe");
+      if (existingIframe) {
+        existingIframe.remove();
+      }
+
+      // Create a temporary hidden iframe for printing
+      const iframe = document.createElement("iframe");
+      iframe.id = "receipt_temporary_iframe";
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      document.body.appendChild(iframe);
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) {
+        window.print();
+        return;
+      }
+
+      // Write the receipt HTML with clean inline thermal styles
+      iframeDoc.open();
+      iframeDoc.write(`
+        <html>
+          <head>
+            <title>Receipt_${checkoutResult?.sale?.invoiceNumber || "Print"}</title>
+            <style>
+              @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
+              * {
+                box-sizing: border-box;
+              }
+              body {
+                font-family: 'JetBrains Mono', monospace, sans-serif;
+                color: #1e293b;
+                background-color: #fff;
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                font-size: 11px;
+                line-height: 1.4;
+              }
+              #printable-receipt-paper {
+                width: 76mm;
+                margin: 0 auto;
+                padding: 10px;
+                background: white;
+              }
+              .text-center { text-align: center; }
+              .text-right { text-align: right; }
+              .flex { display: flex; }
+              .justify-between { justify-content: space-between; }
+              .items-center { align-items: center; }
+              .space-y-1-5 > * + * { margin-top: 6px; }
+              .space-y-2 > * + * { margin-top: 8px; }
+              .space-y-5 > * + * { margin-top: 20px; }
+              .bg-slate-50 { background-color: #f8fafc; }
+              .p-3 { padding: 12px; }
+              .p-3-5 { padding: 14px; }
+              .p-2.5 { padding: 10px; }
+              .p-2 { padding: 8px; }
+              .rounded-xl { border-radius: 12px; }
+              .rounded-2xl { border-radius: 16px; }
+              .border { border: 1px solid #cbd5e1; }
+              .border-b { border-bottom: 1px dashed #cbd5e1; }
+              .border-t { border-top: 1px dashed #cbd5e1; }
+              .border-dashed { border-style: dashed; }
+              .border-slate-300 { border-color: #cbd5e1; }
+              .border-slate-200 { border-color: #cbd5e1; }
+              .border-slate-150 { border-color: #cbd5e1; }
+              .pb-4 { padding-bottom: 16px; }
+              .pt-4 { padding-top: 16px; }
+              .pt-1 { padding-top: 4px; }
+              .mt-1 { margin-top: 4px; }
+              .mt-2 { margin-top: 8px; }
+              .mt-3 { margin-top: 12px; }
+              .mb-1-5 { margin-bottom: 6px; }
+              .mb-1 { margin-bottom: 4px; }
+              .font-bold { font-weight: 700; }
+              .font-black { font-weight: 800; }
+              .font-extrabold { font-weight: 800; }
+              .tracking-widest { letter-spacing: 0.1em; }
+              .tracking-wider { letter-spacing: 0.05em; }
+              .text-sm { font-size: 12px; }
+              .text-xs { font-size: 11px; }
+              .text-base { font-size: 14px; }
+              .text-[10px] { font-size: 10px; }
+              .text-[9px] { font-size: 9px; }
+              .text-[9.5px] { font-size: 9.5px; }
+              .text-slate-400 { color: #94a3b8; }
+              .text-slate-500 { color: #64748b; }
+              .text-slate-600 { color: #475569; }
+              .text-slate-800 { color: #1e293b; }
+              .text-[#093530] { color: #093530; }
+              .text-teal-850 { color: #115e59; }
+              .text-teal-800 { color: #115e59; }
+              .bg-teal-50 { background-color: #ecfdf5; }
+              .border-teal-200 { border-color: #a7f3d0; }
+              .bg-emerald-50 { background-color: #ecfdf5; }
+              .border-emerald-150 { border-color: #a7f3d0; }
+              .text-emerald-600 { color: #059669; }
+              .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+              .pr-2 { padding-right: 8px; }
+              .w-1\/2 { width: 50%; }
+              .w-1\/4 { width: 25%; }
+              .w-48 { width: 192px; }
+              .h-8 { height: 32px; }
+              .whitespace-nowrap { white-space: nowrap; }
+              .shrink-0 { flex-shrink: 0; }
+              .italic { font-style: italic; }
+              .uppercase { text-transform: uppercase; }
+            </style>
+          </head>
+          <body>
+            <div id="printable-receipt-paper">
+              ${receiptPaper.innerHTML}
+            </div>
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.focus();
+                  window.print();
+                  setTimeout(function() {
+                    window.parent.document.body.removeChild(window.frameElement);
+                  }, 600);
+                }, 150);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      iframeDoc.close();
+    } catch (err) {
+      console.warn("Direct iframe print transfer yielded unexpected boundaries, falling back to window.print():", err);
+      window.print();
+    }
+  };
+
   const fetchUnclaimedMpesaTxns = async () => {
     try {
       const res = await fetch("/api/mpesa/unclaimed");
@@ -422,7 +574,11 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
       
       {successToast && (
         <div className="fixed bottom-6 right-6 bg-teal-950 border border-teal-800 text-teal-300 px-5 py-3 rounded-2xl shadow-xl z-50 flex items-center space-x-2 animate-bounce">
-          <Check className="w-4 h-4 text-teal-400" />
+          {successToast.toLowerCase().includes("printing") ? (
+            <RefreshCw className="w-4 h-4 text-teal-400 animate-spin" />
+          ) : (
+            <Check className="w-4 h-4 text-teal-400" />
+          )}
           <span className="text-xs font-semibold">{successToast}</span>
         </div>
       )}
@@ -980,7 +1136,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
             {/* footer with printing triggers */}
             <div className="p-4 border-t border-slate-100 flex space-x-3 shrink-0 bg-slate-50 no-print">
               <button 
-                onClick={() => window.print()}
+                onClick={handlePrintReceipt}
                 className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-100 font-black text-xs rounded-xl flex items-center justify-center space-x-1.5 text-slate-700 transition cursor-pointer"
               >
                 <Printer className="w-4 h-4 text-slate-500" />

@@ -2816,6 +2816,26 @@ app.post("/api/cash-register/close", (req, res) => {
   });
 });
 
+app.post("/validation", (req, res) => {
+  console.log("Validation Callback Hit");
+  console.log(req.body);
+
+  return res.status(200).json({
+    ResultCode: 0,
+    ResultDesc: "Accepted"
+  });
+});
+
+app.post("/confirmation", (req, res) => {
+  console.log("Confirmation Callback Hit");
+  console.log(req.body);
+
+  return res.status(200).json({
+    ResultCode: 0,
+    ResultDesc: "Accepted"
+  });
+});
+
 
 // Hook-up and configure the Express server environment integration
 async function startServer() {
