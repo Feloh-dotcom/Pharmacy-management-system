@@ -432,7 +432,7 @@ export default function App() {
         />
 
         {/* Content body offset below the h-16 Top Header */}
-        <main className="p-4 sm:p-8 pt-24 min-h-screen text-slate-600">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pt-6 sm:pt-8 text-slate-600">
           <div className="max-w-7xl mx-auto">
             {renderActiveTab()}
           </div>

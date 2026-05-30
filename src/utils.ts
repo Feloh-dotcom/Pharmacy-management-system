@@ -151,8 +151,31 @@ interface ProfileCompletionUser {
 }
 
 /**
+ * Professional, clean default SVG avatar for operators without a custom uploaded profile picture.
+ */
+export const DEFAULT_PROFESSIONAL_AVATAR = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230d9488' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><rect width='24' height='24' rx='12' fill='%23ccfbf1'/><circle cx='12' cy='10' r='4' fill='%2399f6e4' stroke='%232dd4bf' stroke-width='1.5'/><path d='M12 14c-4 0-6 2-6 4v1h12v-1c0-2-2-4-6-4z' fill='%2399f6e4' stroke='%232dd4bf' stroke-width='1.5'/></svg>";
+
+/**
+ * Resolve avatar URL to the professional default fallback if missing or placeholder.
+ */
+export function getAvatarUrl(avatarUrl: string | undefined | null): string {
+  if (!avatarUrl) {
+    return DEFAULT_PROFESSIONAL_AVATAR;
+  }
+  const lowerUrl = avatarUrl.toLowerCase();
+  if (
+    lowerUrl.includes("photo-1535713875002-d1d0cf377fde") || 
+    lowerUrl.includes("photo-1534528741775-53994a69daeb")
+  ) {
+    return DEFAULT_PROFESSIONAL_AVATAR;
+  }
+  return avatarUrl;
+}
+
+/**
  * Computes profile completion progress based on 8 key benchmarks:
- * Avatar, Name, Email, Phone, National ID, Address, Custom Password, and assigned Role.
+ * Name, Email, Phone, National ID, Address, Custom Password, and assigned Role.
+ * Note: Avatar / profile picture is completely optional and excluded from calculations.
  */
 export function calculateProfileCompletion(user: ProfileCompletionUser | null): {
   percent: number;
@@ -169,7 +192,9 @@ export function calculateProfileCompletion(user: ProfileCompletionUser | null): 
 
   // Standard placeholder avatar detection
   const hasAvatar = !!user.avatarUrl && 
-    !user.avatarUrl.includes("photo-1535713875002-d1d0cf377fde");
+    !user.avatarUrl.includes("photo-1535713875002-d1d0cf377fde") &&
+    !user.avatarUrl.includes("photo-1534528741775-53994a69daeb") &&
+    !user.avatarUrl.includes("data:image/svg+xml");
 
   const hasName = !!user.name && user.name.trim().length > 1;
   const hasEmail = !!user.email && user.email.trim().length > 3;
@@ -179,8 +204,8 @@ export function calculateProfileCompletion(user: ProfileCompletionUser | null): 
   const hasPassword = !!user.passwordSetupCompleted;
   const hasRole = !!user.role;
 
+  // Avatar is fully optional and excluded from percent calculation
   const steps = [
-    { key: "avatar", label: "Profile Picture Unique Accent", val: hasAvatar },
     { key: "name", label: "Full Corporate Name", val: hasName },
     { key: "email", label: "Verified Email Address", val: hasEmail },
     { key: "phone", label: "Direct Phone Number", val: hasPhone },
@@ -190,7 +215,9 @@ export function calculateProfileCompletion(user: ProfileCompletionUser | null): 
     { key: "role", label: "Assigned Structural Role", val: hasRole }
   ];
 
-  const criteria: Record<string, boolean> = {};
+  const criteria: Record<string, boolean> = {
+    avatar: hasAvatar
+  };
   const missing: string[] = [];
   let completedCount = 0;
 

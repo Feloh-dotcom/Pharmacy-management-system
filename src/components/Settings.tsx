@@ -12,7 +12,7 @@ import {
   Cloud, Webhook, Download, KeyRound, Copy, CheckSquare, Square
 } from "lucide-react";
 import { AuditLog, SystemSettings, Branch, DeveloperApiKey, RolePermissions, BackupCheckpoint, UserRole } from "../types";
-import { formatSafeDateTime, formatSafeDateOnly } from "../utils";
+import { formatSafeDateTime, formatSafeDateOnly, getAvatarUrl } from "../utils";
 
 const TABS = [
   { id: "general", label: "General Settings", icon: Globe, desc: "Pharmacy legal identifiers, address, contacts & currency specs" },
@@ -1051,7 +1051,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                               <td className="p-4">
                                 <div className="flex items-center space-x-3">
                                   <img 
-                                    src={usr.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=50&h=50&fit=crop"} 
+                                    src={getAvatarUrl(usr.avatarUrl)} 
                                     referrerPolicy="no-referrer"
                                     className="w-8 h-8 rounded-full border border-slate-200 object-cover" 
                                   />

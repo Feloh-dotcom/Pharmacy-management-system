@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { UserRole, SystemSettings } from "../types";
 import { useLanguage } from "../LanguageContext";
+import { getAvatarUrl } from "../utils";
 
 interface HeaderProps {
   user: { name: string; email: string; role: UserRole; avatarUrl?: string } | null;
@@ -111,7 +112,7 @@ export default function Header({
   const currentLangLabel = language === "FR" ? "FR" : language === "ES" ? "ES" : language === "KISW" ? "KISW" : "EN";
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between fixed top-0 right-0 left-0 lg:left-64 z-10 transition-all duration-300">
+    <header className="h-16 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 sm:px-6 md:px-8 flex items-center justify-between sticky top-0 w-full z-30 transition-all duration-300">
       
       {/* 3-line hamburger menu for mobile/tablet devices */}
       <button 
@@ -222,17 +223,17 @@ export default function Header({
       </div>
 
       {/* Right control utilities */}
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-2 sm:space-x-3 md:space-x-4">
         
         {/* Localization language dropdown widget with dynamic selections */}
         <div ref={langRef} className="relative">
           <button 
             id="btn-lang-dropdown"
             onClick={() => setLangOpen(!langOpen)}
-            className="flex items-center space-x-1.5 bg-slate-100/80 border border-slate-150 hover:bg-slate-200/50 px-3 py-1.5 rounded-full text-xs font-extrabold text-slate-700 focus:outline-none transition cursor-pointer"
+            className="flex items-center space-x-1 bg-slate-100/80 border border-slate-150 hover:bg-slate-200/50 px-2.5 py-1.5 rounded-full text-xs font-extrabold text-slate-700 focus:outline-none transition cursor-pointer"
           >
             <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            <span className="uppercase">{currentLangLabel}</span>
+            <span className="uppercase text-[11px]">{currentLangLabel}</span>
             <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${langOpen ? "transform rotate-180" : ""}`} />
           </button>
 
@@ -273,10 +274,11 @@ export default function Header({
         <button 
           id="btn-header-ai-badge"
           onClick={() => onNavigate("ai-forecast")}
-          className="relative flex flex-col items-center justify-center w-[60px] h-[60px] rounded-full border border-teal-100 bg-teal-50/20 cursor-pointer hover:bg-teal-100/50 hover:scale-103 transition-all duration-300 select-none shrink-0"
+          className="relative flex items-center justify-center w-8 h-8 sm:w-[60px] sm:h-[60px] rounded-full border border-teal-100 bg-teal-50/20 cursor-pointer hover:bg-teal-100/50 hover:scale-105 transition-all duration-300 select-none shrink-0"
+          title="AI Smart Forecast"
         >
-          <Sparkles className="w-2.5 h-2.5 text-teal-500 absolute left-2 top-[44%] -translate-y-1/2 animate-pulse" />
-          <span className="text-[7.5px] font-bold text-teal-800 tracking-wider leading-[10px] text-center ml-4 pl-0.5 select-none uppercase font-sans">
+          <Sparkles className="w-3.5 h-3.5 sm:w-2.5 sm:h-2.5 text-teal-500 sm:absolute sm:left-2 sm:top-[44%] sm:-translate-y-1/2 animate-pulse" />
+          <span className="hidden sm:inline text-[7.5px] font-bold text-teal-800 tracking-wider leading-[10px] text-center ml-4 pl-0.5 select-none uppercase font-sans">
             AI<br />Smart<br />Forecast
           </span>
         </button>
@@ -286,13 +288,13 @@ export default function Header({
 
         {/* User Account block */}
         {user ? (
-          <div ref={userMenuRef} className="flex items-center space-x-2 relative select-none">
+          <div ref={userMenuRef} className="flex items-center space-x-1.5 sm:space-x-2 relative select-none">
             <button 
               id="header-user-menu"
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center space-x-2.5 text-right select-none shrink-0 group focus:outline-none cursor-pointer"
+              className="flex items-center space-x-1.5 sm:space-x-2.5 text-right select-none shrink-0 group focus:outline-none cursor-pointer"
             >
-              <div className="hidden sm:block text-right">
+              <div className="hidden md:block text-right">
                 <h3 className="text-xs font-extrabold text-slate-800 leading-none group-hover:text-teal-700 transition">
                   {user.name}
                 </h3>
@@ -303,7 +305,7 @@ export default function Header({
               
               <div className="relative shrink-0">
                 <img
-                  src={user.avatarUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop"}
+                  src={getAvatarUrl(user.avatarUrl)}
                   alt="user avatar"
                   className="w-8 h-8 object-cover rounded-full ring-2 ring-teal-500/20 shadow-sm group-hover:ring-teal-500 transition-all"
                   referrerPolicy="no-referrer"
@@ -400,7 +402,7 @@ export default function Header({
             )}
 
             {/* Quick action button for role dropdown label */}
-            <div className="flex flex-col justify-center items-center bg-[#072421] text-[#7bf1db] text-[8px] font-black px-3.5 rounded-xl border border-[#0d443e] shadow-sm leading-2.5 h-10 uppercase tracking-widest text-center select-none shrink-0 min-w-[65px]">
+            <div className="hidden sm:flex flex-col justify-center items-center bg-[#072421] text-[#7bf1db] text-[8px] font-black px-3.5 rounded-xl border border-[#0d443e] shadow-sm leading-2.5 h-10 uppercase tracking-widest text-center select-none shrink-0 min-w-[65px]">
               {user.role.replace("_", " ").split(" ").map((word, wIdx) => (
                 <span key={wIdx}>{word}</span>
               ))}

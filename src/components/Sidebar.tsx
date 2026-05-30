@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { SystemSettings } from "../types";
 import { useLanguage } from "../LanguageContext";
-import { calculateProfileCompletion } from "../utils";
+import { calculateProfileCompletion, getAvatarUrl } from "../utils";
 
 interface SidebarProps {
   currentTab: string;
@@ -288,9 +288,9 @@ export default function Sidebar({
           <div className="mt-4 pt-1.5 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <img
-                src={user.avatarUrl || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&h=80&fit=crop"}
+                src={getAvatarUrl(user.avatarUrl)}
                 alt="user avatar"
-                className="w-8 h-8 rounded-full ring-2 ring-teal-500/20"
+                className="w-8 h-8 rounded-full ring-2 ring-teal-500/20 object-cover"
               />
               <div className="truncate max-w-[120px]">
                 <p className="text-xs font-semibold text-slate-800 leading-none truncate">{user.name}</p>

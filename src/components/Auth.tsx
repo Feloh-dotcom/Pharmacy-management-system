@@ -4,6 +4,7 @@
  */
 
 import { useState, FormEvent } from "react";
+import { supabase } from "../lib/supabaseClient";
 import { 
   LogIn, Key, Mail, UserPlus, ShieldAlert, CheckCircle, 
   RefreshCw, Globe, X, Heart, Shield, Landmark, Sparkles,
@@ -106,10 +107,35 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
       }
 
       try {
+        let supabaseUserId = `usr-${Date.now()}`;
+
+        try {
+          // Step 1: Register User inside Supabase Auth
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: name,
+                name: name
+              }
+            }
+          });
+
+          if (signUpError) {
+            console.warn("Supabase Auth registration skipped, continuing with local registration:", signUpError.message);
+          } else if (signUpData?.user?.id) {
+            supabaseUserId = signUpData.user.id;
+          }
+        } catch (authErr) {
+          console.warn("Supabase Auth offline/bypassed. Continuing with local registration logic:", authErr);
+        }
+
+        // Step 2: Register & Assign role inside backend and public.profiles
         const response = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password })
+          body: JSON.stringify({ id: supabaseUserId, name, email, password })
         });
         let data: any = {};
         if (response.headers.get("Content-Type")?.includes("json")) {
@@ -127,8 +153,8 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
           setIsRegister(false);
           setConfirmPassword("");
         }
-      } catch (err) {
-        setError(lang === "en" ? "Unable to connect to register server." : "Imeshindwa kuunganisha kwenye seva ya usajili.");
+      } catch (err: any) {
+        setError(err.message || (lang === "en" ? "Unable to connect to register server." : "Imeshindwa kuunganisha kwenye seva ya usajili."));
       } finally {
         setLoading(false);
       }
@@ -137,6 +163,18 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
 
     // Live Login using server API
     try {
+      try {
+        const { error: supabaseLoginError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        if (supabaseLoginError) {
+          console.warn("Supabase Auth local login skipped, continuing with local state credentials verification:", supabaseLoginError.message);
+        }
+      } catch (err) {
+        console.warn("Client session initialization via Supabase auth bypassed/deferred:", err);
+      }
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -375,8 +413,8 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
 
       {/* 4. Credentials form Modal Overlay when Login/Register is triggered */}
       {showFormModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all animate-in fade-in duration-250">
-          <div className="w-full max-w-md bg-slate-950 border border-slate-800/80 rounded-3xl p-8 backdrop-blur-2xl shadow-2xl relative z-50 animate-in zoom-in-95 duration-200 flex flex-col">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 overflow-y-auto transition-all animate-in fade-in duration-250">
+          <div className="w-full max-w-md my-auto bg-slate-950 border border-slate-800/80 rounded-3xl p-6 sm:p-8 backdrop-blur-2xl shadow-2xl relative z-50 animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
             
             {/* Modal Exit */}
             <button

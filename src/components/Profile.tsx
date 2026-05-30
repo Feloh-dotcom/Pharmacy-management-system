@@ -12,7 +12,7 @@ import {
 import { useLanguage } from "../LanguageContext";
 import { UserRole } from "../types";
 
-import { calculateProfileCompletion } from "../utils";
+import { calculateProfileCompletion, getAvatarUrl } from "../utils";
 
 interface ProfileProps {
   user: any;
@@ -54,7 +54,7 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
   const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [bio, setBio] = useState(user?.bio || "");
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || DEFAULT_AVATARS[0]);
+  const [avatarUrl, setAvatarUrl] = useState(getAvatarUrl(user?.avatarUrl));
 
   // Extended form states
   const [nationalId, setNationalId] = useState(user?.nationalId || "");
@@ -105,7 +105,7 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
       setEmail(user.email);
       setPhone(user.phone || "");
       setBio(user.bio || "");
-      setAvatarUrl(user.avatarUrl || DEFAULT_AVATARS[0]);
+      setAvatarUrl(getAvatarUrl(user.avatarUrl));
       setNationalId(user.nationalId || "");
       setAddress(user.address || "");
       setVNationalId(user.nationalId || "");
@@ -520,6 +520,9 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
             <div className="mt-4">
               <h3 className="font-sans font-extrabold text-sm text-slate-800 leading-tight">{user?.name}</h3>
               <p className="text-[10px] text-slate-400 font-mono mt-0.5 font-semibold">{user?.email}</p>
+              <p className="text-[9px] text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full font-sans font-bold inline-block mt-2">
+                📸 Profile Picture Optional
+              </p>
             </div>
 
             {/* Realtime progress tracker for heavy uploads / compression */}
@@ -654,11 +657,11 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
                 📋 Profile Onboarding Status
               </h3>
               <p className="text-[10px] text-slate-400 font-semibold leading-normal mt-1">
-                Operators must complete all benchmarks to authenticate workstations.
+                Operators must complete mandatory benchmarks to authenticate workstations. Profile picture is completely optional.
               </p>
             </div>
 
-            {/* Calculations dynamically based on 8 benchmarks */}
+            {/* Calculations dynamically based on benchmarks */}
             {(() => {
               const completion = calculateProfileCompletion(user);
               return (
@@ -679,11 +682,11 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
                   {/* Benchmark criteria listing */}
                   <div className="space-y-2 bg-slate-50 border border-slate-100 p-3.5 rounded-2xl">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                      8 Node Benchmarks Checklist
+                      Node Benchmarks Checklist
                     </p>
                     <div className="space-y-1.5">
                       {[
-                        { key: "avatar", label: "Unique Avatar Aspect", val: completion.criteria.avatar },
+                        { key: "avatar", label: "Unique Avatar Aspect (Optional)", val: completion.criteria.avatar, isOptional: true },
                         { key: "name", label: "Full Corporate Name", val: completion.criteria.name },
                         { key: "email", label: "Corporate Email Address", val: completion.criteria.email },
                         { key: "phone", label: "Telephone Coordinates", val: completion.criteria.phone },
@@ -695,14 +698,14 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
                         <div key={item.key} className="flex items-center justify-between text-xs font-semibold text-slate-600">
                           <span className="flex items-center space-x-1.5">
                             <span className="text-[9px] select-none">
-                              {item.val ? "🟢" : "⚪"}
+                              {item.val ? "🟢" : item.isOptional ? "🔹" : "⚪"}
                             </span>
                             <span className={item.val ? "text-slate-800 font-extrabold" : "text-slate-400 font-semibold"}>
                               {item.label}
                             </span>
                           </span>
                           <span className={`text-[9.5px] font-bold font-mono ${item.val ? "text-teal-600 font-black" : "text-slate-400"}`}>
-                            {item.val ? "REACHED" : "LACKING"}
+                            {item.val ? "REACHED" : item.isOptional ? "OPTIONAL" : "LACKING"}
                           </span>
                         </div>
                       ))}

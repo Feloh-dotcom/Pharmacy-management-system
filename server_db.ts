@@ -6,12 +6,20 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { Buffer } from "buffer";
+import { createClient } from "@supabase/supabase-js";
 import { 
   User, UserRole, Medicine, Category, Supplier, Customer, 
   Sale, InventoryLog, PurchaseOrder, FinanceRecord, AuditLog,
   SystemSettings, Branch, DeveloperApiKey, RolePermissions, BackupCheckpoint,
   CashSession, CashTransaction
 } from "./src/types";
+
+// Dynamic Supabase client configuration
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://ofwkndpzjlkumowdeaol.supabase.co";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_D-MOhLsaD69okFRm-FcAXg_vx_unfXt";
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export function hashPassword(password: string, salt?: string) {
   const finalSalt = salt || crypto.randomBytes(16).toString("hex");
@@ -21,7 +29,7 @@ export function hashPassword(password: string, salt?: string) {
 
 const DATA_FILE = path.join(process.cwd(), "data_store.json");
 
-interface DBState {
+export interface DBState {
   users: User[];
   categories: Category[];
   medicines: Medicine[];
@@ -49,7 +57,7 @@ const initialData: DBState = {
       name: "Budiono Siregar",
       email: "budionosiregar@gmail.com",
       role: UserRole.ADMIN,
-      avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop",
+      avatarUrl: "",
       isActive: true,
       createdAt: "2025-01-01T00:00:00Z"
     },
@@ -58,7 +66,7 @@ const initialData: DBState = {
       name: "Jane Smith",
       email: "janesmith@pharmacy.com",
       role: UserRole.PHARMACIST,
-      avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
+      avatarUrl: "",
       isActive: true,
       createdAt: "2025-03-10T00:00:00Z"
     },
@@ -67,7 +75,7 @@ const initialData: DBState = {
       name: "John Doe",
       email: "johndoe@pharmacy.com",
       role: UserRole.CASHIER,
-      avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
+      avatarUrl: "",
       isActive: true,
       createdAt: "2025-04-12T00:00:00Z"
     },
@@ -76,7 +84,7 @@ const initialData: DBState = {
       name: "Alice Cooper",
       email: "alice@customer.com",
       role: UserRole.CUSTOMER,
-      avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop",
+      avatarUrl: "",
       isActive: true,
       createdAt: "2025-05-01T00:00:00Z"
     },
@@ -85,7 +93,7 @@ const initialData: DBState = {
       name: "Robert Martin",
       email: "robert@supplier.com",
       role: UserRole.SUPPLIER,
-      avatarUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop",
+      avatarUrl: "",
       isActive: true,
       createdAt: "2025-05-15T00:00:00Z"
     },
@@ -94,7 +102,7 @@ const initialData: DBState = {
       name: "Elizabeth Vance",
       email: "elizabeth@accountant.com",
       role: UserRole.ACCOUNTANT,
-      avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&h=100&fit=crop",
+      avatarUrl: "",
       isActive: true,
       createdAt: "2025-06-01T00:00:00Z"
     },
@@ -103,7 +111,7 @@ const initialData: DBState = {
       name: "David Vance",
       email: "david@inventory.com",
       role: UserRole.INVENTORY_MANAGER,
-      avatarUrl: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop",
+      avatarUrl: "",
       isActive: true,
       createdAt: "2025-06-10T00:00:00Z"
     },
@@ -112,7 +120,7 @@ const initialData: DBState = {
       name: "Felix Oumah",
       email: "felix@workstation.com",
       role: UserRole.USER,
-      avatarUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&h=100&fit=crop",
+      avatarUrl: "",
       isActive: true,
       createdAt: "2025-07-01T00:00:00Z"
     }
@@ -154,7 +162,7 @@ const initialData: DBState = {
       expiryDate: "2026-06-20",
       buyingPrice: 95.00,
       sellingPrice: 152.00,
-      quantity: 8, // Low Stock for alerts!
+      quantity: 8,
       minStockLevel: 15,
       manufacturer: "Pfizer",
       supplierId: "sup-2",
@@ -191,7 +199,7 @@ const initialData: DBState = {
       genericName: "Insulin Glargine",
       SKU: "MED-INS-004",
       batchNumber: "BCH-99102",
-      expiryDate: "2026-05-30", // Near expiry date (prediction)!
+      expiryDate: "2026-05-30",
       buyingPrice: 450.00,
       sellingPrice: 580.00,
       quantity: 22,
@@ -211,7 +219,7 @@ const initialData: DBState = {
       genericName: "Atorvastatin",
       SKU: "MED-ATR-005",
       batchNumber: "BCH-10041",
-      expiryDate: "2025-12-15", // Expired medicine!
+      expiryDate: "2025-12-15",
       buyingPrice: 160.00,
       sellingPrice: 240.00,
       quantity: 12,
@@ -256,12 +264,12 @@ const initialData: DBState = {
     {
       id: "cust-1",
       name: "Susan Williams",
-      email: "gust@avohertiz.com", // matches mockup!
+      email: "gust@avohertiz.com",
       phone: "+254 701 987654",
       loyaltyPoints: 340,
       insuranceProvider: "Jubilee Insurance",
       insurancePolicyNumber: "POL-JUB-88210",
-      copayPercent: 10, // Copay is 10%, Insurance pays 90%
+      copayPercent: 10,
       prescriptionHistory: [
         { date: "2015-04-22T00:00:00.000Z", medicineName: "Medicine Two", quantity: 1 }
       ]
@@ -269,7 +277,7 @@ const initialData: DBState = {
     {
       id: "cust-2",
       name: "Bentley Howard",
-      email: "gust@avohertiz.com", // matches mockup!
+      email: "gust@avohertiz.com",
       phone: "+254 701 456123",
       loyaltyPoints: 420,
       insuranceProvider: "AAR Health",
@@ -282,12 +290,12 @@ const initialData: DBState = {
     {
       id: "cust-3",
       name: "Evelyn Johnson",
-      email: "gust@avohertiz.com", // matches mockup!
+      email: "gust@avohertiz.com",
       phone: "+254 702 334455",
       loyaltyPoints: 850,
       insuranceProvider: "NHIF Cover",
       insurancePolicyNumber: "POL-NHIF-91180",
-      copayPercent: 0, // NHIF pays 100% on authorized items
+      copayPercent: 0,
       prescriptionHistory: [
         { date: "2015-04-22T00:00:00.000Z", medicineName: "Medicine One", quantity: 1 }
       ]
@@ -306,7 +314,7 @@ const initialData: DBState = {
           medicineName: "Medicine Two",
           quantity: 1,
           price: 152.00,
-          tax: 20.97 // 16% VAT implicit
+          tax: 20.97
         }
       ],
       totalPrice: 152.00,
@@ -426,7 +434,7 @@ const initialData: DBState = {
       id: "fin-2",
       type: "income",
       category: "POS Prescription Sales",
-      amount: 618.00, // Total of our mockup sales ($152 + $196 + $270)
+      amount: 618.00,
       description: "Direct sales register daily batch",
       paymentMethod: "Multiple",
       date: "2015-04-22T23:59:00Z"
@@ -453,7 +461,7 @@ const initialData: DBState = {
       currency: "Ksh.",
       dateFormat: "YYYY-MM-DD",
       language: "en",
-      logoUrl: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
+      logoUrl: "",
       registrationNumber: "PHARM-REG-2026-9901"
     },
     security: {
@@ -720,19 +728,454 @@ const initialData: DBState = {
       status: "Success"
     }
   ],
-  cashSessions: []
+  cashSessions: [],
+  weeklyCycles: [],
+  mpesaTransactions: []
 };
 
-export function readDB(): DBState {
+export function toUUIDIfNeeded(val: any): any {
+  if (typeof val !== "string") return val;
+  // If it is already a valid UUID, return it directly
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(val)) return val;
+  
+  // Create deterministic UUID based on input string (e.g. "cat-1", "med-22")
+  const hash = crypto.createHash("sha256").update(val).digest("hex");
+  const part1 = hash.substring(0, 8);
+  const part2 = hash.substring(8, 12);
+  const part3 = "4" + hash.substring(13, 16); // Set UUID version 4
+  const part4 = (parseInt(hash.substring(16, 18), 16) & 0x3f | 0x80).toString(16).padStart(2, '0') + hash.substring(18, 20); // Variant 1
+  const part5 = hash.substring(20, 32);
+  return `${part1}-${part2}-${part3}-${part4}-${part5}`.toLowerCase();
+}
+
+// --- Mappings Configurations ---
+export const tableMappings: Record<string, { table: string; keyMap: Record<string, string> }> = {
+  users: {
+    table: "profiles",
+    keyMap: {
+      id: "id",
+      name: "name",
+      fullName: "full_name",
+      email: "email",
+      role: "role",
+      avatarUrl: "avatar_url",
+      isActive: "is_active",
+      createdAt: "created_at",
+      phone: "phone",
+      bio: "bio",
+      nationalId: "national_id",
+      address: "address",
+      passwordHash: "password_hash",
+      salt: "salt",
+      failedLoginAttempts: "failed_login_attempts",
+      passwordSetupCompleted: "password_setup_completed",
+      verificationStatus: "verification_status"
+    }
+  },
+  categories: {
+    table: "categories",
+    keyMap: {
+      id: "id",
+      name: "name",
+      description: "description"
+    }
+  },
+  suppliers: {
+    table: "suppliers",
+    keyMap: {
+      id: "id",
+      name: "name",
+      email: "email",
+      phone: "phone",
+      companyName: "company_name",
+      address: "address"
+    }
+  },
+  medicines: {
+    table: "medicines",
+    keyMap: {
+      id: "id",
+      name: "name",
+      genericName: "generic_name",
+      SKU: "sku",
+      batchNumber: "batch_number",
+      expiryDate: "expiry_date",
+      buyingPrice: "buying_price",
+      sellingPrice: "selling_price",
+      quantity: "quantity",
+      minStockLevel: "min_stock_level",
+      manufacturer: "manufacturer",
+      supplierId: "supplier_id",
+      categoryId: "category_id",
+      barcode: "barcode",
+      taxVat: "tax_vat",
+      prescriptionRequired: "prescription_required",
+      imageUrl: "image_url",
+      createdAt: "created_at"
+    }
+  },
+  customers: {
+    table: "customers",
+    keyMap: {
+      id: "id",
+      name: "name",
+      email: "email",
+      phone: "phone",
+      loyaltyPoints: "loyalty_points",
+      insuranceProvider: "insurance_provider",
+      insurancePolicyNumber: "insurance_policy_number",
+      copayPercent: "copay_percent",
+      prescriptionHistory: "prescription_history"
+    }
+  },
+  sales: {
+    table: "sales",
+    keyMap: {
+      id: "id",
+      customerId: "customer_id",
+      customerName: "customer_name",
+      customerEmail: "customer_email",
+      invoiceNumber: "invoice_number",
+      items: "items",
+      totalPrice: "total_price",
+      discount: "discount",
+      taxAmount: "tax_amount",
+      paymentMethod: "payment_method",
+      paymentStatus: "payment_status",
+      cashierEmail: "cashier_email",
+      date: "date"
+    }
+  },
+  inventoryLogs: {
+    table: "inventory_logs",
+    keyMap: {
+      id: "id",
+      medicineId: "medicine_id",
+      medicineName: "medicine_name",
+      type: "type",
+      quantity: "quantity",
+      date: "created_at",
+      reason: "reason",
+      userEmail: "user_email"
+    }
+  },
+  purchaseOrders: {
+    table: "purchase_orders",
+    keyMap: {
+      id: "id",
+      supplierId: "supplier_id",
+      supplierName: "supplier_name",
+      items: "items",
+      totalAmount: "total_amount",
+      status: "status",
+      orderDate: "order_date",
+      receivedDate: "received_date"
+    }
+  },
+  financeRecords: {
+    table: "finance_records",
+    keyMap: {
+      id: "id",
+      type: "type",
+      category: "category",
+      amount: "amount",
+      description: "description",
+      paymentMethod: "payment_method",
+      date: "date"
+    }
+  },
+  auditLogs: {
+    table: "audit_logs",
+    keyMap: {
+      id: "id",
+      action: "action",
+      module: "module",
+      date: "created_at",
+      details: "details"
+    }
+  },
+  branches: {
+    table: "branches",
+    keyMap: {
+      id: "id",
+      name: "name",
+      code: "code",
+      address: "address",
+      phone: "phone",
+      isActive: "is_active",
+      inventorySynced: "inventory_synced"
+    }
+  },
+  apiKeys: {
+    table: "api_keys",
+    keyMap: {
+      id: "id",
+      name: "name",
+      apiKey: "api_key",
+      createdAt: "created_at",
+      expiresAt: "expires_at",
+      status: "status"
+    }
+  },
+  rolePermissions: {
+    table: "role_permissions",
+    keyMap: {
+      role: "role",
+      permissions: "permissions"
+    }
+  },
+  backups: {
+    table: "backups",
+    keyMap: {
+      id: "id",
+      filename: "filename",
+      size: "size",
+      createdAt: "created_at",
+      storageProvider: "storage_provider",
+      status: "status"
+    }
+  },
+  cashSessions: {
+    table: "cash_sessions",
+    keyMap: {
+      id: "id",
+      status: "status",
+      openedAt: "opened_at",
+      openedBy: "opened_by",
+      openingBalance: "opening_cash",
+      closedAt: "closed_at",
+      closedBy: "closed_by",
+      expectedClosingBalance: "expected_cash",
+      actualClosingBalance: "actual_cash",
+      variance: "discrepancy",
+      notes: "notes",
+      salesInvoices: "sales_invoices",
+      mpesaTransactionsAndAmounts: "mpesa_transactions_and_amounts",
+      cashTransactions: "cash_transactions",
+      totalSalesAmount: "total_sales_amount",
+      totalMpesaAmount: "total_mpesa_amount",
+      totalCashAmount: "total_cash_amount",
+      totalDiscounts: "total_discounts",
+      totalRefunds: "total_refunds",
+      totalExpenses: "total_expenses"
+    }
+  },
+  weeklyCycles: {
+    table: "weekly_cycles",
+    keyMap: {
+      id: "id",
+      status: "status",
+      startDate: "start_date",
+      endDate: "end_date",
+      graphReport: "graph_report",
+      weeklyRevenue: "weekly_revenue",
+      totalSalesOverview: "total_sales_overview"
+    }
+  },
+  mpesaTransactions: {
+    table: "mpesa_transactions",
+    keyMap: {
+      id: "id",
+      transactionCode: "transaction_code",
+      amount: "amount",
+      accountReference: "account_reference",
+      phoneNumber: "phone_number",
+      customerName: "customer_name",
+      timestamp: "timestamp",
+      status: "status",
+      isClaimed: "is_claimed"
+    }
+  }
+};
+
+const disabledTables = new Set<string>();
+
+// --- Bidirectional conversion helpers for robust snake_case database interfacing ---
+function findUserByUUID(userIdOrUUID: string): any {
+  const users = (globalStateCache && globalStateCache.users) || [];
+  const match = users.find(u => {
+    if (u.id === userIdOrUUID) return true;
+    if (toUUIDIfNeeded(u.id) === userIdOrUUID) return true;
+    return false;
+  });
+  if (match) {
+    return {
+      id: match.id,
+      name: match.name,
+      email: match.email,
+      role: match.role
+    };
+  }
+  return {
+    id: "usr-1",
+    name: "Budiono Siregar",
+    email: "budionosiregar@gmail.com",
+    role: "Admin"
+  };
+}
+
+function mapToRow(configName: string, item: any): any {
+  if (!item) return item;
+
+  if (configName === "mpesaTransactions") {
+    const row: any = {};
+    row.id = item.id || item.TransID || `mpesa-${Date.now()}`;
+    row.transaction_code = item.transactionCode || item.TransID || "";
+    row.amount = Number(item.amount || item.TransAmount || 0);
+    row.account_reference = item.accountReference || item.BillRefNumber || "N/A";
+    row.phone_number = item.phoneNumber || item.MSISDN || "";
+    row.customer_name = item.customerName || `${item.FirstName || ""} ${item.MiddleName || ""} ${item.LastName || ""}`.trim() || "M-PESA SUBSCRIBER";
+    row.timestamp = item.timestamp || item.TransTime || new Date().toISOString();
+    row.status = item.status || "Success";
+    row.is_claimed = item.claimed !== undefined ? item.claimed : (item.isClaimed !== undefined ? item.isClaimed : false);
+    return row;
+  }
+
+  const config = tableMappings[configName];
+  if (!config) return item;
+  const row: any = {};
+  for (const [camelKey, snakeKey] of Object.entries(config.keyMap)) {
+    if (item[camelKey] !== undefined) {
+      let val = item[camelKey];
+      // Convert raw strings for ID/Foreign Key columns to deterministic UUIDs if we target a potential UUID field
+      if (
+        snakeKey === "id" ||
+        snakeKey === "category_id" ||
+        snakeKey === "supplier_id" ||
+        snakeKey === "medicine_id" ||
+        snakeKey === "customer_id"
+      ) {
+        if (typeof val === "string") {
+          val = toUUIDIfNeeded(val);
+        }
+      }
+      if (snakeKey === "opened_by" || snakeKey === "closed_by") {
+        if (val && typeof val === "object") {
+          val = toUUIDIfNeeded(val.id);
+        } else if (typeof val === "string") {
+          val = toUUIDIfNeeded(val);
+        }
+      }
+      row[snakeKey] = val;
+    }
+  }
+  if (configName === "inventoryLogs" && !row.actor_id) {
+    row.actor_id = item.userEmail ? toUUIDIfNeeded(item.userEmail) : toUUIDIfNeeded("budionosiregar@gmail.com");
+  }
+  if (configName === "cashSessions") {
+    row.opening_cash = Number(item.openingBalance || 0);
+    row.expected_cash = Number(item.expectedClosingBalance || 0);
+    row.actual_cash = item.actualClosingBalance !== undefined && item.actualClosingBalance !== null ? Number(item.actualClosingBalance) : null;
+    row.discrepancy = item.variance !== undefined && item.variance !== null ? Number(item.variance) : null;
+    row.notes = item.notes || item.note || "";
+  }
+  return row;
+}
+
+function mapFromRow(configName: string, row: any): any {
+  if (!row) return row;
+
+  if (configName === "mpesaTransactions") {
+    const item: any = {};
+    item.TransID = row.transaction_code;
+    item.TransAmount = String(row.amount);
+    item.MSISDN = row.phone_number;
+    const nameParts = (row.customer_name || "M-PESA SUBSCRIBER").split(" ");
+    item.FirstName = nameParts[0] || "M-PESA";
+    item.MiddleName = nameParts.length > 2 ? nameParts[1] : "";
+    item.LastName = nameParts.length > 2 ? nameParts.slice(2).join(" ") : (nameParts[1] || "SUBSCRIBER");
+    item.BillRefNumber = row.account_reference;
+    item.TransTime = row.timestamp;
+    item.claimed = row.is_claimed;
+    item.id = row.id;
+    return item;
+  }
+
+  const config = tableMappings[configName];
+  if (!config) return row;
+  const item: any = {};
+  for (const [camelKey, snakeKey] of Object.entries(config.keyMap)) {
+    if (row[snakeKey] !== undefined) {
+      item[camelKey] = row[snakeKey];
+    }
+  }
+  if (configName === "cashSessions") {
+    item.openingBalance = Number(row.opening_cash || 0);
+    item.expectedClosingBalance = Number(row.expected_cash || 0);
+    item.actualClosingBalance = row.actual_cash !== null ? Number(row.actual_cash) : undefined;
+    item.variance = row.discrepancy !== null ? Number(row.discrepancy) : undefined;
+    item.note = row.notes || "";
+    item.notes = row.notes || "";
+
+    if (typeof item.openedBy === "string") {
+      item.openedBy = findUserByUUID(item.openedBy);
+    }
+    if (item.closedBy !== undefined && typeof item.closedBy === "string") {
+      item.closedBy = findUserByUUID(item.closedBy);
+    }
+  }
+  return item;
+}
+
+function mapSettingsToRow(settings: SystemSettings) {
+  return {
+    id: "default",
+    general: settings.general,
+    security: settings.security,
+    financial: settings.financial,
+    inventory: settings.inventory,
+    notifications: settings.notifications,
+    integrations: settings.integrations,
+    ai_automation: settings.aiAutomation,
+    appearance: settings.appearance,
+    receipts: settings.receipts,
+    maintenance: settings.maintenance,
+    settings_payload: settings
+  };
+}
+
+function mapSettingsFromRow(row: any): SystemSettings {
+  return {
+    general: row.general,
+    security: row.security,
+    financial: row.financial,
+    inventory: row.inventory,
+    notifications: row.notifications,
+    integrations: row.integrations,
+    aiAutomation: row.ai_automation,
+    appearance: row.appearance,
+    receipts: row.receipts,
+    maintenance: row.maintenance
+  };
+}
+
+// Global cached state synced with database in real-time
+let globalStateCache: DBState = initialData;
+let isInitialSyncDone = false;
+
+// --- Local File system fallback methods ---
+function readDBFromFileSystem(): DBState {
   try {
     if (!fs.existsSync(DATA_FILE)) {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(initialData, null, 2), "utf-8");
-      return initialData;
+      // Secure password hashing on fallback
+      const stateToSave = { ...initialData };
+      stateToSave.users = initialData.users.map(u => {
+        const { salt, hash } = hashPassword("password123");
+        return {
+          ...u,
+          passwordHash: hash,
+          salt,
+          failedLoginAttempts: 0,
+          passwordSetupCompleted: false
+        };
+      });
+      fs.writeFileSync(DATA_FILE, JSON.stringify(stateToSave, null, 2), "utf-8");
+      return stateToSave;
     }
     const raw = fs.readFileSync(DATA_FILE, "utf-8");
     const data = JSON.parse(raw);
     
-    // Schema auto-migration layer: dynamically inject config arrays
     let changed = false;
     if (!data.settings) {
       data.settings = initialData.settings;
@@ -789,7 +1232,8 @@ export function readDB(): DBState {
             ...du,
             passwordHash: hash,
             salt,
-            failedLoginAttempts: 0
+            failedLoginAttempts: 0,
+            passwordSetupCompleted: false
           });
           existingEmails.add(du.email.toLowerCase());
           changed = true;
@@ -809,6 +1253,7 @@ export function readDB(): DBState {
           usr.passwordHash = hash;
           usr.salt = salt;
           usr.failedLoginAttempts = 0;
+          usr.passwordSetupCompleted = false;
           changed = true;
         }
       });
@@ -854,22 +1299,485 @@ export function readDB(): DBState {
     }
     return data;
   } catch (err) {
-    console.error("Failed to read database store:", err);
+    console.error("[Local DB read error]", err);
     return initialData;
   }
 }
 
-export function writeDB(state: DBState): void {
+function writeDBToFileSystem(state: DBState): void {
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify(state, null, 2), "utf-8");
   } catch (err) {
-    console.error("Failed to write database store:", err);
+    console.error("[Local DB write error]", err);
   }
 }
 
+// --- Supabase Cloud database pulling, mapping and auto-seeding logic ---
+export async function initSupabaseSync(): Promise<void> {
+  console.log("[Supabase Sync] Pulling clinical data from Supabase...");
+  
+  // Seed memory cache initially from disk so we have a fully operational local baseline
+  const localData = readDBFromFileSystem();
+  globalStateCache = localData;
+
+  try {
+    // 1. Fetch tables from Supabase in sequence to resolve foreign dependencies correctly
+    const tableKeys = [
+      "rolePermissions", "users", "categories", "suppliers", "medicines", "customers", 
+      "sales", "inventoryLogs", "purchaseOrders", "financeRecords", "auditLogs", "branches", 
+      "apiKeys", "backups", "cashSessions", "weeklyCycles", "mpesaTransactions"
+    ];
+
+    for (const key of tableKeys) {
+      const mapping = tableMappings[key];
+      if (!mapping) continue;
+
+      const primaryKeyName = key === "rolePermissions" ? "role" : "id";
+      
+      const { data, error } = await supabase
+        .from(mapping.table)
+        .select("*");
+        
+      if (error) {
+        if (error.message?.includes("Could not find the table") || error.message?.includes("relation") || error.message?.includes("does not exist")) {
+          console.warn(`[Supabase Sync] Table ${mapping.table} does not exist in the active schema cache. Local storage fallback will be active for ${key}.`);
+          disabledTables.add(key);
+          continue;
+        }
+        console.warn(`[Supabase Sync Warning] Table ${mapping.table} query failed. Seeder will auto-create or retry:`, error.message);
+        await seedTableToSupabase(key, (localData as any)[key] || []);
+      } else if (!data || data.length === 0) {
+        console.log(`[Supabase Sync] Table ${mapping.table} is empty. Auto-seeding metadata...`);
+        await seedTableToSupabase(key, (localData as any)[key] || []);
+      } else {
+        const mappedData = data.map(row => mapFromRow(key, row));
+        (globalStateCache as any)[key] = mappedData;
+        console.log(`[Supabase Sync] Successfully synchronized ${data.length} records for table [${mapping.table}] from cloud.`);
+      }
+    }
+
+    // 2. Clear / seed system settings
+    if (!disabledTables.has("system_settings")) {
+      const { data: settingsData, error: settingsError } = await supabase
+        .from("system_settings")
+        .select("*")
+        .eq("id", "default")
+        .single();
+        
+      if (settingsError || !settingsData) {
+        if (settingsError && (settingsError.message?.includes("Could not find the table") || settingsError.message?.includes("relation") || settingsError.message?.includes("does not exist"))) {
+          console.warn(`[Supabase Settings] system_settings table does not exist in the active schema cache. Local settings used.`);
+          disabledTables.add("system_settings");
+        } else {
+          console.log("[Supabase Settings] Record empty. Seeding system_settings to database...");
+          const settingsRow = mapSettingsToRow(localData.settings);
+          const { error: seedErr } = await supabase
+            .from("system_settings")
+            .upsert(settingsRow);
+          if (seedErr) {
+            console.error("[Supabase Settings Seed Error] Failed:", seedErr.message);
+          }
+        }
+      } else {
+        globalStateCache.settings = mapSettingsFromRow(settingsData);
+        console.log("[Supabase Settings] Loaded settings successfully.");
+      }
+    }
+
+    isInitialSyncDone = true;
+    console.log("[Supabase Sync] Supabase database synchronisation finished successfully!");
+    
+    // Save updated cloud-sourced state locally
+    writeDBToFileSystem(globalStateCache);
+  } catch (err) {
+    console.error("[Supabase Init Sync Error] Fell back entirely to local file-system state:", err);
+    isInitialSyncDone = true;
+  }
+}
+
+async function getGuaranteedProfileId(): Promise<string> {
+  try {
+    const { data } = await supabase.from("profiles").select("id").limit(1);
+    if (data && data.length > 0) {
+      return data[0].id;
+    }
+    const { data: userData } = await supabase.auth.getUser();
+    if (userData?.user) {
+      const activeId = userData.user.id;
+      await supabase.from("profiles").upsert({
+        id: activeId,
+        name: userData.user.user_metadata?.name || "Budiono Siregar",
+        email: userData.user.email || "budionosiregar@gmail.com",
+        role: userData.user.user_metadata?.role || "Admin",
+        is_active: true,
+        verification_status: "Verified"
+      });
+      return activeId;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return toUUIDIfNeeded("budionosiregar@gmail.com");
+}
+
+async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ error: any | null }> {
+  let attemptRows = JSON.parse(JSON.stringify(rows));
+  
+  // Deduplicate rows by their key (role or id) to avoid "ON CONFLICT DO UPDATE command cannot affect row a second time"
+  const seenKeys = new Set();
+  const dedupedRows: any[] = [];
+  for (let i = attemptRows.length - 1; i >= 0; i--) {
+    const row = attemptRows[i];
+    const keyVal = row.role !== undefined ? row.role : row.id;
+    if (keyVal !== undefined) {
+      if (!seenKeys.has(keyVal)) {
+        seenKeys.add(keyVal);
+        dedupedRows.unshift(row);
+      }
+    } else {
+      dedupedRows.unshift(row);
+    }
+  }
+  attemptRows = dedupedRows;
+
+  let attempts = 0;
+  const maxAttempts = 15;
+
+  if (tableName === "profiles") {
+    for (const r of attemptRows) {
+      try {
+        await supabase.from("users").upsert({
+          id: r.id,
+          name: r.name,
+          email: r.email,
+          role: r.role
+        });
+      } catch (e) {
+        // Ignore if legacy users table doesn't exist
+      }
+    }
+  }
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    const { error } = await supabase
+      .from(tableName)
+      .upsert(attemptRows);
+
+    if (!error) {
+      return { error: null };
+    }
+
+    const errMsg = error.message;
+    const errCode = error.code;
+    
+    // Check if RLS error
+    if (errMsg.includes("row-level security") || errCode === "42501") {
+      return { error };
+    }
+
+    // Check if missing column schema cache error
+    const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i);
+    if (cacheMatch) {
+      const badColumn = cacheMatch[1];
+      console.warn(`[Self-Healing Schema Sync] Column [${badColumn}] not found in table [${tableName}]. Auto-pruning...`);
+      // Prune this column from all rows in attemptRows
+      attemptRows = attemptRows.map((r: any) => {
+        const { [badColumn]: _, ...rest } = r;
+        return rest;
+      });
+      continue;
+    }
+
+    // Self-healing for Foreign Key Violations (23503)
+    if (errCode === "23503" || errMsg.includes("violates foreign key constraint") || errMsg.includes("relationship")) {
+      let healed = false;
+      if (tableName === "profiles") {
+        const verifiedProfileId = await getGuaranteedProfileId();
+        console.warn(`[Self-Healing Profiles] Filtered out invalid non-authenticated profile IDs except: ${verifiedProfileId}`);
+        const originalLength = attemptRows.length;
+        attemptRows = attemptRows.filter((r: any) => r.id === verifiedProfileId);
+        if (attemptRows.length < originalLength) healed = true;
+      } else if (errMsg.includes("actor_id")) {
+        const verifiedProfileId = await getGuaranteedProfileId();
+        console.warn(`[Self-Healing FKey] actor_id constraint violation in [${tableName}]. Retrying with verified profile ID: ${verifiedProfileId}`);
+        attemptRows = attemptRows.map((r: any) => ({ ...r, actor_id: verifiedProfileId }));
+        healed = true;
+      } else if (errMsg.includes("opened_by") || errMsg.includes("openedBy")) {
+        const verifiedProfileId = await getGuaranteedProfileId();
+        console.warn(`[Self-Healing FKey] opened_by constraint violation in [${tableName}]. Set to verified profile ID: ${verifiedProfileId}`);
+        attemptRows = attemptRows.map((r: any) => ({ ...r, opened_by: verifiedProfileId }));
+        healed = true;
+      } else if (errMsg.includes("closed_by") || errMsg.includes("closedBy")) {
+        const verifiedProfileId = await getGuaranteedProfileId();
+        console.warn(`[Self-Healing FKey] closed_by constraint violation in [${tableName}]. Set to verified profile ID: ${verifiedProfileId}`);
+        attemptRows = attemptRows.map((r: any) => ({ ...r, closed_by: verifiedProfileId }));
+        healed = true;
+      } else if (errMsg.includes("customer_id")) {
+        console.warn(`[Self-Healing FKey] customer_id constraint violation in [${tableName}]. Set to null.`);
+        attemptRows = attemptRows.map((r: any) => ({ ...r, customer_id: null }));
+        healed = true;
+      } else if (errMsg.includes("supplier_id")) {
+        console.warn(`[Self-Healing FKey] supplier_id constraint violation in [${tableName}]. Set to null.`);
+        attemptRows = attemptRows.map((r: any) => ({ ...r, supplier_id: null }));
+        healed = true;
+      } else if (errMsg.includes("category_id")) {
+        console.warn(`[Self-Healing FKey] category_id constraint violation in [${tableName}]. Set to null.`);
+        attemptRows = attemptRows.map((r: any) => ({ ...r, category_id: null }));
+        healed = true;
+      }
+      if (healed) {
+        continue;
+      }
+    }
+
+    // Self-healing for NOT NULL constraint violations (23502)
+    if (errCode === "23502" || errMsg.includes("violates not-null constraint")) {
+      const matchNotNull = errMsg.match(/column "([^"]+)"/);
+      if (matchNotNull) {
+        const notNullCol = matchNotNull[1];
+        if (notNullCol === "opening_balance" || notNullCol === "opening_cash") {
+          console.warn(`[Self-Healing Not-Null] Column [${notNullCol}] violates constraint in [${tableName}]. Retrying with default 0.00...`);
+          attemptRows = attemptRows.map((r: any) => ({ ...r, [notNullCol]: r[notNullCol] || 0 }));
+          continue;
+        }
+      }
+    }
+
+    // For any other error, return it
+    return { error };
+  }
+
+  return { error: { message: `Reached max self-healing attempts of ${maxAttempts}` } };
+}
+
+async function syncChildRecords(key: string, rows: any[]) {
+  try {
+    if (key === "sales") {
+      const saleItemsRows: any[] = [];
+      const receiptsRows: any[] = [];
+      for (const saleObj of rows) {
+        if (!saleObj || !saleObj.id) continue;
+        const rawItems = saleObj.items;
+        const itemsList = typeof rawItems === "string" ? JSON.parse(rawItems) : (Array.isArray(rawItems) ? rawItems : []);
+        itemsList.forEach((item: any, idx: number) => {
+          saleItemsRows.push({
+            id: toUUIDIfNeeded(`${saleObj.id}-item-${idx}`),
+            sale_id: saleObj.id,
+            medicine_id: item.medicineId ? toUUIDIfNeeded(item.medicineId) : null,
+            medicine_name: item.medicineName,
+            quantity: item.quantity || 1,
+            price: item.price || 0,
+            tax: item.tax || 0
+          });
+        });
+        receiptsRows.push({
+          id: toUUIDIfNeeded(`${saleObj.id}-receipt`),
+          sale_id: saleObj.id,
+          invoice_number: saleObj.invoice_number || `INV-${Date.now()}`,
+          total_amount: saleObj.total_price || 0,
+          payment_method: saleObj.payment_method || "Cash",
+          issued_at: saleObj.date || new Date().toISOString()
+        });
+      }
+      if (saleItemsRows.length > 0) {
+        await supabase.from("sale_items").upsert(saleItemsRows);
+      }
+      if (receiptsRows.length > 0) {
+        await supabase.from("receipts").upsert(receiptsRows);
+      }
+    } else if (key === "purchaseOrders") {
+      const poItemsRows: any[] = [];
+      for (const poObj of rows) {
+        if (!poObj || !poObj.id) continue;
+        const rawItems = poObj.items;
+        const itemsList = typeof rawItems === "string" ? JSON.parse(rawItems) : (Array.isArray(rawItems) ? rawItems : []);
+        itemsList.forEach((item: any, idx: number) => {
+          poItemsRows.push({
+            id: toUUIDIfNeeded(`${poObj.id}-item-${idx}`),
+            purchase_order_id: poObj.id,
+            medicine_name: item.medicineName,
+            quantity: item.quantity || 1,
+            buying_price: item.buyingPrice || item.buying_price || 0
+          });
+        });
+      }
+      if (poItemsRows.length > 0) {
+        await supabase.from("purchase_order_items").upsert(poItemsRows);
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[Supabase Children Sync Exception] Syncing child records for key [${key}] failed:`, err.message);
+  }
+}
+
+async function seedTableToSupabase(key: string, items: any[]) {
+  if (disabledTables.has(key)) return;
+  if (!items || items.length === 0) return;
+  const config = tableMappings[key];
+  if (!config) return;
+  
+  console.log(`[Supabase Config Seeder] Seeding ${items.length} rows for ${config.table}...`);
+  const rows = items.map(item => mapToRow(key, item));
+  
+  const { error } = await upsertWithSelfHealing(config.table, rows);
+    
+  if (error) {
+    const isRLS = error.message.includes("row-level security") || error.code === "42501";
+    if (isRLS) {
+      console.log(`[Supabase Seed] Note: Seeding ${config.table} bypassed due to active RLS settings: ${error.message}`);
+    } else {
+      console.error(`[Supabase Seed Error] Failed to seed ${config.table}:`, error.message);
+    }
+  } else {
+    console.log(`[Supabase Seed] Seeding of ${config.table} complete.`);
+    if (key === "sales" || key === "purchaseOrders") {
+      await syncChildRecords(key, rows);
+    }
+  }
+}
+
+// --- Supabase Cloud delta synchronization writes helper ---
+async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
+  try {
+    // 1. Sync standard tables
+    for (const [key, mapping] of Object.entries(tableMappings)) {
+      if (disabledTables.has(key)) continue;
+      
+      const oldArr = (oldState as any)[key] || [];
+      const newArr = (newState as any)[key] || [];
+      
+      const primaryKeyName = key === "rolePermissions" ? "role" : "id";
+      
+      // Compute modified/inserted items
+      const upserts: any[] = [];
+      for (const newItem of newArr) {
+        const pkVal = newItem[primaryKeyName];
+        const oldItem = oldArr.find((x: any) => x[primaryKeyName] === pkVal);
+        
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(newItem)) {
+          upserts.push(mapToRow(key, newItem));
+        }
+      }
+      
+      if (upserts.length > 0) {
+        for (let i = 0; i < upserts.length; i += 100) {
+          const chunk = upserts.slice(i, i + 100);
+          const { error } = await upsertWithSelfHealing(mapping.table, chunk);
+          if (error) {
+            const isRLS = error.message.includes("row-level security") || error.code === "42501";
+            if (isRLS) {
+              console.log(`[Supabase Sync] Note: ${mapping.table} sync updated locally, cloud sync bypassed due to RLS.`);
+            } else {
+              console.error(`[Supabase Sync Error] Upserting to ${mapping.table} failed:`, error.message);
+            }
+          } else {
+            if (key === "sales" || key === "purchaseOrders") {
+              await syncChildRecords(key, chunk);
+            }
+          }
+        }
+      }
+      
+      // Compute deleted items
+      const deletes: any[] = [];
+      for (const oldItem of oldArr) {
+        const pkVal = oldItem[primaryKeyName];
+        const exists = newArr.some((x: any) => x[primaryKeyName] === pkVal);
+        if (!exists) {
+          deletes.push(pkVal);
+        }
+      }
+      
+      if (deletes.length > 0) {
+        const { error } = await supabase
+          .from(mapping.table)
+          .delete()
+          .in(primaryKeyName === "role" ? "role" : "id", deletes);
+        if (error) {
+          console.error(`[Supabase Sync Error] Deleting from ${mapping.table} failed:`, error.message);
+        }
+      }
+    }
+    
+    // 2. Sync system settings
+    if (!disabledTables.has("system_settings") && JSON.stringify(oldState.settings) !== JSON.stringify(newState.settings)) {
+      let settingsRow = mapSettingsToRow(newState.settings);
+      let { error } = await supabase
+        .from("system_settings")
+        .upsert(settingsRow);
+      if (error && error.message.includes("integer") && settingsRow.id === "default") {
+        console.warn("[Self-Healing Settings] Retrying settings sync with integer ID: 1");
+        settingsRow.id = "1";
+        const retryResult = await supabase
+          .from("system_settings")
+          .upsert(settingsRow);
+        error = retryResult.error;
+      }
+      if (error) {
+        console.error("[Supabase Sync Error] Upserting system_settings failed:", error.message);
+      }
+    }
+  } catch (err) {
+    console.error("[Supabase Sync Delta] Execution exceptional error:", err);
+  }
+}
+
+// --- Supabase Storage integration Base64-to-bucket processor ---
+export async function uploadBase64ToStorage(base64Data: string, pathName: string): Promise<string | null> {
+  try {
+    const match = base64Data.match(/^data:([a-zA-Z+.-]+\/[a-zA-Z+.-]+);base64,(.*)$/);
+    if (!match) return null;
+    
+    const contentType = match[1];
+    const base64BytesStr = match[2];
+    const buffer = Buffer.from(base64BytesStr, "base64");
+    
+    const { data, error } = await supabase.storage
+      .from("app_files")
+      .upload(pathName, buffer, {
+        contentType,
+        upsert: true
+      });
+      
+    if (error) {
+      console.warn("[Supabase Storage Error] Upload to app_files bucket failed:", error.message);
+      return null;
+    }
+    
+    const { data: publicUrlData } = supabase.storage
+      .from("app_files")
+      .getPublicUrl(pathName);
+      
+    return publicUrlData.publicUrl;
+  } catch (err) {
+    console.error("[Supabase Storage Exception] Failed to execute base64 save:", err);
+    return null;
+  }
+}
+
+// --- Exposed interface identical and compatible with server.ts logic ---
+export function readDB(): DBState {
+  return globalStateCache;
+}
+
+export function writeDB(state: DBState): void {
+  const oldState = { ...globalStateCache };
+  globalStateCache = state;
+  
+  // Asynchronously write to both local system and Supabase cloud tables
+  writeDBToFileSystem(state);
+  syncChangesToSupabase(oldState, state);
+}
+
 export function updateDB(updater: (state: DBState) => void): DBState {
-  const state = readDB();
-  updater(state);
-  writeDB(state);
-  return state;
+  const oldState = { ...globalStateCache };
+  
+  const stateCopy = JSON.parse(JSON.stringify(globalStateCache));
+  updater(stateCopy);
+  globalStateCache = stateCopy;
+  
+  writeDBToFileSystem(stateCopy);
+  syncChangesToSupabase(oldState, stateCopy);
+  return stateCopy;
 }

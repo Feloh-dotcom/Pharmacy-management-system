@@ -7,7 +7,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
-import { readDB, updateDB, hashPassword } from "./server_db";
+import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded } from "./server_db";
 import { UserRole, Medicine, Sale, PurchaseOrder, InventoryLog, Customer, FinanceRecord } from "./src/types";
 
 // Lazy-loaded or conditional Gemini API initializer
@@ -408,8 +408,8 @@ app.get("/api/dashboard/metrics", (req, res) => {
 });
 
 // 2. Authentication API
-app.post("/api/auth/register", (req, res) => {
-  const { name, email, password } = req.body;
+app.post("/api/auth/register", async (req, res) => {
+  const { id, name, email, password } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: "Name, email and password are all required to register" });
   }
@@ -424,17 +424,38 @@ app.post("/api/auth/register", (req, res) => {
   // Never assign privileged roles like Admin, Pharmacist, Cashier, etc., to prevent privilege escalation.
   const { salt, hash } = hashPassword(password);
   
+  let userIdOnCloud = id || `usr-${Date.now()}`;
+
+  // Force register / auto-confirm inside Supabase Authentication to protect absolute integrity
+  try {
+    const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
+      email: email.toLowerCase(),
+      password: password,
+      email_confirm: true,
+      user_metadata: { full_name: name, role: "User" }
+    });
+    if (authErr) {
+      console.warn("[Register Sync] Supabase Auth user existed or setup was bypassed:", authErr.message);
+    } else if (authUser?.user) {
+      userIdOnCloud = authUser.user.id;
+    }
+  } catch (error: any) {
+    console.error("[Register Sync Exception] Supabase auth action had an error:", error.message);
+  }
+
   const newUser = {
-    id: `usr-${Date.now()}`,
+    id: userIdOnCloud,
     name,
+    fullName: name,
     email: email.toLowerCase(),
     role: "User" as any, // Assign harmless non-privileged default role
-    avatarUrl: `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop`,
+    avatarUrl: null as any, // Set to null as requested; fallback is handled automatically by professional placeholder avatars
     isActive: true,
     createdAt: new Date().toISOString(),
     passwordHash: hash,
     salt,
-    failedLoginAttempts: 0
+    failedLoginAttempts: 0,
+    verificationStatus: "Pending" as any
   };
 
   updateDB(state => {
@@ -1930,7 +1951,7 @@ app.post("/api/settings/maintenance/diagnose", (req, res) => {
   res.json({ message: "Diagnostics performed.", report });
 });
 
-app.post("/api/settings/users", (req, res) => {
+app.post("/api/settings/users", async (req, res) => {
   const { adminEmail, userId, isActive, role, action, name, email, password } = req.body;
 
   const db = readDB();
@@ -1956,8 +1977,27 @@ app.post("/api/settings/users", (req, res) => {
     }
 
     const { salt, hash } = hashPassword(password);
+    let staffIdOnCloud = `usr-${Date.now()}`;
+
+    // Enroll inside Supabase Authentication directly to maintain absolute sync
+    try {
+      const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
+        email: email.toLowerCase(),
+        password: password,
+        email_confirm: true,
+        user_metadata: { full_name: name, role: role }
+      });
+      if (authErr) {
+        console.warn("[Admin Staff Sync] Supabase Auth user setup was bypassed or already exists:", authErr.message);
+      } else if (authUser?.user) {
+        staffIdOnCloud = authUser.user.id;
+      }
+    } catch (error: any) {
+      console.error("[Admin Staff Sync Exception] Supabase auth action failed:", error.message);
+    }
+
     const newStaff = {
-      id: `usr-${Date.now()}`,
+      id: staffIdOnCloud,
       name,
       email: email.toLowerCase(),
       role: role as any,
@@ -1989,6 +2029,22 @@ app.post("/api/settings/users", (req, res) => {
     }
 
     const { salt, hash } = hashPassword(password);
+
+    // Also update password directly inside Supabase Auth
+    try {
+      const dbInstance = readDB();
+      const localUsr = dbInstance.users.find(u => u.id === userId);
+      if (localUsr) {
+        const supabaseUid = toUUIDIfNeeded(userId);
+        const { error: authResetErr } = await supabase.auth.admin.updateUserById(supabaseUid, { password });
+        if (authResetErr) {
+          console.warn("[Admin Reset Sync Warning] Supabase Auth update failed:", authResetErr.message);
+        }
+      }
+    } catch (error: any) {
+      console.error("[Admin Reset Sync Exception] Failed to update password in auth:", error.message);
+    }
+
     updateDB(state => {
       const idx = state.users.findIndex(u => u.id === userId);
       if (idx > -1) {
@@ -2303,7 +2359,7 @@ app.post("/api/users/profile/verify-review", (req, res) => {
   res.json({ message: `Verification status updated to ${status}.`, user: updatedUser });
 });
 
-app.post("/api/users/profile/password", (req, res) => {
+app.post("/api/users/profile/password", async (req, res) => {
   const { email, currentPassword, newPassword } = req.body;
   if (!email || !newPassword) {
     return res.status(400).json({ error: "All password values must be provided." });
@@ -2324,6 +2380,17 @@ app.post("/api/users/profile/password", (req, res) => {
     if (hash !== user.passwordHash) {
       return res.status(401).json({ error: "Current credentials did not match secure logs." });
     }
+  }
+
+  // Update directly inside Supabase Auth to retain single-source-of-truth
+  try {
+    const supabaseUid = toUUIDIfNeeded(user.id);
+    const { error: authResetErr } = await supabase.auth.admin.updateUserById(supabaseUid, { password: newPassword });
+    if (authResetErr) {
+      console.warn("[Profile Password Sync Warning] Supabase Auth update failed:", authResetErr.message);
+    }
+  } catch (error: any) {
+    console.error("[Profile Password Sync Exception] Failed to update password in auth:", error.message);
   }
 
   updateDB(stateToModify => {
@@ -2348,7 +2415,7 @@ app.post("/api/users/profile/password", (req, res) => {
   res.json({ message: "Credentials successfully updated." });
 });
 
-app.post("/api/users/profile/upload-avatar", (req, res) => {
+app.post("/api/users/profile/upload-avatar", async (req, res) => {
   const { email, avatarUrl } = req.body;
   if (!email || !avatarUrl) {
     return res.status(400).json({ error: "User identifier and avatar identity are required" });
@@ -2391,12 +2458,25 @@ app.post("/api/users/profile/upload-avatar", (req, res) => {
     return res.status(400).json({ error: "Security validation error: Unsupported image source specifier." });
   }
 
+  let finalAvatarUrl = avatarUrl;
+  if (isBase64) {
+    try {
+      const filename = `avatars/${email.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}.png`;
+      const publicUrl = await uploadBase64ToStorage(avatarUrl, filename);
+      if (publicUrl) {
+        finalAvatarUrl = publicUrl;
+      }
+    } catch (storageErr) {
+      console.error("Failed to upload avatar to Supabase Storage, falling back to original base64:", storageErr);
+    }
+  }
+
   let foundUser: any = null;
 
   updateDB(state => {
     const idx = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
     if (idx !== -1) {
-      state.users[idx].avatarUrl = avatarUrl;
+      state.users[idx].avatarUrl = finalAvatarUrl;
       foundUser = { ...state.users[idx] };
       
       // Post audit log entry
@@ -2417,7 +2497,7 @@ app.post("/api/users/profile/upload-avatar", (req, res) => {
     return res.status(404).json({ error: "Account session not discovered in register." });
   }
 
-  res.json({ message: "Workstation avatar securely updated.", avatarUrl, user: foundUser });
+  res.json({ message: "Workstation avatar securely updated.", avatarUrl: finalAvatarUrl, user: foundUser });
 });
 
 app.post("/api/users/profile/preferences", (req, res) => {
@@ -2849,6 +2929,13 @@ app.post("/confirmation", (req, res) => {
 // Hook-up and configure the Express server environment integration
 async function startServer() {
   const PORT = 3000;
+
+  // Hydrate memory cache and sync/seed Supabase tables initially
+  try {
+    await initSupabaseSync();
+  } catch (err) {
+    console.error("Supabase sync initialization failed at boot:", err);
+  }
 
   // Serve static files + router fallbacks in Production
   if (process.env.NODE_ENV !== "production") {

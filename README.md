@@ -19,8 +19,7 @@ The system is built as a highly responsive **Full-Stack Application** designed w
 Below is the directory structure mapping every file in this system and explaining precisely what segment of the application is managed by each asset:
 
 ```text
-├── .env.example              # Config template documenting necessary secret variables (such as database IDs or API keys)
-├── .gitignore                # Specifies ignored build artifacts, local caches, and node dependencies to keep the workspace clean
+├─.gitignore                # Specifies ignored build artifacts, local caches, and node dependencies to keep the workspace clean
 ├── data_store.json           # File-based database holding persistent tables for medicines, sales, orders, users, audit logs, and more
 ├── index.html                # Main single-page document shell that bootstraps the client application
 ├── metadata.json             # Applet descriptor controlling the app title, description, and iframe window level permissions
@@ -28,7 +27,8 @@ Below is the directory structure mapping every file in this system and explainin
 ├── package-lock.json         # Pinned lockfile enforcing deterministic dependency resolutions during installation
 ├── server.ts                 # Full-stack backend entrypoint managing secure REST API routes, auth systems, transactions, and Vite middleware
 ├── server_db.ts              # Abstract helper library for reading, initializing, and writing to the file-based persistent database
-├── tsconfig.json             # TypeScript configuration defining rigorous compiler strictness, path mappings, and type-checks
+├── tsconfig─ .env.example              # Config template documenting necessary secret variables (such as database IDs or API keys)
+├── .json             # TypeScript configuration defining rigorous compiler strictness, path mappings, and type-checks
 ├── vite.config.ts            # Vite compile settings establishing assets building, Tailwind, and dev server proxy routing
 └── src/                      # Client-side React source directory
     ├── App.tsx               # Primary Client application controller coordinating active views, sidebar layouts, and auth states

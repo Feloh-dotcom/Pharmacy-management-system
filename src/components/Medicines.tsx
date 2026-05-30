@@ -264,16 +264,6 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
             Browse corporate formulation profiles, barcode SKUs, drug categories, and expiry matrices.
           </p>
         </div>
-
-        {canAddProduct && (
-          <button
-            onClick={handleOpenCreate}
-            className="flex items-center space-x-1.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4.5 py-2.5 rounded-xl shadow-md cursor-pointer transition-all duration-200"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add New formulation</span>
-          </button>
-        )}
       </div>
 
       {/* Statistics and alerts strip */}
@@ -312,24 +302,24 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
         </div>
       </div>
 
-      {/* Filter and query controls */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row flex-wrap items-center gap-4">
-        {/* Search Input */}
-        <div className="relative flex-1 min-w-[200px] w-full flex space-x-2 items-center">
-          <div className="relative flex-1 font-sans">
+      {/* Filter and query controls toolbar */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col lg:flex-row items-stretch lg:items-center gap-4 shadow-sm">
+        {/* Search Input and Scan button */}
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          <div className="relative flex-1 min-w-0 font-sans">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search SKU, barcode or generic formulation..."
-              className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-teal-500 placeholder-slate-400 font-medium"
             />
           </div>
           <button
             type="button"
             onClick={() => setIsGeneralScannerOpen(true)}
-            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-[#093530] rounded-xl transition flex items-center space-x-1 border border-slate-200 cursor-pointer shadow-sm shrink-0"
+            className="p-2 bg-slate-100 hover:bg-slate-200 text-[#093530] rounded-xl transition flex items-center space-x-1.5 border border-slate-200 cursor-pointer shadow-sm shrink-0 font-semibold"
             title="Scan code to search database"
           >
             <Camera className="w-3.5 h-3.5" />
@@ -337,42 +327,59 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
           </button>
         </div>
 
-        {/* Category filter dropdown selection */}
-        <div className="flex items-center space-x-2 w-full md:w-auto">
-          <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">Category:</span>
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 p-1.5 px-3 rounded-xl cursor-pointer"
-          >
-            <option value="all">All Drug Groups</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
+        {/* Filters and Utilities container */}
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 justify-between lg:justify-start">
+          {/* Category filter dropdown selection */}
+          <div className="flex items-center space-x-1.5 flex-1 sm:flex-initial min-w-[130px]">
+            <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">Category:</span>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 px-3 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+            >
+              <option value="all">All Drug Groups</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
 
-        {/* Stock alerts Filter switcher */}
-        <div className="flex items-center space-x-2 w-full md:w-auto">
-          <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">Stock Level:</span>
-          <select
-            value={stockFilter}
-            onChange={(e) => setStockFilter(e.target.value)}
-            className="text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 p-1.5 px-3 rounded-xl cursor-pointer"
-          >
-            <option value="all">All Stocks</option>
-            <option value="low">Low stock</option>
-            <option value="expired">Near / Expired</option>
-          </select>
-        </div>
+          {/* Stock alerts Filter switcher */}
+          <div className="flex items-center space-x-1.5 flex-1 sm:flex-initial min-w-[110px]">
+            <span className="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 font-mono">Stock:</span>
+            <select
+              value={stockFilter}
+              onChange={(e) => setStockFilter(e.target.value)}
+              className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 px-3 rounded-xl cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500"
+            >
+              <option value="all">All Stocks</option>
+              <option value="low">Low stock</option>
+              <option value="expired">Near / Expired</option>
+            </select>
+          </div>
 
-        {/* Manual DB reload button */}
-        <button
-          onClick={loadData}
-          className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-400 hover:text-slate-600 rounded-xl transition"
-        >
-          <RefreshCw className="w-3.5 h-3.5 font-bold" />
-        </button>
+          {/* Manual DB reload button */}
+          <button
+            type="button"
+            onClick={loadData}
+            className="p-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-400 hover:text-slate-600 rounded-xl transition cursor-pointer shrink-0"
+            title="Refresh database"
+          >
+            <RefreshCw className="w-3.5 h-3.5 font-bold" />
+          </button>
+
+          {/* Add Product Button (within the toolbar!) */}
+          {canAddProduct && (
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className="flex items-center justify-center space-x-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md cursor-pointer transition-all duration-200 shrink-0 select-none"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Product</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Medicines Inventory List Grid Table */}
