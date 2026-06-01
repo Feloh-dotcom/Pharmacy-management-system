@@ -42,6 +42,8 @@ interface SessionUser {
 
 export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [profileLoading, setProfileLoading] = useState<boolean>(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [currentTab, setCurrentTab] = useState<string>("dashboard");
   const [editFocusMed, setEditFocusMed] = useState<Medicine | null>(null);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
@@ -188,6 +190,40 @@ export default function App() {
     }
   };
 
+  // Load full profile live from database
+  const fetchLiveProfile = async (email: string) => {
+    setProfileLoading(true);
+    setProfileError(null);
+    try {
+      const res = await fetch(`/api/auth/me?email=${encodeURIComponent(email)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUser(data.user);
+          localStorage.setItem("halomedical_session_user", JSON.stringify(data.user));
+          
+          // Re-evaluate current tab if they completed onboarding
+          const completion = calculateProfileCompletion(data.user);
+          if (completion.percent >= 100) {
+            // Keep currentTab unless it's locked, but if they complete onboarding let's allow them access
+          } else {
+            setCurrentTab("profile");
+          }
+          return data.user;
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        setProfileError(errData.error || "Failed to load live profile.");
+      }
+    } catch (err) {
+      console.error("[Live Profile Sync Exception]", err);
+      setProfileError("Could not connect to database profiles.");
+    } finally {
+      setProfileLoading(false);
+    }
+    return null;
+  };
+
   // Read session upon startup
   useEffect(() => {
     fetchSettings();
@@ -196,7 +232,14 @@ export default function App() {
       try {
         const parsed = JSON.parse(storedUser);
         if (parsed && parsed.email && parsed.role) {
+          // Fallback option: load from local cache instantly to maintain smooth UI load
           setUser(parsed);
+          const completion = calculateProfileCompletion(parsed);
+          if (completion.percent < 100) {
+            setCurrentTab("profile");
+          }
+          // Simultaneously pull live, complete data from Supabase DB
+          fetchLiveProfile(parsed.email);
         }
       } catch (err) {
         console.error("Invalid session format:", err);
@@ -205,9 +248,27 @@ export default function App() {
     }
   }, []);
 
-  const handleLoginSuccess = (sessionUser: SessionUser) => {
+  const handleLoginSuccess = async (sessionUser: SessionUser) => {
     setUser(sessionUser);
     localStorage.setItem("halomedical_session_user", JSON.stringify(sessionUser));
+    const completion = calculateProfileCompletion(sessionUser);
+    if (completion.percent < 100) {
+      setCurrentTab("profile");
+    } else {
+      setCurrentTab("dashboard");
+    }
+    // Pull full database values with all onboarding attributes in background
+    if (sessionUser && sessionUser.email) {
+      const liveUser = await fetchLiveProfile(sessionUser.email);
+      if (liveUser) {
+        const fullCompletion = calculateProfileCompletion(liveUser);
+        if (fullCompletion.percent < 100) {
+          setCurrentTab("profile");
+        } else {
+          setCurrentTab("dashboard");
+        }
+      }
+    }
   };
 
   const handleRoleChange = (newRole: UserRole) => {

@@ -57,7 +57,8 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
     table: "profiles",
     keyMap: {
       id: "id",
-      name: "name",
+      name: "full_name",
+      fullName: "full_name",
       email: "email",
       role: "role",
       avatarUrl: "avatar_url",
@@ -67,7 +68,6 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
       bio: "bio",
       nationalId: "national_id",
       address: "address",
-      passwordSetupCompleted: "password_setup_completed",
       verificationStatus: "verification_status"
     }
   },
@@ -317,7 +317,7 @@ function mapToRow(configName: string, item: any): any {
     }
   }
   if (configName === "inventoryLogs" && !row.actor_id) {
-    row.actor_id = item.userEmail ? toUUIDIfNeeded(item.userEmail) : toUUIDIfNeeded("budionosiregar@gmail.com");
+    row.actor_id = item.userEmail ? toUUIDIfNeeded(item.userEmail) : toUUIDIfNeeded("system@halomedical.com");
   }
   if (configName === "cashSessions") {
     // Backwards compatibility layer for both schema definitions:
@@ -354,7 +354,7 @@ async function getGuaranteedProfileId(): Promise<string> {
       return data[0].id;
     }
   } catch (e) {}
-  return toUUIDIfNeeded("budionosiregar@gmail.com");
+  return toUUIDIfNeeded("system@halomedical.com");
 }
 
 async function runMigration() {
@@ -364,8 +364,8 @@ async function runMigration() {
   // Authenticate as active admin so RLS policies on profiles/auth are respected
   console.log("[Migration Auth] Initiating secure Admin authentication flow...");
   try {
-    const adminEmail = "budionosiregar@gmail.com";
-    const adminPassword = "password123";
+    const adminEmail = "admin@halomedical.com";
+    const adminPassword = "SecurePassword123!";
     
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email: adminEmail,
@@ -378,7 +378,7 @@ async function runMigration() {
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: adminEmail,
         password: adminPassword,
-        options: { data: { name: "Budiono Siregar", role: "Admin" } }
+        options: { data: { name: "Clinical Admin", role: "Admin" } }
       });
       if (signUpError) {
         console.warn("[Migration Auth Warning] Auth credentials bypass (operating anonymously):", signUpError.message);
@@ -398,11 +398,11 @@ async function runMigration() {
       // Proactively upsert profile for them
       await supabase.from("profiles").upsert({
         id: activeUserId,
-        name: "Budiono Siregar",
-        email: "budionosiregar@gmail.com",
-        role: "Admin",
+        full_name: "Clinical Admin",
+        email: "admin@halomedical.com",
+        role: "admin",
         is_active: true,
-        verification_status: "Verified"
+        verification_status: "approved"
       });
     }
   } catch (err: any) {

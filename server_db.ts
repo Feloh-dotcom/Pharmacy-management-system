@@ -21,6 +21,18 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABAS
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
+export function hasServiceRole(): boolean {
+  if (!supabaseKey || typeof supabaseKey !== "string" || !supabaseKey.includes(".")) return false;
+  try {
+    const parts = supabaseKey.split(".");
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
+    return payload?.role === "service_role";
+  } catch {
+    return false;
+  }
+}
+
 export function hashPassword(password: string, salt?: string) {
   const finalSalt = salt || crypto.randomBytes(16).toString("hex");
   const hash = crypto.pbkdf2Sync(password, finalSalt, 1000, 64, "sha512").toString("hex");
@@ -51,405 +63,16 @@ export interface DBState {
 }
 
 const initialData: DBState = {
-  users: [
-    {
-      id: "usr-1",
-      name: "Budiono Siregar",
-      email: "budionosiregar@gmail.com",
-      role: UserRole.ADMIN,
-      avatarUrl: "",
-      isActive: true,
-      createdAt: "2025-01-01T00:00:00Z"
-    },
-    {
-      id: "usr-2",
-      name: "Jane Smith",
-      email: "janesmith@pharmacy.com",
-      role: UserRole.PHARMACIST,
-      avatarUrl: "",
-      isActive: true,
-      createdAt: "2025-03-10T00:00:00Z"
-    },
-    {
-      id: "usr-3",
-      name: "John Doe",
-      email: "johndoe@pharmacy.com",
-      role: UserRole.CASHIER,
-      avatarUrl: "",
-      isActive: true,
-      createdAt: "2025-04-12T00:00:00Z"
-    },
-    {
-      id: "usr-4",
-      name: "Alice Cooper",
-      email: "alice@customer.com",
-      role: UserRole.CUSTOMER,
-      avatarUrl: "",
-      isActive: true,
-      createdAt: "2025-05-01T00:00:00Z"
-    },
-    {
-      id: "usr-5",
-      name: "Robert Martin",
-      email: "robert@supplier.com",
-      role: UserRole.SUPPLIER,
-      avatarUrl: "",
-      isActive: true,
-      createdAt: "2025-05-15T00:00:00Z"
-    },
-    {
-      id: "usr-6",
-      name: "Elizabeth Vance",
-      email: "elizabeth@accountant.com",
-      role: UserRole.ACCOUNTANT,
-      avatarUrl: "",
-      isActive: true,
-      createdAt: "2025-06-01T00:00:00Z"
-    },
-    {
-      id: "usr-7",
-      name: "David Vance",
-      email: "david@inventory.com",
-      role: UserRole.INVENTORY_MANAGER,
-      avatarUrl: "",
-      isActive: true,
-      createdAt: "2025-06-10T00:00:00Z"
-    },
-    {
-      id: "usr-8",
-      name: "Felix Oumah",
-      email: "felix@workstation.com",
-      role: UserRole.USER,
-      avatarUrl: "",
-      isActive: true,
-      createdAt: "2025-07-01T00:00:00Z"
-    }
-  ],
-  categories: [
-    { id: "cat-1", name: "Antibiotics", description: "Bacterial infection fighters" },
-    { id: "cat-2", name: "Analgesics", description: "Pain relievers and anti-inflammatory" },
-    { id: "cat-3", name: "Antihistamines", description: "Allergy treatments" },
-    { id: "cat-4", name: "Cardiovascular", description: "Blood pressure and heart medications" },
-    { id: "cat-5", name: "Antidiabetic", description: "Blood glucose regulation medicines" }
-  ],
-  medicines: [
-    {
-      id: "med-1",
-      name: "Medicine One",
-      genericName: "Paracetamol",
-      SKU: "MED-PR-001",
-      batchNumber: "BCH-66291",
-      expiryDate: "2027-08-15",
-      buyingPrice: 180.00,
-      sellingPrice: 270.00,
-      quantity: 145,
-      minStockLevel: 20,
-      manufacturer: "GlaxoSmithKline",
-      supplierId: "sup-1",
-      categoryId: "cat-2",
-      barcode: "8901234567890",
-      taxVat: 16,
-      prescriptionRequired: false,
-      imageUrl: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=120&h=120&fit=crop",
-      createdAt: "2025-01-10T00:00:00Z"
-    },
-    {
-      id: "med-2",
-      name: "Medicine Two",
-      genericName: "Amoxicillin",
-      SKU: "MED-AMX-002",
-      batchNumber: "BCH-38910",
-      expiryDate: "2026-06-20",
-      buyingPrice: 95.00,
-      sellingPrice: 152.00,
-      quantity: 8,
-      minStockLevel: 15,
-      manufacturer: "Pfizer",
-      supplierId: "sup-2",
-      categoryId: "cat-1",
-      barcode: "8902345678901",
-      taxVat: 16,
-      prescriptionRequired: true,
-      imageUrl: "https://images.unsplash.com/photo-1550572017-edd951b55104?w=120&h=120&fit=crop",
-      createdAt: "2025-01-12T00:00:00Z"
-    },
-    {
-      id: "med-3",
-      name: "Test Medicine",
-      genericName: "Cetirizine",
-      SKU: "MED-CTR-003",
-      batchNumber: "BCH-55122",
-      expiryDate: "2026-07-30",
-      buyingPrice: 120.00,
-      sellingPrice: 196.00,
-      quantity: 210,
-      minStockLevel: 30,
-      manufacturer: "Bayer",
-      supplierId: "sup-1",
-      categoryId: "cat-3",
-      barcode: "8903456789012",
-      taxVat: 16,
-      prescriptionRequired: false,
-      imageUrl: "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
-      createdAt: "2025-01-15T00:00:00Z"
-    },
-    {
-      id: "med-4",
-      name: "Lantus SoloStar",
-      genericName: "Insulin Glargine",
-      SKU: "MED-INS-004",
-      batchNumber: "BCH-99102",
-      expiryDate: "2026-05-30",
-      buyingPrice: 450.00,
-      sellingPrice: 580.00,
-      quantity: 22,
-      minStockLevel: 10,
-      manufacturer: "Sanofi",
-      supplierId: "sup-3",
-      categoryId: "cat-5",
-      barcode: "8904567890123",
-      taxVat: 0,
-      prescriptionRequired: true,
-      imageUrl: "https://images.unsplash.com/photo-1584017911766-d451b3d0e843?w=120&h=120&fit=crop",
-      createdAt: "2025-02-01T00:00:00Z"
-    },
-    {
-      id: "med-5",
-      name: "Lipitor",
-      genericName: "Atorvastatin",
-      SKU: "MED-ATR-005",
-      batchNumber: "BCH-10041",
-      expiryDate: "2025-12-15",
-      buyingPrice: 160.00,
-      sellingPrice: 240.00,
-      quantity: 12,
-      minStockLevel: 15,
-      manufacturer: "Pfizer",
-      supplierId: "sup-2",
-      categoryId: "cat-4",
-      barcode: "8905678901234",
-      taxVat: 16,
-      prescriptionRequired: true,
-      imageUrl: "https://images.unsplash.com/photo-1547853760-18471566e360?w=120&h=120&fit=crop",
-      createdAt: "2025-02-10T00:00:00Z"
-    }
-  ],
-  suppliers: [
-    {
-      id: "sup-1",
-      name: "Astra Biotech Wholesalers",
-      email: "orders@astrabiotech.com",
-      phone: "+254 711 222333",
-      companyName: "Astra Biotech Ltd",
-      address: "Industrial Area, Sec 4, Nairobi, Kenya"
-    },
-    {
-      id: "sup-2",
-      name: "Global Pharma Distributors",
-      email: "supply@globalpharma.net",
-      phone: "+254 733 444555",
-      companyName: "Global Pharma Kenya",
-      address: "Mombasa Road, West Wing, Nairobi"
-    },
-    {
-      id: "sup-3",
-      name: "Sankara Medical Labs",
-      email: "partners@sankaramed.org",
-      phone: "+254 722 999888",
-      companyName: "Sankara Medical Lab Solutions",
-      address: "Karen Biotech Park, Nairobi"
-    }
-  ],
-  customers: [
-    {
-      id: "cust-1",
-      name: "Susan Williams",
-      email: "gust@avohertiz.com",
-      phone: "+254 701 987654",
-      loyaltyPoints: 340,
-      insuranceProvider: "Jubilee Insurance",
-      insurancePolicyNumber: "POL-JUB-88210",
-      copayPercent: 10,
-      prescriptionHistory: [
-        { date: "2015-04-22T00:00:00.000Z", medicineName: "Medicine Two", quantity: 1 }
-      ]
-    },
-    {
-      id: "cust-2",
-      name: "Bentley Howard",
-      email: "gust@avohertiz.com",
-      phone: "+254 701 456123",
-      loyaltyPoints: 420,
-      insuranceProvider: "AAR Health",
-      insurancePolicyNumber: "POL-AAR-45218",
-      copayPercent: 20,
-      prescriptionHistory: [
-        { date: "2015-04-22T00:00:00.000Z", medicineName: "Test Medicine", quantity: 1 }
-      ]
-    },
-    {
-      id: "cust-3",
-      name: "Evelyn Johnson",
-      email: "gust@avohertiz.com",
-      phone: "+254 702 334455",
-      loyaltyPoints: 850,
-      insuranceProvider: "NHIF Cover",
-      insurancePolicyNumber: "POL-NHIF-91180",
-      copayPercent: 0,
-      prescriptionHistory: [
-        { date: "2015-04-22T00:00:00.000Z", medicineName: "Medicine One", quantity: 1 }
-      ]
-    }
-  ],
-  sales: [
-    {
-      id: "sal-1",
-      customerId: "cust-1",
-      customerName: "Susan Williams",
-      customerEmail: "gust@avohertiz.com",
-      invoiceNumber: "INV-2015-001",
-      items: [
-        {
-          medicineId: "med-2",
-          medicineName: "Medicine Two",
-          quantity: 1,
-          price: 152.00,
-          tax: 20.97
-        }
-      ],
-      totalPrice: 152.00,
-      discount: 0,
-      taxAmount: 20.97,
-      paymentMethod: "Card",
-      paymentStatus: "Paid",
-      cashierEmail: "budionosiregar@gmail.com",
-      date: "2015-04-22T00:00:00.000Z"
-    },
-    {
-      id: "sal-2",
-      customerId: "cust-2",
-      customerName: "Bentley Howard",
-      customerEmail: "gust@avohertiz.com",
-      invoiceNumber: "INV-2015-002",
-      items: [
-        {
-          medicineId: "med-3",
-          medicineName: "Test Medicine",
-          quantity: 1,
-          price: 196.00,
-          tax: 27.03
-        }
-      ],
-      totalPrice: 196.00,
-      discount: 0,
-      taxAmount: 27.03,
-      paymentMethod: "M-Pesa",
-      paymentStatus: "Paid",
-      cashierEmail: "budionosiregar@gmail.com",
-      date: "2015-04-22T00:00:00.000Z"
-    },
-    {
-      id: "sal-3",
-      customerId: "cust-3",
-      customerName: "Evelyn Johnson",
-      customerEmail: "gust@avohertiz.com",
-      invoiceNumber: "INV-2015-003",
-      items: [
-        {
-          medicineId: "med-1",
-          medicineName: "Medicine One",
-          quantity: 1,
-          price: 270.00,
-          tax: 37.24
-        }
-      ],
-      totalPrice: 270.00,
-      discount: 0,
-      taxAmount: 37.24,
-      paymentMethod: "Cash",
-      paymentStatus: "Paid",
-      cashierEmail: "budionosiregar@gmail.com",
-      date: "2015-04-22T00:00:00.000Z"
-    }
-  ],
-  inventoryLogs: [
-    {
-      id: "log-1",
-      medicineId: "med-1",
-      medicineName: "Medicine One",
-      type: "restock",
-      quantity: 100,
-      date: "2025-05-10T11:00:00Z",
-      reason: "Initial Batch Restock",
-      userEmail: "budionosiregar@gmail.com"
-    },
-    {
-      id: "log-2",
-      medicineId: "med-2",
-      medicineName: "Medicine Two",
-      type: "sale",
-      quantity: 1,
-      date: "2015-04-22T00:00:00Z",
-      reason: "Invoice POS Sale INV-2015-001",
-      userEmail: "budionosiregar@gmail.com"
-    }
-  ],
-  purchaseOrders: [
-    {
-      id: "po-1",
-      supplierId: "sup-1",
-      supplierName: "Astra Biotech Wholesalers",
-      items: [
-        { medicineName: "Amoxicillin 500mg Batch B", quantity: 200, buyingPrice: 90.00 },
-        { medicineName: "Cetirizine Syrup 100ml", quantity: 150, buyingPrice: 110.00 }
-      ],
-      totalAmount: 34500.00,
-      status: "Received",
-      orderDate: "2025-05-01T10:00:00Z",
-      receivedDate: "2025-05-08T15:00:00Z"
-    },
-    {
-      id: "po-2",
-      supplierId: "sup-2",
-      supplierName: "Global Pharma Distributors",
-      items: [
-        { medicineName: "Lantus SoloStar Insulin", quantity: 50, buyingPrice: 420.00 }
-      ],
-      totalAmount: 21000.00,
-      status: "Approved",
-      orderDate: "2025-05-18T10:00:00Z"
-    }
-  ],
-  financeRecords: [
-    {
-      id: "fin-1",
-      type: "expense",
-      category: "Procurement",
-      amount: 34500.00,
-      description: "Payment for PO-1 Received Stock",
-      paymentMethod: "Bank Transfer",
-      date: "2025-05-08T15:15:00Z"
-    },
-    {
-      id: "fin-2",
-      type: "income",
-      category: "POS Prescription Sales",
-      amount: 618.00,
-      description: "Direct sales register daily batch",
-      paymentMethod: "Multiple",
-      date: "2015-04-22T23:59:00Z"
-    }
-  ],
-  auditLogs: [
-    {
-      id: "aud-1",
-      userEmail: "budionosiregar@gmail.com",
-      action: "Database Initialized",
-      module: "System Core",
-      date: "2025-05-22T06:12:00Z",
-      details: "Database hydrated with system mock configurations."
-    }
-  ],
+  users: [],
+  categories: [],
+  medicines: [],
+  suppliers: [],
+  customers: [],
+  sales: [],
+  inventoryLogs: [],
+  purchaseOrders: [],
+  financeRecords: [],
+  auditLogs: [],
   settings: {
     general: {
       pharmacyName: "Halomedical Pharmacy Central",
@@ -533,53 +156,8 @@ const initialData: DBState = {
       cacheExpiryMinutes: 15
     }
   },
-  branches: [
-    {
-      id: "br-1",
-      name: "Main HQ Branch",
-      code: "HQ-01",
-      address: "Biomedical Tower, Suite 402, Nairobi, KE",
-      phone: "+254 700 011",
-      isActive: true,
-      inventorySynced: true
-    },
-    {
-      id: "br-2",
-      name: "Westlands Hub",
-      code: "WEST-02",
-      address: "Mall Square Ground Floor, Nairobi, KE",
-      phone: "+254 700 022",
-      isActive: true,
-      inventorySynced: true
-    },
-    {
-      id: "br-3",
-      name: "Mombasa Coast Terminal",
-      code: "COAST-03",
-      address: "Oceanic Mall, Mombasa, KE",
-      phone: "+254 700 033",
-      isActive: false,
-      inventorySynced: false
-    }
-  ],
-  apiKeys: [
-    {
-      id: "key-1",
-      name: "ERP Sync Integrator",
-      apiKey: "hm_pk_8820199a0d8bb2ecf301",
-      createdAt: "2025-05-10T12:00:00Z",
-      expiresAt: "2027-05-10T12:00:00Z",
-      status: "Active"
-    },
-    {
-      id: "key-2",
-      name: "Local POS Offliner",
-      apiKey: "hm_pk_3345112fcbe8d91028ab",
-      createdAt: "2025-02-01T08:30:00Z",
-      expiresAt: "2026-02-01T08:30:00Z",
-      status: "Expired"
-    }
-  ],
+  branches: [],
+  apiKeys: [],
   rolePermissions: [
     {
       role: "Admin",
@@ -710,24 +288,7 @@ const initialData: DBState = {
       }
     }
   ],
-  backups: [
-    {
-      id: "bk-1",
-      filename: "halomed-db-backup-2026-05-20.enc",
-      size: "2.4 MB",
-      createdAt: "2026-05-20T23:00:01Z",
-      storageProvider: "Local",
-      status: "Success"
-    },
-    {
-      id: "bk-2",
-      filename: "halomed-db-backup-2026-05-15.enc",
-      size: "2.3 MB",
-      createdAt: "2026-05-15T23:00:00Z",
-      storageProvider: "AWS S3",
-      status: "Success"
-    }
-  ],
+  backups: [],
   cashSessions: [],
   weeklyCycles: [],
   mpesaTransactions: []
@@ -755,7 +316,7 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
     table: "profiles",
     keyMap: {
       id: "id",
-      name: "name",
+      name: "full_name",
       fullName: "full_name",
       email: "email",
       role: "role",
@@ -766,10 +327,6 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
       bio: "bio",
       nationalId: "national_id",
       address: "address",
-      passwordHash: "password_hash",
-      salt: "salt",
-      failedLoginAttempts: "failed_login_attempts",
-      passwordSetupCompleted: "password_setup_completed",
       verificationStatus: "verification_status"
     }
   },
@@ -1008,14 +565,14 @@ function findUserByUUID(userIdOrUUID: string): any {
     };
   }
   return {
-    id: "usr-1",
-    name: "Budiono Siregar",
-    email: "budionosiregar@gmail.com",
+    id: userIdOrUUID,
+    name: "System Operator",
+    email: "system@halomedical.com",
     role: "Admin"
   };
 }
 
-function mapToRow(configName: string, item: any): any {
+export function mapToRow(configName: string, item: any): any {
   if (!item) return item;
 
   if (configName === "mpesaTransactions") {
@@ -1057,11 +614,31 @@ function mapToRow(configName: string, item: any): any {
           val = toUUIDIfNeeded(val);
         }
       }
+      if (configName === "users" && snakeKey === "role" && typeof val === "string") {
+        const normalized = val.trim().toLowerCase();
+        if (normalized === "super admin") {
+          val = "admin";
+        } else if (normalized === "inventory manager") {
+          val = "inventory_manager";
+        } else {
+          val = normalized;
+        }
+      }
+      if (configName === "users" && snakeKey === "verification_status" && typeof val === "string") {
+        const normalized = val.trim().toLowerCase();
+        if (normalized === "verified" || normalized === "approved") {
+          val = "approved";
+        } else if (normalized === "rejected") {
+          val = "rejected";
+        } else {
+          val = "pending";
+        }
+      }
       row[snakeKey] = val;
     }
   }
   if (configName === "inventoryLogs" && !row.actor_id) {
-    row.actor_id = item.userEmail ? toUUIDIfNeeded(item.userEmail) : toUUIDIfNeeded("budionosiregar@gmail.com");
+    row.actor_id = item.userEmail ? toUUIDIfNeeded(item.userEmail) : toUUIDIfNeeded("system@halomedical.com");
   }
   if (configName === "cashSessions") {
     row.opening_cash = Number(item.openingBalance || 0);
@@ -1073,7 +650,7 @@ function mapToRow(configName: string, item: any): any {
   return row;
 }
 
-function mapFromRow(configName: string, row: any): any {
+export function mapFromRow(configName: string, row: any): any {
   if (!row) return row;
 
   if (configName === "mpesaTransactions") {
@@ -1097,7 +674,30 @@ function mapFromRow(configName: string, row: any): any {
   const item: any = {};
   for (const [camelKey, snakeKey] of Object.entries(config.keyMap)) {
     if (row[snakeKey] !== undefined) {
-      item[camelKey] = row[snakeKey];
+      let val = row[snakeKey];
+      if (configName === "users" && snakeKey === "role" && typeof val === "string") {
+        const lowerVal = val.toLowerCase().trim();
+        if (lowerVal === "admin") val = "Admin";
+        else if (lowerVal === "pharmacist") val = "Pharmacist";
+        else if (lowerVal === "cashier") val = "Cashier";
+        else if (lowerVal === "inventory manager" || lowerVal === "inventory_manager") val = "Inventory Manager";
+        else if (lowerVal === "supplier") val = "Supplier";
+        else if (lowerVal === "customer") val = "Customer";
+        else if (lowerVal === "accountant") val = "Accountant";
+        else if (lowerVal === "user") val = "User";
+        else val = "User";
+      }
+      if (configName === "users" && snakeKey === "verification_status" && typeof val === "string") {
+        const lowerVal = val.toLowerCase().trim();
+        if (lowerVal === "approved" || lowerVal === "verified") {
+          val = "Verified";
+        } else if (lowerVal === "rejected") {
+          val = "Rejected";
+        } else {
+          val = "Pending";
+        }
+      }
+      item[camelKey] = val;
     }
   }
   if (configName === "cashSessions") {
@@ -1153,6 +753,92 @@ function mapSettingsFromRow(row: any): SystemSettings {
 // Global cached state synced with database in real-time
 let globalStateCache: DBState = initialData;
 let isInitialSyncDone = false;
+let lastPullTimestamp = 0;
+let isPullingInProgress = false;
+
+export async function pullChangesFromSupabase(force = false): Promise<void> {
+  const now = Date.now();
+  // Limit automatic pulling to once per 5 seconds to manage load and performance
+  if (!force && now - lastPullTimestamp < 5000) {
+    return;
+  }
+  if (isPullingInProgress) return;
+  isPullingInProgress = true;
+  try {
+    const tableKeys = [
+      "rolePermissions", "users", "categories", "suppliers", "medicines", "customers", 
+      "sales", "inventoryLogs", "purchaseOrders", "financeRecords", "auditLogs", "branches", 
+      "apiKeys", "backups", "cashSessions", "weeklyCycles", "mpesaTransactions"
+    ];
+
+    for (const key of tableKeys) {
+      const mapping = tableMappings[key];
+      if (!mapping || disabledTables.has(key)) continue;
+
+      const { data, error } = await supabase
+        .from(mapping.table)
+        .select("*");
+        
+      if (!error && data) {
+        const mappedData = data.map(row => mapFromRow(key, row));
+        if (key === "users") {
+          const localUsers = (globalStateCache as any)[key] || [];
+          const mergedUsers: any[] = [];
+          
+          for (const cloudUser of mappedData) {
+            const localUser = localUsers.find(u => u.email.toLowerCase() === cloudUser.email.toLowerCase());
+            if (localUser) {
+              const merged = { ...localUser, ...cloudUser };
+              for (const field of ["phone", "bio", "nationalId", "address", "verificationStatus"]) {
+                if (localUser[field] && (!cloudUser[field] || String(cloudUser[field]).trim() === "")) {
+                  merged[field] = localUser[field];
+                }
+              }
+              if (localUser.passwordSetupCompleted && !cloudUser.passwordSetupCompleted) {
+                merged.passwordSetupCompleted = localUser.passwordSetupCompleted;
+              }
+              if (localUser.verificationDetails && !cloudUser.verificationDetails) {
+                merged.verificationDetails = localUser.verificationDetails;
+              }
+              mergedUsers.push(merged);
+            } else {
+              mergedUsers.push(cloudUser);
+            }
+          }
+          
+          const cloudEmails = new Set(mappedData.map(u => u.email.toLowerCase()));
+          for (const localUser of localUsers) {
+            if (localUser && localUser.email && !cloudEmails.has(localUser.email.toLowerCase())) {
+              mergedUsers.push(localUser);
+            }
+          }
+          (globalStateCache as any)[key] = mergedUsers;
+        } else {
+          (globalStateCache as any)[key] = mappedData;
+        }
+      }
+    }
+
+    if (!disabledTables.has("system_settings")) {
+      const { data: settingsData, error: settingsError } = await supabase
+        .from("system_settings")
+        .select("*")
+        .eq("id", "default")
+        .single();
+      if (!settingsError && settingsData) {
+        globalStateCache.settings = mapSettingsFromRow(settingsData);
+      }
+    }
+    lastPullTimestamp = Date.now();
+    isInitialSyncDone = true;
+    writeDBToFileSystem(globalStateCache);
+    console.log("[Supabase Sync Cache Update] Successfully synced active memory states with cloud tables.");
+  } catch (err) {
+    console.error("[Supabase Pull Error] Dynamic synchronization failed:", err);
+  } finally {
+    isPullingInProgress = false;
+  }
+}
 
 // --- Local File system fallback methods ---
 function readDBFromFileSystem(): DBState {
@@ -1351,7 +1037,41 @@ export async function initSupabaseSync(): Promise<void> {
         await seedTableToSupabase(key, (localData as any)[key] || []);
       } else {
         const mappedData = data.map(row => mapFromRow(key, row));
-        (globalStateCache as any)[key] = mappedData;
+        if (key === "users") {
+          const localUsers = (globalStateCache as any)[key] || [];
+          const mergedUsers: any[] = [];
+          
+          for (const cloudUser of mappedData) {
+            const localUser = localUsers.find(u => u.email.toLowerCase() === cloudUser.email.toLowerCase());
+            if (localUser) {
+              const merged = { ...localUser, ...cloudUser };
+              for (const field of ["phone", "bio", "nationalId", "address", "verificationStatus"]) {
+                if (localUser[field] && (!cloudUser[field] || String(cloudUser[field]).trim() === "")) {
+                  merged[field] = localUser[field];
+                }
+              }
+              if (localUser.passwordSetupCompleted && !cloudUser.passwordSetupCompleted) {
+                merged.passwordSetupCompleted = localUser.passwordSetupCompleted;
+              }
+              if (localUser.verificationDetails && !cloudUser.verificationDetails) {
+                merged.verificationDetails = localUser.verificationDetails;
+              }
+              mergedUsers.push(merged);
+            } else {
+              mergedUsers.push(cloudUser);
+            }
+          }
+          
+          const cloudEmails = new Set(mappedData.map(u => u.email.toLowerCase()));
+          for (const localUser of localUsers) {
+            if (localUser && localUser.email && !cloudEmails.has(localUser.email.toLowerCase())) {
+              mergedUsers.push(localUser);
+            }
+          }
+          (globalStateCache as any)[key] = mergedUsers;
+        } else {
+          (globalStateCache as any)[key] = mappedData;
+        }
         console.log(`[Supabase Sync] Successfully synchronized ${data.length} records for table [${mapping.table}] from cloud.`);
       }
     }
@@ -1404,20 +1124,22 @@ async function getGuaranteedProfileId(): Promise<string> {
     const { data: userData } = await supabase.auth.getUser();
     if (userData?.user) {
       const activeId = userData.user.id;
+      const rawRole = userData.user.user_metadata?.role || "admin";
+      const normalizedRole = typeof rawRole === "string" ? rawRole.toLowerCase().trim() : "admin";
       await supabase.from("profiles").upsert({
         id: activeId,
-        name: userData.user.user_metadata?.name || "Budiono Siregar",
-        email: userData.user.email || "budionosiregar@gmail.com",
-        role: userData.user.user_metadata?.role || "Admin",
+        full_name: userData.user.user_metadata?.full_name || userData.user.user_metadata?.name || "System Operator",
+        email: userData.user.email || "system@halomedical.com",
+        role: normalizedRole === "super admin" || normalizedRole === "admin" ? "admin" : (normalizedRole === "inventory manager" ? "inventory_manager" : normalizedRole),
         is_active: true,
-        verification_status: "Verified"
+        verification_status: "approved"
       });
       return activeId;
     }
   } catch (e) {
     // ignore
   }
-  return toUUIDIfNeeded("budionosiregar@gmail.com");
+  return toUUIDIfNeeded("system@halomedical.com");
 }
 
 async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ error: any | null }> {
@@ -1441,7 +1163,7 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
   attemptRows = dedupedRows;
 
   let attempts = 0;
-  const maxAttempts = 15;
+  const maxAttempts = 50;
 
   if (tableName === "profiles") {
     for (const r of attemptRows) {
@@ -1460,6 +1182,9 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
 
   while (attempts < maxAttempts) {
     attempts++;
+    if (attemptRows.length === 0) {
+      return { error: null };
+    }
     const { error } = await supabase
       .from(tableName)
       .upsert(attemptRows);
@@ -1470,6 +1195,7 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
 
     const errMsg = error.message;
     const errCode = error.code;
+    console.log(`[Self-Healing Debug] tableName: ${tableName}, attempts: ${attempts}, errCode: ${errCode}, errMsg: ${errMsg}`);
     
     // Check if RLS error
     if (errMsg.includes("row-level security") || errCode === "42501") {
@@ -1477,27 +1203,100 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
     }
 
     // Check if missing column schema cache error
-    const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i);
-    if (cacheMatch) {
-      const badColumn = cacheMatch[1];
-      console.warn(`[Self-Healing Schema Sync] Column [${badColumn}] not found in table [${tableName}]. Auto-pruning...`);
-      // Prune this column from all rows in attemptRows
-      attemptRows = attemptRows.map((r: any) => {
-        const { [badColumn]: _, ...rest } = r;
-        return rest;
-      });
-      continue;
+    const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
+                       errMsg.match(/column "([^"]+)" of relation/i) ||
+                       errMsg.match(/column "([^"]+)" does not exist/i);
+    if (cacheMatch || errCode === "42703") {
+      let badColumn = cacheMatch ? cacheMatch[1] : null;
+      if (!badColumn) {
+        const colMatch = errMsg.match(/column "([^"]+)"/i) || errMsg.match(/column '([^']+)'/i);
+        if (colMatch) badColumn = colMatch[1];
+      }
+      if (badColumn) {
+        console.warn(`[Self-Healing Schema Sync] Column [${badColumn}] not found in table [${tableName}]. Auto-pruning...`);
+        // Prune this column from all rows in attemptRows
+        attemptRows = attemptRows.map((r: any) => {
+          const { [badColumn]: _, ...rest } = r;
+          return rest;
+        });
+        continue;
+      }
+    }
+
+    // Check if enum or custom validation constraint (22P02)
+    if (errMsg.includes("invalid input value for enum") || errCode === "22P02") {
+      const enumValueMatch = errMsg.match(/enum [^:]+:\s*"([^"]+)"/i) || errMsg.match(/value for enum [^:]+:\s*"([^"]+)"/i);
+      if (enumValueMatch) {
+         const badValue = enumValueMatch[1];
+         console.warn(`[Self-Healing Enum] Enum violation for value ["${badValue}"] in [${tableName}]. Normalizing to lowercase...`);
+         let madeChanges = false;
+         attemptRows = attemptRows.map((r: any) => {
+           const rowCopy = { ...r };
+           for (const key of Object.keys(rowCopy)) {
+             if (rowCopy[key] === badValue) {
+               const normalized = badValue.toLowerCase().trim();
+               if (rowCopy[key] !== normalized) {
+                 rowCopy[key] = normalized;
+                 madeChanges = true;
+               }
+             }
+           }
+           // Special role standardizing to avoid nested loops
+           if (rowCopy.role && (rowCopy.role === "super admin" || rowCopy.role === "admin")) {
+             if (rowCopy.role !== "admin") {
+               rowCopy.role = "admin";
+               madeChanges = true;
+             }
+           }
+           return rowCopy;
+         });
+         if (madeChanges) {
+           continue;
+         }
+      }
+
+      // Fallback: If enum value is already lowercase (or normalization had no effect), prune the column
+      const enumNameMatch = errMsg.match(/enum\s+([a-zA-Z0-9_\-]+)/i);
+      if (enumNameMatch) {
+         const enumName = enumNameMatch[1];
+         console.warn(`[Self-Healing Enum Fallback] Cannot resolve type constraints for enum column/type [${enumName}]. Pruning column from rows...`);
+         attemptRows = attemptRows.map((r: any) => {
+           const { [enumName]: _, ...rest } = r;
+           // If enum name is not direct key name, try match by substring
+           let cleaned = { ...rest };
+           for (const key of Object.keys(cleaned)) {
+             if (key.toLowerCase().includes(enumName.toLowerCase()) || enumName.toLowerCase().includes(key.toLowerCase())) {
+               delete (cleaned as any)[key];
+             }
+           }
+           return cleaned;
+         });
+         continue;
+      }
     }
 
     // Self-healing for Foreign Key Violations (23503)
-    if (errCode === "23503" || errMsg.includes("violates foreign key constraint") || errMsg.includes("relationship")) {
+    if (errCode === "23503" || errMsg.includes("violates foreign key constraint") || errMsg.includes("relationship") || errMsg.includes("profiles_id_fkey")) {
       let healed = false;
       if (tableName === "profiles") {
-        const verifiedProfileId = await getGuaranteedProfileId();
-        console.warn(`[Self-Healing Profiles] Filtered out invalid non-authenticated profile IDs except: ${verifiedProfileId}`);
-        const originalLength = attemptRows.length;
-        attemptRows = attemptRows.filter((r: any) => r.id === verifiedProfileId);
-        if (attemptRows.length < originalLength) healed = true;
+        console.warn("[Self-Healing Profiles] Foreign key (Auth) violation. Trying profiles individually in parallel to sync only authenticated accounts...");
+        try {
+          const results = await Promise.all(
+            attemptRows.map(async (row: any) => {
+              const { error: singleErr } = await supabase.from("profiles").upsert(row);
+              if (singleErr) {
+                console.warn(`[Self-Healing Profiles] Skipping cloud sync for ${row.email} (${row.id}) - user not present in auth.users or invalid.`);
+                return { row, ok: false };
+              }
+              return { row, ok: true };
+            })
+          );
+          attemptRows = results.filter(r => r.ok).map(r => r.row);
+        } catch (promiseEx: any) {
+          console.error("[Self-Healing Profiles Promise.all Exception]", promiseEx.message);
+          attemptRows = [];
+        }
+        healed = true;
       } else if (errMsg.includes("actor_id")) {
         const verifiedProfileId = await getGuaranteedProfileId();
         console.warn(`[Self-Healing FKey] actor_id constraint violation in [${tableName}]. Retrying with verified profile ID: ${verifiedProfileId}`);
@@ -1758,6 +1557,8 @@ export async function uploadBase64ToStorage(base64Data: string, pathName: string
 
 // --- Exposed interface identical and compatible with server.ts logic ---
 export function readDB(): DBState {
+  // Trigger non-blocking check to refresh local memory cache from cloud
+  pullChangesFromSupabase().catch(err => console.error("[Background Sync Fail]", err));
   return globalStateCache;
 }
 
@@ -1767,7 +1568,10 @@ export function writeDB(state: DBState): void {
   
   // Asynchronously write to both local system and Supabase cloud tables
   writeDBToFileSystem(state);
-  syncChangesToSupabase(oldState, state);
+  syncChangesToSupabase(oldState, state).then(() => {
+    // Force direct cloud fetch after writing changes to maintain absolute database integrity
+    pullChangesFromSupabase(true).catch(e => console.error("[Sync Trigger Fail]", e));
+  });
 }
 
 export function updateDB(updater: (state: DBState) => void): DBState {
@@ -1778,6 +1582,9 @@ export function updateDB(updater: (state: DBState) => void): DBState {
   globalStateCache = stateCopy;
   
   writeDBToFileSystem(stateCopy);
-  syncChangesToSupabase(oldState, stateCopy);
+  syncChangesToSupabase(oldState, stateCopy).then(() => {
+    // Force direct cloud fetch after writing changes to maintain absolute database integrity
+    pullChangesFromSupabase(true).catch(e => console.error("[Sync Trigger Fail]", e));
+  });
   return stateCopy;
 }

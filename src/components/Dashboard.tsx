@@ -42,6 +42,9 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
   const [isExpiryTrayOpen, setIsExpiryTrayOpen] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
+  const [inventoryLogs, setInventoryLogs] = useState<any[]>([]);
 
   const currencySymbol = settings?.general?.currency || "Ksh.";
 
@@ -86,6 +89,27 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
         setSuppliers(await supsRes.json());
       } else {
         setSuppliers([]);
+      }
+
+      const custsRes = await fetch("/api/customers").catch(() => null);
+      if (custsRes && custsRes.ok && custsRes.headers.get("Content-Type")?.includes("json")) {
+        setCustomers(await custsRes.json());
+      } else {
+        setCustomers([]);
+      }
+
+      const posRes = await fetch("/api/purchase-orders").catch(() => null);
+      if (posRes && posRes.ok && posRes.headers.get("Content-Type")?.includes("json")) {
+        setPurchaseOrders(await posRes.json());
+      } else {
+        setPurchaseOrders([]);
+      }
+
+      const invRes = await fetch("/api/inventory/logs").catch(() => null);
+      if (invRes && invRes.ok && invRes.headers.get("Content-Type")?.includes("json")) {
+        setInventoryLogs(await invRes.json());
+      } else {
+        setInventoryLogs([]);
       }
     } catch (e) {
       console.error("Failed to load dashboard payload:", e);
@@ -179,16 +203,16 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
   }
 
   // Calculate dynamic circular/donut ratios from the loaded database metrics!
-  const grNoSales = metrics?.graphReport?.noSales ?? 42;
-  const grPurchases = metrics?.graphReport?.purchases ?? 28;
-  const grSuppliers = metrics?.graphReport?.suppliers ?? 18;
-  const grSalesVal = metrics?.graphReport?.sales ?? 12;
-  const grTotal = grNoSales + grPurchases + grSuppliers + grSalesVal || 100;
+  const grNoSales = metrics?.graphReport?.noSales ?? 0;
+  const grPurchases = metrics?.graphReport?.purchases ?? 0;
+  const grSuppliers = metrics?.graphReport?.suppliers ?? 0;
+  const grSalesVal = metrics?.graphReport?.sales ?? 0;
+  const grTotal = grNoSales + grPurchases + grSuppliers + grSalesVal;
 
-  const pctNoSales = Math.round((grNoSales / grTotal) * 100);
-  const pctPurchases = Math.round((grPurchases / grTotal) * 100);
-  const pctSuppliers = Math.round((grSuppliers / grTotal) * 100);
-  const pctSales = Math.round((grSalesVal / grTotal) * 100);
+  const pctNoSales = grTotal > 0 ? Math.round((grNoSales / grTotal) * 100) : 0;
+  const pctPurchases = grTotal > 0 ? Math.round((grPurchases / grTotal) * 100) : 0;
+  const pctSuppliers = grTotal > 0 ? Math.round((grSuppliers / grTotal) * 100) : 0;
+  const pctSales = grTotal > 0 ? Math.round((grSalesVal / grTotal) * 100) : 0;
 
   const circ = 238.76;
   const totalRevenue = metrics?.weeklyRevenue !== undefined ? metrics.weeklyRevenue : sales.reduce((sum, s) => sum + s.totalPrice, 0);
@@ -222,50 +246,74 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
     if (!metrics) return null;
 
     if (user?.role === UserRole.CUSTOMER) {
+      const currentCustomer = customers.find(c => 
+        c.email?.toLowerCase() === user?.email?.toLowerCase() || 
+        c.name?.toLowerCase() === user?.name?.toLowerCase()
+      );
+      const loyaltyPoints = currentCustomer?.loyaltyPoints || 0;
+      const prescriptionCount = currentCustomer?.prescriptionHistory?.length || 0;
+      const customerSales = sales.filter(s => s.customerEmail?.toLowerCase() === user?.email?.toLowerCase());
+      const transactionCount = customerSales.length;
+      const insuranceProvider = currentCustomer?.insuranceProvider || "Self Pay / Cash";
+      const copayPercent = currentCustomer?.copayPercent !== undefined ? `${currentCustomer.copayPercent}%` : "0%";
+      const couponMessage = loyaltyPoints >= 300 ? "Consolidated 15% discount coupon unlocked" : `${300 - loyaltyPoints} more points for next coupon`;
+
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-[#093530]/5 rounded-2xl border border-teal-200/50 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("profile")}
+            className="bg-[#093530]/5 rounded-2xl border border-teal-200/50 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Award className="w-5 h-5 text-teal-600" />
               <span className="text-[10px] font-extrabold text-[#093530] bg-[#093530]/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>
             </div>
             <div className="mt-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Loyalty Points Balance</p>
-              <p className="font-bold text-2xl text-slate-800 mt-1">450 Points</p>
-              <p className="text-[9px] text-teal-600 mt-1 font-medium">Consolidated 15% discount coupon unlocked</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{loyaltyPoints} Points</p>
+              <p className="text-[9px] text-teal-600 mt-1 font-medium">{couponMessage}</p>
             </div>
           </div>
-          <div className="bg-sky-50 rounded-2xl border border-sky-100 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("profile")}
+            className="bg-sky-50 rounded-2xl border border-sky-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Pill className="w-5 h-5 text-sky-600" />
-              <span className="text-[10px] font-extrabold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Refill Ready</span>
+              <span className="text-[10px] font-extrabold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Refills</span>
             </div>
             <div className="mt-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Registered Prescriptions</p>
-              <p className="font-bold text-2xl text-slate-800 mt-1">2 Active</p>
-              <p className="text-[9px] text-sky-600 mt-1 font-medium">Paracetamol, Amoxicillin on track</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{prescriptionCount} Active</p>
+              <p className="text-[9px] text-sky-600 mt-1 font-medium">Synced & authorized clinical entries</p>
             </div>
           </div>
-          <div className="bg-violet-50 rounded-2xl border border-violet-100 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("sales")}
+            className="bg-violet-50 rounded-2xl border border-violet-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Receipt className="w-5 h-5 text-violet-600" />
               <span className="text-[10px] font-extrabold text-violet-800 bg-violet-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Invoices</span>
             </div>
             <div className="mt-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Purchase Logs</p>
-              <p className="font-bold text-2xl text-slate-800 mt-1">5 Transactions</p>
-              <p className="text-[9px] text-violet-600 mt-1 font-medium">Last payment processed today</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{transactionCount} Transactions</p>
+              <p className="text-[9px] text-violet-600 mt-1 font-medium">Browse financial records and invoices</p>
             </div>
           </div>
-          <div className="bg-amber-50 rounded-2xl border border-amber-100 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("profile")}
+            className="bg-amber-50 rounded-2xl border border-amber-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Shield className="w-5 h-5 text-amber-600" />
-              <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Protected</span>
+              <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Approved</span>
             </div>
             <div className="mt-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Patient Profile Status</p>
-              <p className="font-bold text-xl text-slate-800 mt-1">Verified Member</p>
-              <p className="text-[9px] text-amber-600 mt-1 font-medium">Copay parameters synchronized with NHIF</p>
+              <p className="font-bold text-xl text-slate-800 mt-1">{insuranceProvider !== "Self Pay / Cash" ? "Insured Member" : "Verified Member"}</p>
+              <p className="text-[9px] text-amber-600 mt-1 font-medium">Copay of {copayPercent} with {insuranceProvider}</p>
             </div>
           </div>
         </div>
@@ -273,50 +321,80 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
     }
 
     if (user?.role === UserRole.SUPPLIER) {
+      const currentSupplier = suppliers.find(s => 
+        s.email?.toLowerCase() === user?.email?.toLowerCase() || 
+        s.name?.toLowerCase() === user?.name?.toLowerCase()
+      );
+      const suppliedMeds = medicines.filter(m => m.supplierId === currentSupplier?.id || (m.supplierName && currentSupplier?.name && m.supplierName.toLowerCase() === currentSupplier.name.toLowerCase()));
+      const suppliedCount = suppliedMeds.length;
+      const supplierCategories = Array.from(new Set(suppliedMeds.map(m => categories.find(c => c.id === m.categoryId)?.name))).filter(Boolean).slice(0, 2).join(" & ");
+      const categoriesLabel = supplierCategories ? `Distributed across ${supplierCategories}` : "Supply lines active";
+
+      const supplierPOList = purchaseOrders.filter(po => po.supplierId === currentSupplier?.id || po.supplierName === currentSupplier?.name);
+      const pendingPO = supplierPOList.filter(po => po.status === "Pending" || po.status === "Approved" || po.status === "Sent");
+      const pendingPOCount = pendingPO.length;
+
+      const settledPOAmount = supplierPOList
+        .filter(po => po.status === "Received")
+        .reduce((sum, po) => sum + (po.totalAmount || 0), 0);
+      const supplierTier = settledPOAmount > 50000 ? "Elite Partner" : settledPOAmount > 10000 ? "Primary Supplier" : "Registered Vendor";
+
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-[#093530]/5 rounded-2xl border border-teal-200/50 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("products")}
+            className="bg-[#093530]/5 rounded-2xl border border-teal-200/50 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Package className="w-5 h-5 text-teal-600" />
               <span className="text-[10px] font-extrabold text-[#093530] bg-[#093530]/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Supplied</span>
             </div>
             <div className="mt-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Supplied Products</p>
-              <p className="font-bold text-2xl text-slate-800 mt-1">12 Products</p>
-              <p className="text-[9px] text-teal-600 mt-1 font-medium">Distributed across Antibiotics & Analgesics</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{suppliedCount} Products</p>
+              <p className="text-[9px] text-teal-600 mt-1 font-medium">{categoriesLabel}</p>
             </div>
           </div>
-          <div className="bg-amber-50 rounded-2xl border border-amber-100 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("orders")}
+            className="bg-amber-50 rounded-2xl border border-amber-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Hourglass className="w-5 h-5 text-amber-600" />
               <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>
             </div>
             <div className="mt-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Pending Orders</p>
-              <p className="font-bold text-2xl text-slate-800 mt-1">3 Active POs</p>
-              <p className="text-[9px] text-amber-600 mt-1 font-medium">Awaiting physical shipment verification</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{pendingPOCount} Active POs</p>
+              <p className="text-[9px] text-amber-600 mt-1 font-medium">Awaiting procurement logistics processing</p>
             </div>
           </div>
-          <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("orders")}
+            className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Wallet className="w-5 h-5 text-emerald-600" />
               <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Received</span>
             </div>
             <div className="mt-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Settled Orders Value</p>
-              <p className="font-bold text-2xl text-slate-800 mt-1">{currencySymbol}1,450.00</p>
-              <p className="text-[9px] text-emerald-600 mt-1 font-medium">Funds disbursed to legal supplier bank account</p>
+              <p className="font-bold text-2xl text-slate-800 mt-1">{currencySymbol}{settledPOAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-[9px] text-emerald-600 mt-1 font-medium">Funds disbursed to matching registry bank</p>
             </div>
           </div>
-          <div className="bg-indigo-50 rounded-2xl border border-indigo-100 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("orders")}
+            className="bg-indigo-50 rounded-2xl border border-indigo-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Users className="w-5 h-5 text-indigo-600" />
               <span className="text-[10px] font-extrabold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Certified</span>
             </div>
             <div className="mt-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Procurement Level</p>
-              <p className="font-bold text-xl text-slate-800 mt-1">Priority Supplier</p>
-              <p className="text-[9px] text-indigo-600 mt-1 font-medium">Supply lines active with auto-reordering</p>
+              <p className="font-bold text-xl text-slate-800 mt-1">{supplierTier}</p>
+              <p className="text-[9px] text-indigo-600 mt-1 font-medium">Supply lines verified with automatic replenishment</p>
             </div>
           </div>
         </div>
@@ -324,9 +402,16 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
     }
 
     if (user?.role === UserRole.INVENTORY_MANAGER) {
+      const activeLogsCount = inventoryLogs.length;
+      const lastLog = inventoryLogs[0];
+      const traceLabel = lastLog ? `${lastLog.type.toUpperCase()}: ${lastLog.medicineName}` : "Every stock adjustment is logged";
+
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-[#093530]/5 rounded-2xl border border-teal-200/50 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("products")}
+            className="bg-[#093530]/5 rounded-2xl border border-teal-200/50 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Pill className="w-5 h-5 text-teal-600" />
               <span className="text-[10px] font-extrabold text-[#093530] bg-[#093530]/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Database</span>
@@ -337,7 +422,10 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
               <p className="text-[9px] text-teal-600 mt-1 font-medium">Cataloged across active categories</p>
             </div>
           </div>
-          <div className="bg-amber-50 rounded-2xl border border-amber-100 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("products")}
+            className="bg-amber-50 rounded-2xl border border-amber-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <TrendingDown className="w-5 h-5 text-amber-600" />
               <span className="text-[10px] font-extrabold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Below Target</span>
@@ -349,7 +437,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
             </div>
           </div>
           <div 
-            onClick={() => setShowExpiryTrackingDialog(true)}
+            onClick={() => onNavigate("reports")}
             className="bg-rose-50 rounded-2xl border border-rose-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
           >
             <div className="flex items-center justify-between text-lg">
@@ -362,15 +450,18 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
               <p className="text-[9px] text-rose-600 mt-1 font-medium">To be disposed of or returned to supplier</p>
             </div>
           </div>
-          <div className="bg-indigo-50 rounded-2xl border border-indigo-100 p-6 flex flex-col justify-between h-40">
+          <div 
+            onClick={() => onNavigate("reports")}
+            className="bg-indigo-50 rounded-2xl border border-indigo-100 p-6 flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+          >
             <div className="flex items-center justify-between text-lg">
               <Activity className="w-5 h-5 text-indigo-600" />
               <span className="text-[10px] font-extrabold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Live Trace</span>
             </div>
             <div className="mt-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Active Inventory logs</p>
-              <p className="font-bold text-xl text-slate-800 mt-1">Secure Tracking</p>
-              <p className="text-[9px] text-indigo-600 mt-1 font-medium">Every stock adjustment is auditable</p>
+              <p className="font-bold text-xl text-slate-800 mt-1">{activeLogsCount} Logs</p>
+              <p className="text-[9px] text-indigo-600 mt-1 font-medium">{traceLabel}</p>
             </div>
           </div>
         </div>
@@ -381,7 +472,10 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Card 1: Todays Sales */}
-        <div className="p-6 bg-emerald-100/60 rounded-2xl border border-emerald-200/50 relative overflow-hidden flex flex-col justify-between h-40">
+        <div 
+          onClick={() => onNavigate("sales")}
+          className="p-6 bg-emerald-100/60 rounded-2xl border border-emerald-200/50 relative overflow-hidden flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+        >
           <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
           <div className="flex items-center justify-between z-10">
             <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-sm">
@@ -408,7 +502,10 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
         </div>
 
         {/* Card 2: Available Categories */}
-        <div className="p-6 bg-teal-100/60 rounded-2xl border border-teal-200/50 relative overflow-hidden flex flex-col justify-between h-40">
+        <div 
+          onClick={() => onNavigate("categories")}
+          className="p-6 bg-teal-100/60 rounded-2xl border border-teal-200/50 relative overflow-hidden flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+        >
           <div className="absolute right-0 top-0 w-32 h-32 bg-teal-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
           <div className="flex items-center justify-between z-10">
             <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-sm">
@@ -425,7 +522,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                 {metrics.availableCategories.value}
               </span>
               <span className="text-[10px] font-extrabold text-teal-700 bg-white/60 px-1.5 py-0.5 rounded-md">
-                Active
+                {metrics.availableCategories.changePercent.toFixed(1)}% Active
               </span>
             </div>
             <p className="text-[10px] text-teal-700 font-semibold mt-1">
@@ -436,7 +533,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
 
         {/* Card 3: Expired Medicines */}
         <div 
-          onClick={() => setShowExpiryTrackingDialog(true)}
+          onClick={() => onNavigate("reports")}
           className="p-6 bg-rose-100/60 rounded-2xl border border-rose-200/50 relative overflow-hidden flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
         >
           <div className="absolute right-0 top-0 w-32 h-32 bg-rose-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
@@ -455,7 +552,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                 {metrics.expiredMedicines.count} List
               </span>
               <span className="text-[10px] font-extrabold text-rose-700 bg-white/60 px-1.5 py-0.5 rounded-md">
-                {medicines.length > 0 ? ((metrics.expiredMedicines.count / medicines.length) * 100).toFixed(1) : "0"}% Pct
+                {metrics.expiredMedicines.changePercent.toFixed(1)}% Pct
               </span>
             </div>
             <p className="text-[10px] text-rose-700 font-semibold mt-1">
@@ -465,7 +562,10 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
         </div>
 
         {/* Card 4: System Users */}
-        <div className="p-6 bg-indigo-100/60 rounded-2xl border border-indigo-200/50 relative overflow-hidden flex flex-col justify-between h-40">
+        <div 
+          onClick={() => onNavigate("settings")}
+          className="p-6 bg-indigo-100/60 rounded-2xl border border-indigo-200/50 relative overflow-hidden flex flex-col justify-between h-40 cursor-pointer hover:shadow-md hover:scale-[1.02] transition duration-200"
+        >
           <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-200 opacity-20 rounded-full translate-x-8 -translate-y-8" />
           <div className="flex items-center justify-between z-10">
             <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center shadow-sm">
@@ -482,7 +582,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                 {metrics.systemUsers.count}
               </span>
               <span className="text-[10px] font-extrabold text-indigo-700 bg-white/60 px-1.5 py-0.5 rounded-md">
-                Staff
+                {metrics.systemUsers.changePercent.toFixed(1)}% Active
               </span>
             </div>
             <p className="text-[10px] text-indigo-700 font-semibold mt-1">
@@ -692,86 +792,98 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
           </div>
 
           {/* Fully standard interactive custom vector Donut chart to match mockup design perfectly */}
-          <div className="flex justify-center items-center py-6 relative">
-            <svg className="w-56 h-56" viewBox="0 0 100 100">
-              {/* Pie slices calculations with matching responsive layouts */}
-              
-              {/* No Sales: (Starts stroke-dashoffset 0) */}
-              <circle
-                cx="50" cy="50" r="38"
-                fill="transparent"
-                stroke="#e2e8f0"
-                strokeWidth="11"
-                strokeDasharray={`${pctNoSales * circ / 100} ${circ}`}
-                strokeDashoffset="0"
-                className="origin-center -rotate-90"
-              />
-              {/* Pattern Overlay on No Sales for striped representation! */}
-              <circle
-                cx="50" cy="50" r="38"
-                fill="transparent"
-                stroke="#b2f5ea" /* secondary color matching screenshot styling */
-                strokeWidth="7"
-                strokeDasharray="1.5 3"
-                strokeDashoffset="0"
-                className="origin-center -rotate-90 opacity-45"
-              />
+          <div className="flex justify-center items-center py-6">
+            <div className="relative w-56 h-56 flex items-center justify-center">
+              <svg className="w-full h-full" viewBox="0 0 100 100">
+                {/* Pie slices calculations with matching responsive layouts */}
+                
+                {/* No Sales: (Starts stroke-dashoffset 0) */}
+                <circle
+                  cx="50" cy="50" r="38"
+                  fill="transparent"
+                  stroke="#e2e8f0"
+                  strokeWidth="11"
+                  strokeDasharray={`${pctNoSales * circ / 100} ${circ}`}
+                  strokeDashoffset="0"
+                  className="origin-center -rotate-90"
+                />
+                {/* Pattern Overlay on No Sales for striped representation! */}
+                <circle
+                  cx="50" cy="50" r="38"
+                  fill="transparent"
+                  stroke="#b2f5ea" /* secondary color matching screenshot styling */
+                  strokeWidth="7"
+                  strokeDasharray="1.5 3"
+                  strokeDashoffset="0"
+                  className="origin-center -rotate-90 opacity-45"
+                />
 
-              {/* Purchases: (yellow-green color) */}
-              <circle
-                cx="50" cy="50" r="38"
-                fill="transparent"
-                stroke="#bef264" /* light green lime */
-                strokeWidth="11"
-                strokeDasharray={`${pctPurchases * circ / 100} ${circ}`}
-                strokeDashoffset={`${- (pctNoSales * circ / 100)}`}
-                className="origin-center -rotate-90"
-              />
+                {/* Purchases: (yellow-green color) */}
+                <circle
+                  cx="50" cy="50" r="38"
+                  fill="transparent"
+                  stroke="#bef264" /* light green lime */
+                  strokeWidth="11"
+                  strokeDasharray={`${pctPurchases * circ / 100} ${circ}`}
+                  strokeDashoffset={`${- (pctNoSales * circ / 100)}`}
+                  className="origin-center -rotate-90"
+                />
 
-              {/* Suppliers: (vibrant teal) */}
-              <circle
-                cx="50" cy="50" r="38"
-                fill="transparent"
-                stroke="#2dd4bf" /* vibrant teal */
-                strokeWidth="11"
-                strokeDasharray={`${pctSuppliers * circ / 100} ${circ}`}
-                strokeDashoffset={`${- ((pctNoSales + pctPurchases) * circ / 100)}`}
-                className="origin-center -rotate-90"
-              />
+                {/* Suppliers: (vibrant teal) */}
+                <circle
+                  cx="50" cy="50" r="38"
+                  fill="transparent"
+                  stroke="#2dd4bf" /* vibrant teal */
+                  strokeWidth="11"
+                  strokeDasharray={`${pctSuppliers * circ / 100} ${circ}`}
+                  strokeDashoffset={`${- ((pctNoSales + pctPurchases) * circ / 100)}`}
+                  className="origin-center -rotate-90"
+                />
 
-              {/* Sales: (rose red) */}
-              <circle
-                cx="50" cy="50" r="38"
-                fill="transparent"
-                stroke="#fda4af" /* rose pastel */
-                strokeWidth="11"
-                strokeDasharray={`${pctSales * circ / 100} ${circ}`}
-                strokeDashoffset={`${- ((pctNoSales + pctPurchases + pctSuppliers) * circ / 100)}`}
-                className="origin-center -rotate-90"
-              />
-            </svg>
+                {/* Sales: (rose red) */}
+                <circle
+                  cx="50" cy="50" r="38"
+                  fill="transparent"
+                  stroke="#fda4af" /* rose pastel */
+                  strokeWidth="11"
+                  strokeDasharray={`${pctSales * circ / 100} ${circ}`}
+                  strokeDashoffset={`${- ((pctNoSales + pctPurchases + pctSuppliers) * circ / 100)}`}
+                  className="origin-center -rotate-90"
+                />
+              </svg>
 
-            {/* Inner Dashboard Summary Label */}
-            <div className="absolute text-center">
-              <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
-                Revenue
-              </span>
-              <span className="text-sm font-black font-sans text-slate-800 tracking-tight block">
-                {currencySymbol}{totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
+              {/* Inner Dashboard Summary Label */}
+              <div className="absolute text-center">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">
+                  Revenue
+                </span>
+                <span className="text-sm font-black font-sans text-slate-800 tracking-tight block">
+                  {currencySymbol}{totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              {/* Dynamic visual badges on vectors - hidden on empty states */}
+              {grTotal > 0 ? (
+                <>
+                  <div className="absolute top-1/4 right-[22%] bg-rose-200 text-rose-800 text-[9px] px-1 rounded font-bold shadow-sm">{pctSales}%</div>
+                  <div className="absolute bottom-[22%] right-[28%] bg-teal-200 text-teal-800 text-[9px] px-1 rounded font-bold shadow-sm">{pctSuppliers}%</div>
+                  <div className="absolute top-[30%] left-[22%] bg-slate-100 text-slate-600 text-[9px] px-1 rounded font-bold shadow-sm font-mono">{pctPurchases}%</div>
+                  <div className="absolute bottom-1/4 left-[22%] bg-lime-200 text-lime-800 text-[9px] px-1 rounded font-bold shadow-sm">{pctNoSales}%</div>
+                </>
+              ) : (
+                <div className="absolute inset-0 bg-white/95 rounded-2xl flex flex-col justify-center items-center z-20 p-4 text-center">
+                  <Info className="w-8 h-8 text-slate-300 mb-2" />
+                  <p className="text-[11px] font-bold text-slate-500">No activity recorded for this period</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">Metrics will build as you add items & logs</p>
+                </div>
+              )}
             </div>
-
-            {/* Dynamic visual badges on vectors */}
-            <div className="absolute top-1/4 right-1/4 bg-rose-200 text-rose-800 text-[9px] px-1 rounded font-bold shadow-sm">{pctSales}%</div>
-            <div className="absolute bottom-1/4 right-1/3 bg-teal-200 text-teal-800 text-[9px] px-1 rounded font-bold shadow-sm">{pctSuppliers}%</div>
-            <div className="absolute top-1/3 left-1/4 bg-slate-100 text-slate-600 text-[9px] px-1 rounded font-bold shadow-sm font-mono">{pctPurchases}%</div>
-            <div className="absolute bottom-1/4 left-1/4 bg-lime-200 text-lime-800 text-[9px] px-1 rounded font-bold shadow-sm">{pctNoSales}%</div>
           </div>
 
           {/* Grid legends breakdown */}
           <div className="grid grid-cols-2 gap-x-2 gap-y-2.5 border-t border-slate-100 pt-4 mt-2">
             <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-500">
-              <span className="w-2.5 h-2.5 rounded-full bg-lime-300 block shrink-0" />
+              <span className="w-2.5 h-2.5 rounded-full bg-lime-350 block shrink-0" />
               <span>Purchases ({pctPurchases}%)</span>
             </div>
             <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-500">
@@ -783,7 +895,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
               <span>Sales ({pctSales}%)</span>
             </div>
             <div className="flex items-center space-x-2 text-[11px] font-semibold text-slate-500">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-300 block shrink-0" />
+              <span className="w-2.5 h-2.5 rounded-full bg-slate-200 block shrink-0" />
               <span>No Sales ({pctNoSales}%)</span>
             </div>
           </div>
@@ -806,11 +918,13 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
             {/* Custom Cylinder Bars */}
             {(() => {
               const maxWeeklyVal = Math.max(...metrics.totalSalesOverview.map(b => b.value), 50);
+              const maxBar = metrics.totalSalesOverview.reduce((prev, current) => (prev.value > current.value) ? prev : current, metrics.totalSalesOverview[0]);
+              const isAllZero = metrics.totalSalesOverview.every(b => b.value === 0);
               
               return metrics.totalSalesOverview.map((bar, i) => {
-                // Wed is special highlighted mockup pill
-                const isHighlight = bar.day === "Wed";
-                const fillPercent = (bar.value / maxWeeklyVal) * 85 + 15; // ensure minimum 15% height for visual style
+                // Highlight the true maximum sales day dynamically instead of hardcoded Wednesday
+                const isHighlight = maxBar && bar.day === maxBar.day && bar.value > 0;
+                const fillPercent = isAllZero ? 5 : (bar.value / maxWeeklyVal) * 85 + 15; // ensure nice default pill scale
                 
                 return (
                   <div key={bar.day} className="flex flex-col items-center flex-1 relative group cursor-pointer">
@@ -845,10 +959,10 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                       </div>
                     </div>
   
-                    {/* Mockup tooltip floating above Wednesday */}
+                    {/* Dynamic tooltip floating above highest sales day */}
                     {isHighlight && (
                       <div className="absolute top-1 bg-[#093530] text-teal-300 rounded-xl px-3 py-1.5 shadow-xl text-center border border-teal-800 z-10 -translate-y-12 animate-bounce">
-                        <p className="text-[9px] font-bold text-teal-400 capitalize">Sales Active</p>
+                        <p className="text-[9px] font-bold text-teal-400 capitalize">Sales Peak</p>
                         <p className="text-xs font-black font-sans leading-none mt-0.5">{currencySymbol}{bar.value.toFixed(2)}</p>
                         {/* Arrow clip */}
                         <div className="w-2.5 h-2.5 bg-[#093530] border-r border-b border-teal-800 rotate-45 absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1.5" />
@@ -867,6 +981,15 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                 );
               });
             })()}
+
+            {/* Empty state visual cover overlay directly over cylinder space */}
+            {metrics.totalSalesOverview.every(b => b.value === 0) && (
+              <div className="absolute inset-0 bg-white/95 rounded-2xl flex flex-col justify-center items-center z-20 p-4 text-center">
+                <Info className="w-8 h-8 text-slate-300 mb-2" />
+                <p className="text-[11px] font-bold text-slate-500">No sales transactions compiled for this week cycle</p>
+                <p className="text-[9px] text-slate-400 mt-0.5">Place new order sales to see beautiful diagnostic cylinders populate live</p>
+              </div>
+            )}
           </div>
   
           {/* Legend and performance indicators */}

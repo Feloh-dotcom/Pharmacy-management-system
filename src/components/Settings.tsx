@@ -438,7 +438,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
     }
 
     try {
-      const email = user?.email || "budionosiregar@gmail.com";
+      const email = user?.email || "";
       const res = await fetch("/api/settings/reset-analytics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -7,7 +7,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
-import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded } from "./server_db";
+import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded, pullChangesFromSupabase, mapFromRow, mapToRow, hasServiceRole } from "./server_db";
 import { UserRole, Medicine, Sale, PurchaseOrder, InventoryLog, Customer, FinanceRecord } from "./src/types";
 
 // Lazy-loaded or conditional Gemini API initializer
@@ -33,6 +33,11 @@ function getGeminiClient(): GoogleGenAI | null {
   return ai;
 }
 
+function getRequesterEmail(req: express.Request): string {
+  const email = req.headers["x-user-email"] || req.headers["X-User-Email"] || req.body?.userEmail || req.body?.adminEmail || req.query?.userEmail;
+  return email && typeof email === "string" ? email.toLowerCase().trim() : "system@halomedical.com";
+}
+
 // Unified backend RBAC authorization utility
 function checkPermission(req: express.Request, permName: string): { allowed: boolean; user?: any } {
   // Extract user email through headers, query params, or req structures
@@ -50,6 +55,103 @@ function checkPermission(req: express.Request, permName: string): { allowed: boo
   if (!rp) return { allowed: false, user };
   
   return { allowed: !!(rp.permissions as any)[permName], user };
+}
+
+// Ensure the target email is active inside our roster, querying Supabase directly as the source of truth
+async function ensureUserInLocalCache(email: string): Promise<any> {
+  const normalizedEmail = email.toLowerCase().trim();
+  
+  // 1. Check local cache memory
+  let dbIdx = readDB().users.findIndex(u => u.email.toLowerCase() === normalizedEmail);
+  let localUser = dbIdx !== -1 ? readDB().users[dbIdx] : null;
+  
+  // 2. Query live Supabase profiles table directly to check if user is registered there
+  try {
+    const { data: dbProfile, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (!error && dbProfile) {
+      // User found in Supabase! Convert record to camelCase camel attributes
+      const userFromCloud = mapFromRow("users", dbProfile);
+      
+      // Merge/save back into local cache to keep cache fully synchronized
+      updateDB(state => {
+        const existingIdx = state.users.findIndex(u => u.email.toLowerCase() === normalizedEmail);
+        if (existingIdx === -1) {
+          state.users.push(userFromCloud);
+        } else {
+          const local = state.users[existingIdx];
+          const merged = { ...local, ...userFromCloud };
+          for (const key of ["phone", "bio", "nationalId", "address", "verificationStatus"]) {
+            if (local[key] && (!userFromCloud[key] || String(userFromCloud[key]).trim() === "")) {
+              merged[key] = local[key];
+            }
+          }
+          if (local.passwordSetupCompleted && !userFromCloud.passwordSetupCompleted) {
+            merged.passwordSetupCompleted = local.passwordSetupCompleted;
+          }
+          if (local.verificationDetails && !userFromCloud.verificationDetails) {
+            merged.verificationDetails = local.verificationDetails;
+          }
+          state.users[existingIdx] = merged;
+        }
+      });
+      
+      return readDB().users.find(u => u.email.toLowerCase() === normalizedEmail);
+    }
+  } catch (err: any) {
+    console.error("[ensureUserInLocalCache Supabase Search Error]", err.message);
+  }
+
+  // 3. Fallback: If found locally but missing in Supabase profiles, seed to Supabase
+  if (localUser) {
+    try {
+      const row = mapToRow("users", localUser);
+      await supabase.from("profiles").upsert(row);
+    } catch (e: any) {
+      console.warn("[ensureUserInLocalCache Seeding Error]", e.message);
+    }
+    return localUser;
+  }
+
+  // 4. Fallback 2: If neither in local cache nor in Supabase profiles, auto-generate default profile
+  const namePart = normalizedEmail.split("@")[0] || "Pharmacy User";
+  const nameCapitalized = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+  
+  const newUser = {
+    id: toUUIDIfNeeded(normalizedEmail),
+    name: nameCapitalized,
+    fullName: nameCapitalized,
+    email: normalizedEmail,
+    role: "User" as any,
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    passwordHash: "",
+    salt: "",
+    failedLoginAttempts: 0,
+    verificationStatus: "Pending" as any,
+    phone: "",
+    bio: "",
+    nationalId: "",
+    address: "",
+    passwordSetupCompleted: false
+  };
+
+  updateDB(state => {
+    state.users.push(newUser);
+  });
+
+  try {
+    const row = mapToRow("users", newUser);
+    await supabase.from("profiles").upsert(row);
+  } catch (seedingError: any) {
+    console.warn("[ensureUserInLocalCache Auto-Creation Seeding Error]", seedingError.message);
+  }
+
+  return newUser;
 }
 
 const app = express();
@@ -302,61 +404,48 @@ app.get("/api/dashboard/metrics", (req, res) => {
   }
 
   let computedValues: any;
-  if (targetCycle && targetCycle.status === "Active") {
+  if (targetCycle) {
     computedValues = computeWeekValues(targetCycle, finalState);
-  } else if (targetCycle) {
-    computedValues = {
-      graphReport: targetCycle.graphReport,
-      totalSalesOverview: targetCycle.totalSalesOverview,
-      weeklyRevenue: targetCycle.weeklyRevenue ?? 0
-    };
   } else {
-    computedValues = {
-      graphReport: { purchases: 28, suppliers: 18, sales: 12, noSales: 42 },
-      weeklyRevenue: 0,
-      totalSalesOverview: [
-        { day: "Mon", value: 120, color: "#f97316" },
-        { day: "Tue", value: 180, color: "#ec4899" },
-        { day: "Wed", value: 298, color: "#22c55e" },
-        { day: "Thu", value: 240, color: "#14b8a6" },
-        { day: "Fri", value: 150, color: "#ef4444" },
-        { day: "Sat", value: 110, color: "#a855f7" },
-        { day: "Sun", value: 50, color: "#f59e0b" }
-      ]
+    const currentWeekId = getISOWeekString(new Date());
+    const ranges = getWeekRange(new Date());
+    const tempCycle = {
+      id: currentWeekId,
+      startDate: ranges.monday.toISOString(),
+      endDate: ranges.sunday.toISOString()
     };
+    computedValues = computeWeekValues(tempCycle, finalState);
   }
 
-  // Calculate Todays Sales dynamically based on the active/open cash session
-  const activeSession = (finalState.cashSessions || []).find((s: any) => s.status === "Open");
-  
-  let todaysSalesSum = 0;
-  let yesterdaySalesSum = 0;
+  // Calculate Todays Sales dynamically based on calendar dates
+  const nowStr = new Date().toISOString().split('T')[0];
+  const yesterdayStr = new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0];
 
-  if (activeSession) {
-    const summarized = calculateSessionSummary(activeSession, finalState);
-    todaysSalesSum = summarized.totalSalesAmount;
+  let todaysSalesSum = finalState.sales
+    .filter((s: any) => s.date.startsWith(nowStr) && s.paymentStatus !== "Refunded" && s.paymentStatus !== "Reversed")
+    .reduce((sum: number, s: any) => sum + s.totalPrice, 0);
 
-    // Yesterday's sales - standard yesterday calendar date
-    const yesterdayStr = new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0];
-    yesterdaySalesSum = finalState.sales
-      .filter((s: any) => s.date.startsWith(yesterdayStr))
-      .reduce((sum: number, s: any) => sum + s.totalPrice, 0);
+  let yesterdaySalesSum = finalState.sales
+    .filter((s: any) => s.date.startsWith(yesterdayStr) && s.paymentStatus !== "Refunded" && s.paymentStatus !== "Reversed")
+    .reduce((sum: number, s: any) => sum + s.totalPrice, 0);
 
-    // Fallback to last closed session sales if calendar yesterday is zero
-    if (yesterdaySalesSum === 0) {
-      const closedSessions = (finalState.cashSessions || []).filter((s: any) => s.status === "Closed");
-      if (closedSessions.length > 0) {
-        yesterdaySalesSum = closedSessions[0].totalSalesAmount || 0;
-      }
+  // If calendar yesterday is zero, fallback to the latest day before today that has sales
+  if (yesterdaySalesSum === 0) {
+    const otherRecentDays = finalState.sales
+      .filter((s: any) => !s.date.startsWith(nowStr) && s.paymentStatus !== "Refunded" && s.paymentStatus !== "Reversed")
+      .map((s: any) => s.date.split('T')[0]);
+    
+    if (otherRecentDays.length > 0) {
+      const lastSalesDay = otherRecentDays.sort().pop();
+      yesterdaySalesSum = finalState.sales
+        .filter((s: any) => s.date.startsWith(lastSalesDay) && s.paymentStatus !== "Refunded" && s.paymentStatus !== "Reversed")
+        .reduce((sum: number, s: any) => sum + s.totalPrice, 0);
     }
-  } else {
-    todaysSalesSum = 0;
-    yesterdaySalesSum = 0;
   }
 
-  let todaysChangePercent = 2.5;
+  let todaysChangePercent = 0;
   if (yesterdaySalesSum > 0) {
-    todaysChangePercent = Number((((todaysSalesSum - yesterdaySalesSum) / yesterdaySalesSum) * 100).toFixed(1));
+    todaysChangePercent = Number((((todaysSalesSum - yesterdaySalesSum) / yesterdaySalesSum) * 105).toFixed(1));
   } else if (todaysSalesSum > 0) {
     todaysChangePercent = 100;
   } else {
@@ -382,16 +471,16 @@ app.get("/api/dashboard/metrics", (req, res) => {
     availableCategories: {
       value: categoriesCount,
       placeholderValue: "",
-      changePercent: 1.2
+      changePercent: categoriesCount > 0 ? Number(((finalState.categories.filter((c: any) => finalState.medicines.some((m: any) => m.categoryId === c.id)).length / categoriesCount) * 100).toFixed(1)) : 0
     },
     expiredMedicines: {
       count: expiredCount,
-      changePercent: 0.5
+      changePercent: finalState.medicines.length > 0 ? Number(((expiredCount / finalState.medicines.length) * 100).toFixed(1)) : 0
     },
     systemUsers: {
       count: usersCount,
       placeholderValue: "",
-      changePercent: 3.1
+      changePercent: usersCount > 0 ? Number(((finalState.users.filter((u: any) => u.isActive !== false).length / usersCount) * 100).toFixed(1)) : 0
     },
     graphReport: computedValues.graphReport,
     totalSalesOverview: computedValues.totalSalesOverview,
@@ -408,6 +497,52 @@ app.get("/api/dashboard/metrics", (req, res) => {
 });
 
 // 2. Authentication API
+app.get("/api/auth/me", async (req, res) => {
+  const email = req.query.email as string;
+  const id = req.query.id as string;
+  
+  if (!email && !id) {
+    return res.status(400).json({ error: "Email or ID query parameter is required" });
+  }
+
+  try {
+    if (email) {
+      await ensureUserInLocalCache(email);
+    }
+  } catch (err: any) {
+    console.warn("[/api/auth/me sync warn]", err.message);
+  }
+
+  const db = readDB();
+  const user = db.users.find(u => 
+    (email && u.email.toLowerCase() === email.toLowerCase()) || 
+    (id && u.id === id)
+  );
+
+  if (!user) {
+    return res.status(404).json({ error: "Personnel/User node not found" });
+  }
+
+  res.json({
+    user: {
+      id: user.id,
+      name: user.name,
+      fullName: user.name,
+      email: user.email,
+      role: user.role,
+      avatarUrl: user.avatarUrl,
+      phone: (user as any).phone || "",
+      bio: (user as any).bio || "",
+      nationalId: (user as any).nationalId || "",
+      address: (user as any).address || "",
+      passwordSetupCompleted: (user as any).passwordSetupCompleted,
+      verificationStatus: (user as any).verificationStatus || "Pending",
+      verificationSubmittedAt: (user as any).verificationSubmittedAt,
+      verificationDetails: (user as any).verificationDetails
+    }
+  });
+});
+
 app.post("/api/auth/register", async (req, res) => {
   const { id, name, email, password } = req.body;
   if (!name || !email || !password) {
@@ -426,16 +561,50 @@ app.post("/api/auth/register", async (req, res) => {
   
   let userIdOnCloud = id || `usr-${Date.now()}`;
 
+  // Pre-emptively clean up any stale matching profile in Supabase to avoid trigger unique conflict (email constraint)
+  try {
+    const { error: delErr } = await supabase.from("profiles").delete().eq("email", email.toLowerCase());
+    if (delErr) {
+      console.warn("[Register Pre-Clean Warn] Unable to delete potentially stale profile:", delErr.message);
+    }
+  } catch (cleanEx: any) {
+    console.warn("[Register Pre-Clean Ex] Exception during pre-clean:", cleanEx.message);
+  }
+
   // Force register / auto-confirm inside Supabase Authentication to protect absolute integrity
   try {
-    const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
-      email: email.toLowerCase(),
-      password: password,
-      email_confirm: true,
-      user_metadata: { full_name: name, role: "User" }
-    });
+    let authUser = null;
+    let authErr = null;
+    if (supabase.auth.admin && hasServiceRole()) {
+      try {
+        const res = await supabase.auth.admin.createUser({
+          email: email.toLowerCase(),
+          password: password,
+          email_confirm: true,
+          user_metadata: { full_name: name, role: "User" }
+        });
+        authUser = res.data;
+        authErr = res.error;
+      } catch (adminEx: any) {
+        console.warn("[Register Admin Warn] Admin createUser had an error:", adminEx?.message || adminEx);
+      }
+    }
+    
+    if (!authUser?.user) {
+      console.log("[Auth Admin Bypassed in Register] Trying public signUp fallback...");
+      const res = await supabase.auth.signUp({
+        email: email.toLowerCase(),
+        password: password,
+        options: {
+          data: { full_name: name, role: "User" }
+        }
+      });
+      authUser = res.data;
+      authErr = res.error;
+    }
+
     if (authErr) {
-      console.warn("[Register Sync] Supabase Auth user existed or setup was bypassed:", authErr.message);
+      console.warn("[Register Sync] Supabase Auth registration notification/warning:", authErr.message);
     } else if (authUser?.user) {
       userIdOnCloud = authUser.user.id;
     }
@@ -455,7 +624,12 @@ app.post("/api/auth/register", async (req, res) => {
     passwordHash: hash,
     salt,
     failedLoginAttempts: 0,
-    verificationStatus: "Pending" as any
+    verificationStatus: "Pending" as any,
+    phone: "",
+    bio: "",
+    nationalId: "",
+    address: "",
+    passwordSetupCompleted: true
   };
 
   updateDB(state => {
@@ -476,93 +650,166 @@ app.post("/api/auth/register", async (req, res) => {
     user: {
       id: newUser.id,
       name: newUser.name,
+      fullName: newUser.name,
       email: newUser.email,
       role: newUser.role,
-      avatarUrl: newUser.avatarUrl
+      avatarUrl: newUser.avatarUrl,
+      phone: newUser.phone || "",
+      bio: newUser.bio || "",
+      nationalId: newUser.nationalId || "",
+      address: newUser.address || "",
+      passwordSetupCompleted: newUser.passwordSetupCompleted,
+      verificationStatus: newUser.verificationStatus || "Pending",
+      verificationSubmittedAt: (newUser as any).verificationSubmittedAt,
+      verificationDetails: (newUser as any).verificationDetails
     }
   });
 });
 
-app.post("/api/auth/login", (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required" });
   }
 
-  const db = readDB();
-  const user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  
-  if (!user) {
-    return res.status(401).json({ error: "Invalid credentials" });
+  // 1. Try to validate credentials with Supabase Auth as the single source of truth
+  let authUser: any = null;
+  let authError: any = null;
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.toLowerCase(),
+      password: password
+    });
+    if (error) {
+      authError = error;
+    } else if (data?.user) {
+      authUser = data.user;
+    }
+  } catch (err: any) {
+    console.warn("[Supabase Auth Login Error fallback]", err.message);
+  }
+
+  // 2. Load DB and match user
+  let db = readDB();
+  let user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+
+  // If successfully authenticated via Supabase but not yet found in the cloud profile caches, force direct synchronized pull
+  if (authUser && (!user || user.id !== authUser.id)) {
+    console.log("[Supabase Login Sync] Authenticated via cloud but profile not in cache. Pulling updates...");
+    try {
+      await pullChangesFromSupabase(true);
+      db = readDB();
+      user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    } catch (pullErr: any) {
+      console.error("[Supabase Login Pull Sync Error]", pullErr.message);
+    }
+  }
+
+  // If still not inside local cached memory, create profile automatically from authenticated session meta
+  if (authUser && !user) {
+    console.log("[Supabase Login Sync] Auto-creating missing cache profile for validated user session...");
+    const nameOnMeta = authUser.user_metadata?.full_name || authUser.user_metadata?.name || "New Pharmacy User";
+    const roleOnMeta = authUser.user_metadata?.role || "User";
+    const { salt, hash } = hashPassword(password);
+    user = {
+      id: authUser.id,
+      name: nameOnMeta,
+      fullName: nameOnMeta,
+      email: email.toLowerCase(),
+      role: roleOnMeta as any,
+      isActive: true,
+      createdAt: authUser.created_at || new Date().toISOString(),
+      passwordHash: hash,
+      salt,
+      failedLoginAttempts: 0,
+      verificationStatus: "Verified" as any,
+      phone: "",
+      bio: "",
+      nationalId: "",
+      address: "",
+      passwordSetupCompleted: true
+    };
+    updateDB(state => {
+      state.users.push(user!);
+    });
+    db = readDB();
+  }
+
+  // 3. Perform fallback local authentication ONLY if Supabase Auth check didn't initialize/run (e.g. offline fallback or missing cloud)
+  if (!authUser) {
+    if (!user) {
+      const errMsg = authError ? authError.message : "Invalid credentials";
+      return res.status(401).json({ error: errMsg });
+    }
+
+    // Lockout check
+    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+      const lockedMinLeft = Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / (1000 * 60));
+      return res.status(423).json({ 
+        error: `Account is temporarily locked due to consecutive failed login attempts. Try again in ${lockedMinLeft} minutes.` 
+      });
+    }
+
+    // Cryptographic hash validation (Anti-Bypass)
+    let isPasswordCorrect = false;
+    if (user.passwordHash && user.salt) {
+      const { hash } = hashPassword(password, user.salt);
+      isPasswordCorrect = (hash === user.passwordHash);
+    }
+
+    if (!isPasswordCorrect) {
+      const failedAttemptsCount = (user.failedLoginAttempts || 0) + 1;
+      let lockedTimeStr: string | undefined = undefined;
+      const maxRetries = db.settings?.security?.accountLockoutAttempts || 5;
+
+      if (failedAttemptsCount >= maxRetries) {
+        lockedTimeStr = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // Lock for 15 minutes
+      }
+
+      updateDB(state => {
+        const idx = state.users.findIndex(u => u.id === user!.id);
+        if (idx > -1) {
+          state.users[idx].failedLoginAttempts = failedAttemptsCount;
+           if (lockedTimeStr) {
+             state.users[idx].lockedUntil = lockedTimeStr;
+           }
+        }
+        state.auditLogs.unshift({
+          id: `aud-${Date.now()}`,
+          userEmail: email,
+          action: "Failed Login Attempt",
+          module: "Authentication",
+          date: new Date().toISOString(),
+          details: `Failed credentials handshake. Attempt ${failedAttemptsCount} of ${maxRetries}.`
+        });
+      });
+
+      const errorMsg = lockedTimeStr 
+        ? `Too many failed attempts. This account is locked for 15 minutes to guarantee security.`
+        : `Invalid credentials. Attempt ${failedAttemptsCount} of ${maxRetries}`;
+
+      return res.status(401).json({ error: errorMsg });
+    }
   }
 
   if (!user.isActive) {
     return res.status(403).json({ error: "Your account is currently deactivated. Please contact an Administrator." });
   }
 
-  // Lockout check
-  if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
-    const lockedMinLeft = Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / (1000 * 60));
-    return res.status(423).json({ 
-      error: `Account is temporarily locked due to consecutive failed login attempts. Try again in ${lockedMinLeft} minutes.` 
-    });
-  }
-
-  // Cryptographic hash validation (Anti-Bypass)
-  let isPasswordCorrect = false;
-  if (user.passwordHash && user.salt) {
-    const { hash } = hashPassword(password, user.salt);
-    isPasswordCorrect = (hash === user.passwordHash);
-  }
-
-  if (!isPasswordCorrect) {
-    const failedAttemptsCount = (user.failedLoginAttempts || 0) + 1;
-    let lockedTimeStr: string | undefined = undefined;
-    const maxRetries = db.settings?.security?.accountLockoutAttempts || 5;
-
-    if (failedAttemptsCount >= maxRetries) {
-      lockedTimeStr = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // Lock for 15 minutes
-    }
-
-    updateDB(state => {
-      const idx = state.users.findIndex(u => u.id === user.id);
-      if (idx > -1) {
-        state.users[idx].failedLoginAttempts = failedAttemptsCount;
-         if (lockedTimeStr) {
-           state.users[idx].lockedUntil = lockedTimeStr;
-         }
-      }
-      state.auditLogs.unshift({
-        id: `aud-${Date.now()}`,
-        userEmail: email,
-        action: "Failed Login Attempt",
-        module: "Authentication",
-        date: new Date().toISOString(),
-        details: `Failed credentials handshake. Attempt ${failedAttemptsCount} of ${maxRetries}.`
-      });
-    });
-
-    const errorMsg = lockedTimeStr 
-      ? `Too many failed attempts. This account is locked for 15 minutes to guarantee security.`
-      : `Invalid credentials. Attempt ${failedAttemptsCount} of ${maxRetries}`;
-
-    return res.status(401).json({ error: errorMsg });
-  }
-
-  // Password correct: Reset failed counters
+  // 4. Update memory reset failed login attempts & commit access audit log logs
   updateDB(state => {
-    const idx = state.users.findIndex(u => u.id === user.id);
+    const idx = state.users.findIndex(u => u.id === user!.id);
     if (idx > -1) {
       state.users[idx].failedLoginAttempts = 0;
       state.users[idx].lockedUntil = undefined;
     }
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: user.email,
+      userEmail: user!.email,
       action: "User Login",
       module: "Authentication",
       date: new Date().toISOString(),
-      details: "SaaS Session opened securely via login endpoint with password validation."
+      details: "SaaS Session opened securely via login endpoint with Supabase single source of truth validation."
     });
   });
 
@@ -571,9 +818,18 @@ app.post("/api/auth/login", (req, res) => {
     user: {
       id: user.id,
       name: user.name,
+      fullName: user.name,
       email: user.email,
       role: user.role,
-      avatarUrl: user.avatarUrl
+      avatarUrl: user.avatarUrl,
+      phone: (user as any).phone || "",
+      bio: (user as any).bio || "",
+      nationalId: (user as any).nationalId || "",
+      address: (user as any).address || "",
+      passwordSetupCompleted: (user as any).passwordSetupCompleted,
+      verificationStatus: (user as any).verificationStatus || "Pending",
+      verificationSubmittedAt: (user as any).verificationSubmittedAt,
+      verificationDetails: (user as any).verificationDetails
     }
   });
 });
@@ -591,6 +847,7 @@ app.post("/api/medicines", (req, res) => {
   }
 
   const medicineData = req.body;
+  const db = readDB();
   
   // Validation checks
   if (!medicineData.name || !medicineData.SKU || !medicineData.expiryDate) {
@@ -599,7 +856,6 @@ app.post("/api/medicines", (req, res) => {
 
   // Barcode uniqueness check
   if (medicineData.barcode) {
-    const db = readDB();
     const isDuplicate = db.medicines.some(m => m.barcode === medicineData.barcode);
     if (isDuplicate) {
       return res.status(400).json({ error: `Barcode duplicate alert: Barcode '${medicineData.barcode}' is already assigned to '${db.medicines.find(m => m.barcode === medicineData.barcode)?.name}'.` });
@@ -618,8 +874,8 @@ app.post("/api/medicines", (req, res) => {
     quantity: Number(medicineData.quantity) || 0,
     minStockLevel: Number(medicineData.minStockLevel) || 10,
     manufacturer: medicineData.manufacturer || "",
-    supplierId: medicineData.supplierId || "sup-1",
-    categoryId: medicineData.categoryId || "cat-1",
+    supplierId: medicineData.supplierId || (db.suppliers[0]?.id || ""),
+    categoryId: medicineData.categoryId || (db.categories[0]?.id || ""),
     barcode: medicineData.barcode || `890${Math.floor(1000000000 + Math.random() * 9000000000)}`,
     taxVat: Number(medicineData.taxVat) || 16,
     prescriptionRequired: !!medicineData.prescriptionRequired,
@@ -637,11 +893,11 @@ app.post("/api/medicines", (req, res) => {
       quantity: newMed.quantity,
       date: new Date().toISOString(),
       reason: "Initial Product Creation Restock",
-      userEmail: permCheck.user?.email || "budionosiregar@gmail.com"
+      userEmail: permCheck.user?.email || getRequesterEmail(req)
     });
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: permCheck.user?.email || "budionosiregar@gmail.com",
+      userEmail: permCheck.user?.email || getRequesterEmail(req),
       action: "Created Medicine",
       module: "Inventory",
       date: new Date().toISOString(),
@@ -711,13 +967,13 @@ app.put("/api/medicines/:id", (req, res) => {
           quantity: Math.abs(newQty - oldQty),
           date: new Date().toISOString(),
           reason: `Quantity manually modified from ${oldQty} to ${newQty}`,
-          userEmail: editCheck.user?.email || "budionosiregar@gmail.com"
+          userEmail: editCheck.user?.email || getRequesterEmail(req)
         });
       }
 
       state.auditLogs.unshift({
         id: `aud-${Date.now()}`,
-        userEmail: editCheck.user?.email || "budionosiregar@gmail.com",
+        userEmail: editCheck.user?.email || getRequesterEmail(req),
         action: "Updated Medicine",
         module: "Inventory",
         date: new Date().toISOString(),
@@ -792,7 +1048,7 @@ app.post("/api/categories", (req, res) => {
     state.categories.push(newCat);
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: permCheck.user?.email || "budionosiregar@gmail.com",
+      userEmail: permCheck.user?.email || getRequesterEmail(req),
       action: "Created Category",
       module: "Inventory",
       date: new Date().toISOString(),
@@ -826,7 +1082,7 @@ app.post("/api/suppliers", (req, res) => {
     state.suppliers.push(newSup);
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: getRequesterEmail(req),
       action: "Created Supplier",
       module: "Suppliers",
       date: new Date().toISOString(),
@@ -857,7 +1113,7 @@ app.put("/api/suppliers/:id", (req, res) => {
       state.suppliers[idx] = updatedSup;
       state.auditLogs.unshift({
         id: `aud-${Date.now()}`,
-        userEmail: "budionosiregar@gmail.com",
+        userEmail: getRequesterEmail(req),
         action: "Updated Supplier",
         module: "Suppliers",
         date: new Date().toISOString(),
@@ -884,7 +1140,7 @@ app.delete("/api/suppliers/:id", (req, res) => {
       state.suppliers = state.suppliers.filter(sup => sup.id !== sId);
       state.auditLogs.unshift({
         id: `aud-${Date.now()}`,
-        userEmail: "budionosiregar@gmail.com",
+        userEmail: getRequesterEmail(req),
         action: "Deleted Supplier",
         module: "Suppliers",
         date: new Date().toISOString(),
@@ -1050,7 +1306,7 @@ app.post("/api/sales/checkout", (req, res) => {
       quantity: item.quantity,
       date: new Date().toISOString(),
       reason: "POS Immediate Checklist Sale",
-      userEmail: "budionosiregar@gmail.com"
+      userEmail: getRequesterEmail(req)
     });
   }
 
@@ -1074,7 +1330,7 @@ app.post("/api/sales/checkout", (req, res) => {
     taxAmount: Number(totalTax.toFixed(2)),
     paymentMethod: paymentMethod || "Cash",
     paymentStatus: "Paid",
-    cashierEmail: "budionosiregar@gmail.com",
+    cashierEmail: getRequesterEmail(req),
     date: new Date().toISOString(),
     cashPaid: cashPaid !== undefined ? Number(cashPaid) : undefined,
     mpesaPaid: mpesaPaid !== undefined ? Number(mpesaPaid) : undefined,
@@ -1137,7 +1393,7 @@ app.post("/api/sales/checkout", (req, res) => {
     // 6. Audit Logging
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: getRequesterEmail(req),
       action: "POS Checkout Completeness",
       module: "POS System",
       date: new Date().toISOString(),
@@ -1272,7 +1528,7 @@ app.post("/api/mpesa/simulate-c2b", (req, res) => {
     // Also record simulated audits
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: getRequesterEmail(req),
       action: "Safaricom C2B Callback Payment Injected",
       module: "POS C2B Hub",
       date: new Date().toISOString(),
@@ -1459,7 +1715,7 @@ app.put("/api/sales/:id", (req, res) => {
     // Audit logs
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: getRequesterEmail(req),
       action: "Updated POS Sale",
       module: "POS System",
       date: new Date().toISOString(),
@@ -1500,7 +1756,7 @@ app.delete("/api/sales/:id", (req, res) => {
             quantity: item.quantity,
             date: new Date().toISOString(),
             reason: `Reversed Sale Invoice ${sale.invoiceNumber}`,
-            userEmail: "budionosiregar@gmail.com"
+            userEmail: getRequesterEmail(req)
           });
         }
       }
@@ -1522,7 +1778,7 @@ app.delete("/api/sales/:id", (req, res) => {
           referenceId: sale.invoiceNumber,
           description: `Sale Reversed / Invoice Refunded: ${sale.invoiceNumber} (Client: ${sale.customerName})`,
           timestamp: new Date().toISOString(),
-          userEmail: "budionosiregar@gmail.com"
+          userEmail: getRequesterEmail(req)
         });
         state.cashSessions[activeSessionIdx].refunds = (state.cashSessions[activeSessionIdx].refunds || 0) + sale.totalPrice;
         if (state.cashSessions[activeSessionIdx].salesInvoices) {
@@ -1538,7 +1794,7 @@ app.delete("/api/sales/:id", (req, res) => {
       // Add audit log
       state.auditLogs.unshift({
         id: `aud-${Date.now()}`,
-        userEmail: "budionosiregar@gmail.com",
+        userEmail: getRequesterEmail(req),
         action: "Reversed POS Sale",
         module: "POS System",
         date: new Date().toISOString(),
@@ -1595,7 +1851,7 @@ app.post("/api/purchase-orders", (req, res) => {
     state.purchaseOrders.unshift(newPO);
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: getRequesterEmail(req),
       action: "Created Procurement PO",
       module: "Procurement",
       date: new Date().toISOString(),
@@ -1632,7 +1888,7 @@ app.put("/api/purchase-orders/:id/status", (req, res) => {
               quantity: item.quantity,
               date: new Date().toISOString(),
               reason: `Procurement Stock Fulfilled for PO ${poId}`,
-              userEmail: "budionosiregar@gmail.com"
+              userEmail: getRequesterEmail(req)
             });
           }
         }
@@ -1653,7 +1909,7 @@ app.put("/api/purchase-orders/:id/status", (req, res) => {
       
       state.auditLogs.unshift({
         id: `aud-${Date.now()}`,
-        userEmail: "budionosiregar@gmail.com",
+        userEmail: getRequesterEmail(req),
         action: `Procurement PO Status Update`,
         module: "Procurement",
         date: new Date().toISOString(),
@@ -1728,7 +1984,7 @@ app.post("/api/settings", (req, res) => {
     state.settings = { ...state.settings, ...settings };
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: getRequesterEmail(req),
       action: `Updated Settings: ${sectionUpdated || "General"}`,
       module: "Settings Core",
       date: new Date().toISOString(),
@@ -1810,7 +2066,7 @@ app.post("/api/settings/branches", (req, res) => {
     }
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: getRequesterEmail(req),
       action: actionName,
       module: "Branches Control",
       date: new Date().toISOString(),
@@ -1837,7 +2093,7 @@ app.post("/api/settings/api-keys", (req, res) => {
       state.apiKeys.unshift(newKey);
       state.auditLogs.unshift({
         id: `aud-${Date.now()}`,
-        userEmail: "budionosiregar@gmail.com",
+        userEmail: getRequesterEmail(req),
         action: "Generated API Credentials",
         module: "API Controls",
         date: new Date().toISOString(),
@@ -1849,7 +2105,7 @@ app.post("/api/settings/api-keys", (req, res) => {
         state.apiKeys[idx].status = "Revoked";
         state.auditLogs.unshift({
           id: `aud-${Date.now()}`,
-          userEmail: "budionosiregar@gmail.com",
+          userEmail: getRequesterEmail(req),
           action: "Revoked API Access Key",
           module: "API Controls",
           date: new Date().toISOString(),
@@ -1915,7 +2171,7 @@ app.post("/api/settings/backup/run", (req, res) => {
     state.backups.unshift(newBackup);
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: getRequesterEmail(req),
       action: "Created DB Storage Backup",
       module: "Disaster Recovery",
       date: new Date().toISOString(),
@@ -1940,7 +2196,7 @@ app.post("/api/settings/maintenance/diagnose", (req, res) => {
   updateDB(state => {
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
-      userEmail: "budionosiregar@gmail.com",
+      userEmail: getRequesterEmail(req),
       action: "Committed Core Diagnostics Checks",
       module: "Maintenance",
       date: new Date().toISOString(),
@@ -1979,16 +2235,50 @@ app.post("/api/settings/users", async (req, res) => {
     const { salt, hash } = hashPassword(password);
     let staffIdOnCloud = `usr-${Date.now()}`;
 
+    // Pre-emptively clean up any stale matching profile in Supabase to avoid trigger unique conflict (email constraint)
+    try {
+      const { error: delErr } = await supabase.from("profiles").delete().eq("email", email.toLowerCase());
+      if (delErr) {
+        console.warn("[Staff Pre-Clean Warn] Unable to delete potentially stale profile:", delErr.message);
+      }
+    } catch (cleanEx: any) {
+      console.warn("[Staff Pre-Clean Ex] Exception during pre-clean:", cleanEx.message);
+    }
+
     // Enroll inside Supabase Authentication directly to maintain absolute sync
     try {
-      const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
-        email: email.toLowerCase(),
-        password: password,
-        email_confirm: true,
-        user_metadata: { full_name: name, role: role }
-      });
+      let authUser = null;
+      let authErr = null;
+      if (supabase.auth.admin && hasServiceRole()) {
+        try {
+          const res = await supabase.auth.admin.createUser({
+            email: email.toLowerCase(),
+            password: password,
+            email_confirm: true,
+            user_metadata: { full_name: name, role: role }
+          });
+          authUser = res.data;
+          authErr = res.error;
+        } catch (adminEx: any) {
+          console.warn("[Admin Staff Setup Warn] Admin createUser failed:", adminEx?.message || adminEx);
+        }
+      }
+      
+      if (!authUser?.user) {
+        console.log("[Admin Staff Signup] Trying public signUp fallback...");
+        const res = await supabase.auth.signUp({
+          email: email.toLowerCase(),
+          password: password,
+          options: {
+            data: { full_name: name, role: role }
+          }
+        });
+        authUser = res.data;
+        authErr = res.error;
+      }
+
       if (authErr) {
-        console.warn("[Admin Staff Sync] Supabase Auth user setup was bypassed or already exists:", authErr.message);
+        console.warn("[Admin Staff Sync] Supabase Auth user setup warned/failed:", authErr.message);
       } else if (authUser?.user) {
         staffIdOnCloud = authUser.user.id;
       }
@@ -2034,7 +2324,7 @@ app.post("/api/settings/users", async (req, res) => {
     try {
       const dbInstance = readDB();
       const localUsr = dbInstance.users.find(u => u.id === userId);
-      if (localUsr) {
+      if (localUsr && supabase.auth.admin && hasServiceRole()) {
         const supabaseUid = toUUIDIfNeeded(userId);
         const { error: authResetErr } = await supabase.auth.admin.updateUserById(supabaseUid, { password });
         if (authResetErr) {
@@ -2206,11 +2496,14 @@ app.get("/api/search", (req, res) => {
 
 
 // Secure user profile update endpoints
-app.post("/api/users/profile/update", (req, res) => {
+app.post("/api/users/profile/update", async (req, res) => {
   const { email, name, phone, bio, nationalId, address, passwordSetupCompleted, preferences, notificationPreferences } = req.body;
   if (!email) {
     return res.status(400).json({ error: "Email identifying user is required" });
   }
+
+  // Ensure user exists in our local cache by pulling from Supabase (the single source of truth) first
+  await ensureUserInLocalCache(email);
 
   let updatedUser: any = null;
 
@@ -2232,6 +2525,24 @@ app.post("/api/users/profile/update", (req, res) => {
         u.passwordSetupCompleted = true;
       }
 
+      // Compute profile completion percent inline per requirement 3 & 6
+      const hasName = !!u.name && u.name.trim().length > 1;
+      const hasEmail = !!u.email && u.email.trim().length > 3;
+      const hasPhone = !!u.phone && u.phone.trim().length >= 7;
+      const hasNationalId = !!u.nationalId && u.nationalId.trim().length >= 4;
+      const hasAddress = !!u.address && u.address.trim().length >= 5;
+      const hasPassword = !!u.passwordSetupCompleted || !!u.passwordHash;
+      const hasRole = !!u.role;
+
+      const completedCount = [hasName, hasEmail, hasPhone, hasNationalId, hasAddress, hasPassword, hasRole].filter(Boolean).length;
+      const completionPercent = Math.round((completedCount / 7) * 100);
+
+      if (completionPercent === 100) {
+        // Automatically elevate user role to Admin per requirement 6
+        u.role = UserRole.ADMIN;
+        u.verificationStatus = "Verified";
+      }
+
       updatedUser = { ...u };
     }
   });
@@ -2244,12 +2555,15 @@ app.post("/api/users/profile/update", (req, res) => {
 });
 
 // Submit user verification details securely
-app.post("/api/users/profile/verify", (req, res) => {
+app.post("/api/users/profile/verify", async (req, res) => {
   const { email, docType, nationalId, address, submittedDocumentUrl, selfieUrl } = req.body;
   
   if (!email || !docType || !nationalId || !address) {
     return res.status(400).json({ error: "Missing required fields for identity verification." });
   }
+
+  // Ensure user exists in our local cache by pulling from Supabase (the single source of truth) first
+  await ensureUserInLocalCache(email);
 
   let updatedUser: any = null;
 
@@ -2270,6 +2584,24 @@ app.post("/api/users/profile/verify", (req, res) => {
 
       if (u.passwordHash) {
         u.passwordSetupCompleted = true;
+      }
+
+      // Compute profile completion percent inline per requirement 3 & 6
+      const hasName = !!u.name && u.name.trim().length > 1;
+      const hasEmail = !!u.email && u.email.trim().length > 3;
+      const hasPhone = !!u.phone && u.phone.trim().length >= 7;
+      const hasNationalId = !!u.nationalId && u.nationalId.trim().length >= 4;
+      const hasAddress = !!u.address && u.address.trim().length >= 5;
+      const hasPassword = !!u.passwordSetupCompleted || !!u.passwordHash;
+      const hasRole = !!u.role;
+
+      const completedCount = [hasName, hasEmail, hasPhone, hasNationalId, hasAddress, hasPassword, hasRole].filter(Boolean).length;
+      const completionPercent = Math.round((completedCount / 7) * 100);
+
+      if (completionPercent === 100) {
+        // Automatically elevate user role to Admin per requirement 6
+        u.role = UserRole.ADMIN;
+        u.verificationStatus = "Verified";
       }
 
       state.auditLogs.unshift({
@@ -2303,7 +2635,7 @@ app.post("/api/users/profile/verify", (req, res) => {
 });
 
 // Admin Review / Override endpoint for testing/simulation
-app.post("/api/users/profile/verify-review", (req, res) => {
+app.post("/api/users/profile/verify-review", async (req, res) => {
   const { email, status, reviewerComment } = req.body;
   if (!email || !status) {
     return res.status(400).json({ error: "Target email and review status decision are required." });
@@ -2313,6 +2645,9 @@ app.post("/api/users/profile/verify-review", (req, res) => {
     return res.status(400).json({ error: "Invalid status code." });
   }
 
+  // Ensure user exists in our local cache by pulling from Supabase (the single source of truth) first
+  await ensureUserInLocalCache(email);
+
   let updatedUser: any = null;
 
   updateDB(state => {
@@ -2320,6 +2655,9 @@ app.post("/api/users/profile/verify-review", (req, res) => {
     if (idx !== -1) {
       const u = state.users[idx];
       u.verificationStatus = status as any;
+      if (status === "Verified") {
+        u.role = UserRole.ADMIN;
+      }
       if (u.verificationDetails) {
         u.verificationDetails.reviewerComment = reviewerComment || `Status set to ${status}`;
       } else {
@@ -2365,6 +2703,9 @@ app.post("/api/users/profile/password", async (req, res) => {
     return res.status(400).json({ error: "All password values must be provided." });
   }
 
+  // Ensure user exists in our local cache by pulling from Supabase (the single source of truth) first
+  await ensureUserInLocalCache(email);
+
   const state = readDB();
   const idx = state.users.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
 
@@ -2384,10 +2725,12 @@ app.post("/api/users/profile/password", async (req, res) => {
 
   // Update directly inside Supabase Auth to retain single-source-of-truth
   try {
-    const supabaseUid = toUUIDIfNeeded(user.id);
-    const { error: authResetErr } = await supabase.auth.admin.updateUserById(supabaseUid, { password: newPassword });
-    if (authResetErr) {
-      console.warn("[Profile Password Sync Warning] Supabase Auth update failed:", authResetErr.message);
+    if (supabase.auth.admin && hasServiceRole()) {
+      const supabaseUid = toUUIDIfNeeded(user.id);
+      const { error: authResetErr } = await supabase.auth.admin.updateUserById(supabaseUid, { password: newPassword });
+      if (authResetErr) {
+        console.warn("[Profile Password Sync Warning] Supabase Auth update failed:", authResetErr.message);
+      }
     }
   } catch (error: any) {
     console.error("[Profile Password Sync Exception] Failed to update password in auth:", error.message);
@@ -2420,6 +2763,9 @@ app.post("/api/users/profile/upload-avatar", async (req, res) => {
   if (!email || !avatarUrl) {
     return res.status(400).json({ error: "User identifier and avatar identity are required" });
   }
+
+  // Ensure user exists in our local cache by pulling from Supabase (the single source of truth) first
+  await ensureUserInLocalCache(email);
 
   // Sanity check/Security validation on avatar URL format and size
   let isBase64 = false;
@@ -2756,7 +3102,7 @@ function calculateSessionSummary(session: any, db: any) {
       referenceId: f.id,
       description: `${f.category}: ${f.description}`,
       timestamp: f.date,
-      userEmail: "budionosiregar@gmail.com"
+      userEmail: session.openedBy || "system@halomedical.com"
     }));
 
   const otherTxns = staticTxns.filter((txn: any) => txn.type !== "Sale" && txn.type !== "Expense");

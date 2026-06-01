@@ -589,33 +589,38 @@ CREATE POLICY "Admins have full command over profiles"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (
-    id,
-    name,
-    full_name,
-    email,
-    role,
-    avatar_url,
-    is_active,
-    created_at,
-    phone,
-    verification_status
-  ) VALUES (
-    new.id::text,
-    COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', 'New Pharmacy User'),
-    COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', 'New Pharmacy User'),
-    new.email,
-    'User',
-    NULL,
-    TRUE,
-    COALESCE(new.created_at, NOW()),
-    new.phone,
-    'Pending'
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    email = EXCLUDED.email,
-    name = COALESCE(EXCLUDED.name, public.profiles.name),
-    full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name);
+  BEGIN
+    INSERT INTO public.profiles (
+      id,
+      name,
+      full_name,
+      email,
+      role,
+      avatar_url,
+      is_active,
+      created_at,
+      phone,
+      verification_status
+    ) VALUES (
+      new.id::text,
+      COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', 'New Pharmacy User'),
+      COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', 'New Pharmacy User'),
+      new.email,
+      'User',
+      NULL,
+      TRUE,
+      COALESCE(new.created_at, NOW()),
+      new.phone,
+      'Pending'
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      email = EXCLUDED.email,
+      name = COALESCE(EXCLUDED.name, public.profiles.name),
+      full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name);
+  EXCEPTION WHEN OTHERS THEN
+    -- Completely immunize GoTrue auth creation from trigger side effects
+    RAISE WARNING 'handle_new_user error ignored: %', SQLERRM;
+  END;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

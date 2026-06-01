@@ -4,7 +4,6 @@
  */
 
 import { useState, FormEvent } from "react";
-import { supabase } from "../lib/supabaseClient";
 import { 
   LogIn, Key, Mail, UserPlus, ShieldAlert, CheckCircle, 
   RefreshCw, Globe, X, Heart, Shield, Landmark, Sparkles,
@@ -26,8 +25,8 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
   const [isForgot, setIsForgot] = useState(false);
   
   // Form values
-  const [email, setEmail] = useState("budionosiregar@gmail.com");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -107,35 +106,11 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
       }
 
       try {
-        let supabaseUserId = `usr-${Date.now()}`;
-
-        try {
-          // Step 1: Register User inside Supabase Auth
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                full_name: name,
-                name: name
-              }
-            }
-          });
-
-          if (signUpError) {
-            console.warn("Supabase Auth registration skipped, continuing with local registration:", signUpError.message);
-          } else if (signUpData?.user?.id) {
-            supabaseUserId = signUpData.user.id;
-          }
-        } catch (authErr) {
-          console.warn("Supabase Auth offline/bypassed. Continuing with local registration logic:", authErr);
-        }
-
-        // Step 2: Register & Assign role inside backend and public.profiles
+        // Step 2: Register & Assign role inside backend and public.profiles server-side
         const response = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: supabaseUserId, name, email, password })
+          body: JSON.stringify({ name, email, password })
         });
         let data: any = {};
         if (response.headers.get("Content-Type")?.includes("json")) {
@@ -163,18 +138,6 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
 
     // Live Login using server API
     try {
-      try {
-        const { error: supabaseLoginError } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        if (supabaseLoginError) {
-          console.warn("Supabase Auth local login skipped, continuing with local state credentials verification:", supabaseLoginError.message);
-        }
-      } catch (err) {
-        console.warn("Client session initialization via Supabase auth bypassed/deferred:", err);
-      }
-
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -464,7 +427,7 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Dr. Budiono Siregar"
+                    placeholder="e.g. Workspace Operator"
                     className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
                   />
                 </div>
@@ -482,7 +445,7 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="budionosiregar@gmail.com"
+                    placeholder="user@halomedical.com"
                     className="w-full pl-10.5 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
                   />
                 </div>

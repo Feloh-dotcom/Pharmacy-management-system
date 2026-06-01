@@ -101,11 +101,11 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
 
   useEffect(() => {
     if (user) {
-      setName(user.name);
-      setEmail(user.email);
+      setName(user.name || "");
+      setEmail(user.email || "");
       setPhone(user.phone || "");
       setBio(user.bio || "");
-      setAvatarUrl(getAvatarUrl(user.avatarUrl));
+      setAvatarUrl(getAvatarUrl(user.avatarUrl) || "");
       setNationalId(user.nationalId || "");
       setAddress(user.address || "");
       setVNationalId(user.nationalId || "");
@@ -145,7 +145,12 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
         const data = await res.json();
         onProfileUpdated(data.user);
         setIsVerifyModalOpen(false);
-        showToast("success", "Identity documents submitted safely into onboarding queue.");
+        const completion = calculateProfileCompletion(data.user);
+        if (completion.percent === 100) {
+          showToast("success", "Congratulations! Identity documents approved and verified. Full Admin permissions unlocked.");
+        } else {
+          showToast("success", "Identity documents submitted safely into onboarding queue.");
+        }
       } else {
         const err = await res.json();
         showToast("error", err.error || "Onboarding submission error.");
@@ -248,7 +253,12 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
       if (res.ok) {
         const data = await res.json();
         onProfileUpdated(data.user);
-        showToast("success", "Profile specifications updated and securely stored.");
+        const completion = calculateProfileCompletion(data.user);
+        if (completion.percent === 100) {
+          showToast("success", "Congratulations! Profile is 100% complete. Admin privilege tokens generated.");
+        } else {
+          showToast("success", "Profile specifications updated and securely stored.");
+        }
       } else {
         const err = await res.json();
         showToast("error", err.error || "Update failure. Please retry.");
@@ -888,7 +898,7 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
                       <input
                         type="text"
                         disabled
-                        value={user?.role}
+                        value={user?.role || ""}
                         className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold text-slate-400 cursor-not-allowed uppercase"
                       />
                     </div>
