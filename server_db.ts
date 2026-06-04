@@ -17,7 +17,7 @@ import {
 
 // Dynamic Supabase client configuration
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://ofwkndpzjlkumowdeaol.supabase.co";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "sb_secret_placeholder_not_configured";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder_not_configured";
 
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   console.warn("⚠️ Warning: Missing SUPABASE_SERVICE_ROLE_KEY environment variable. Supabase integration calls will fail until configured.");
@@ -38,6 +38,18 @@ export function hasServiceRole(): boolean {
   } catch {
     return false;
   }
+}
+
+export let isSupabaseDisabled = false;
+
+export function isSupabaseActive(): boolean {
+  return !isSupabaseDisabled;
+}
+
+// Automatically detect missing or invalid key during module initialization
+const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!rawKey || rawKey === "placeholder_not_configured" || rawKey.trim() === "" || !hasServiceRole()) {
+  isSupabaseDisabled = true;
 }
 
 export function hashPassword(password: string, salt?: string) {
@@ -641,20 +653,106 @@ export function mapToRow(configName: string, item: any): any {
       row[snakeKey] = val;
     }
   }
-  if (configName === "inventoryLogs" && !row.actor_id) {
-    row.actor_id = item.userEmail ? toUUIDIfNeeded(item.userEmail) : toUUIDIfNeeded("system@halomedical.com");
+
+  // 1. Extra logic for Users/Profiles table
+  if (configName === "users") {
+    row.name = item.name || item.fullName || "System User";
+    row.full_name = item.name || item.fullName || "System User";
+    if (!row.role) {
+      row.role = "pharmacist";
+    }
+    if (!row.verification_status) {
+      row.verification_status = "approved";
+    }
   }
+
+  // 2. Extra logic for inventoryLogs
+  if (configName === "inventoryLogs") {
+    const users = (globalStateCache && globalStateCache.users) || [];
+    let actorId = item.actorId || row.actor_id;
+    if (!actorId) {
+      if (item.userEmail) {
+        const matchedUser = users.find(u => u.email === item.userEmail);
+        if (matchedUser) {
+          actorId = toUUIDIfNeeded(matchedUser.id);
+        } else {
+          actorId = toUUIDIfNeeded(item.userEmail);
+        }
+      } else {
+        const matchedSystem = users.find(u => u.email === "system@halomedical.com");
+        if (matchedSystem) {
+          actorId = toUUIDIfNeeded(matchedSystem.id);
+        } else {
+          actorId = toUUIDIfNeeded("system@halomedical.com");
+        }
+      }
+    }
+    
+    // Validate if actor_id references a profile that actually exists
+    const profileExists = users.some(u => u.id === actorId || toUUIDIfNeeded(u.id) === actorId);
+    if (profileExists) {
+      row.actor_id = actorId;
+    } else {
+      if (users.length > 0) {
+        row.actor_id = toUUIDIfNeeded(users[0].id);
+      } else {
+        row.actor_id = null;
+      }
+    }
+  }
+
+  // 3. Extra logic for cashSessions
   if (configName === "cashSessions") {
-    row.status = String(item.status || "open").toLowerCase();
-    row.opening_cash = Number(item.openingBalance || 0);
-    row.expected_cash = Number(item.expectedClosingBalance || 0);
-    row.actual_cash = item.actualClosingBalance !== undefined && item.actualClosingBalance !== null ? Number(item.actualClosingBalance) : null;
-    row.discrepancy = item.variance !== undefined && item.variance !== null ? Number(item.variance) : null;
+    const statusVal = String(item.status || "open").toLowerCase();
+    row.status = statusVal;
+    
+    const openingVal = Number(item.openingBalance || item.opening_cash || item.opening_balance || 0);
+    row.opening_cash = openingVal;
+    row.opening_balance = openingVal;
+    
+    const expectedVal = Number(item.expectedClosingBalance || item.expected_cash || item.expected_closing_balance || 0);
+    row.expected_cash = expectedVal;
+    row.expected_closing_balance = expectedVal;
+    
+    const actualVal = (item.actualClosingBalance !== undefined && item.actualClosingBalance !== null) 
+      ? Number(item.actualClosingBalance) 
+      : ((item.actual_cash !== undefined && item.actual_cash !== null) ? Number(item.actual_cash) : ((item.actual_closing_balance !== undefined && item.actual_closing_balance !== null) ? Number(item.actual_closing_balance) : null));
+    row.actual_cash = actualVal;
+    row.actual_closing_balance = actualVal;
+    
+    const discrepancyVal = (item.variance !== undefined && item.variance !== null) 
+      ? Number(item.variance) 
+      : ((item.discrepancy !== undefined && item.discrepancy !== null) ? Number(item.discrepancy) : null);
+    row.discrepancy = discrepancyVal;
+    row.variance = discrepancyVal;
+
+    const users = (globalStateCache && globalStateCache.users) || [];
+    let openedById = row.opened_by || (item.openedBy ? (typeof item.openedBy === "object" ? toUUIDIfNeeded(item.openedBy.id) : toUUIDIfNeeded(item.openedBy)) : undefined);
+    
+    if (!openedById) {
+      openedById = toUUIDIfNeeded("system@halomedical.com");
+    }
+    
+    const openerExists = users.some(u => u.id === openedById || toUUIDIfNeeded(u.id) === openedById);
+    if (!openerExists && users.length > 0) {
+      openedById = toUUIDIfNeeded(users[0].id);
+    }
+    row.opened_by = openedById;
+    row.openedBy = openedById;
+
+    if (row.closed_by) {
+      const closerExists = users.some(u => u.id === row.closed_by || toUUIDIfNeeded(u.id) === row.closed_by);
+      if (!closerExists) {
+        row.closed_by = null;
+      }
+    }
     row.notes = item.notes || item.note || "";
   }
+
   if (configName === "customers") {
     row.notes = JSON.stringify(item.prescriptionHistory || []);
   }
+
   if (configName === "sales") {
     const total = Number(item.totalPrice || 0);
     const discount = Number(item.discount || 0);
@@ -889,6 +987,7 @@ let lastPullTimestamp = 0;
 let isPullingInProgress = false;
 
 export async function pullChangesFromSupabase(force = false): Promise<void> {
+  if (isSupabaseDisabled) return;
   const now = Date.now();
   // Limit automatic pulling to once per 5 seconds to manage load and performance
   if (!force && now - lastPullTimestamp < 5000) {
@@ -904,13 +1003,30 @@ export async function pullChangesFromSupabase(force = false): Promise<void> {
     ];
 
     for (const key of tableKeys) {
+      if (isSupabaseDisabled || disabledTables.has(key)) continue;
+
       const mapping = tableMappings[key];
-      if (!mapping || disabledTables.has(key)) continue;
+      if (!mapping) continue;
 
       const { data, error } = await supabase
         .from(mapping.table)
         .select("*");
         
+      if (error) {
+        if (error.message?.includes("API key") || error.message?.includes("invalid_api_key") || error.code === "PGRST301" || (error as any).status === 401) {
+          console.error("❌ [Supabase Pull] Detected Invalid API Key from Supabase during pull. Disabling cloud synchronization completely.");
+          isSupabaseDisabled = true;
+          const allKeys = [
+            "rolePermissions", "users", "categories", "suppliers", "medicines", "customers", 
+            "sales", "inventoryLogs", "purchaseOrders", "financeRecords", "auditLogs", "branches", 
+            "apiKeys", "backups", "cashSessions", "weeklyCycles", "mpesaTransactions", "system_settings"
+          ];
+          allKeys.forEach(t => disabledTables.add(t));
+          disabledTables.add("system_settings");
+          break;
+        }
+      }
+
       if (!error && data) {
         const mappedData = data.map(row => mapFromRow(key, row));
         if (key === "users") {
@@ -952,13 +1068,12 @@ export async function pullChangesFromSupabase(force = false): Promise<void> {
     }
 
     if (!disabledTables.has("system_settings")) {
-      const { data: settingsData, error: settingsError } = await supabase
+      const { data: allSettings, error: settingsError } = await supabase
         .from("system_settings")
         .select("*")
-        .eq("id", "default")
-        .single();
-      if (!settingsError && settingsData) {
-        globalStateCache.settings = mapSettingsFromRow(settingsData);
+        .limit(1);
+      if (!settingsError && allSettings && allSettings.length > 0) {
+        globalStateCache.settings = mapSettingsFromRow(allSettings[0]);
       }
     }
     lastPullTimestamp = Date.now();
@@ -1138,6 +1253,19 @@ export async function initSupabaseSync(): Promise<void> {
   const localData = readDBFromFileSystem();
   globalStateCache = localData;
 
+  if (isSupabaseDisabled) {
+    console.warn("⚠️ [Supabase Sync] Service Role Key is not configured or is invalid. Supabase syncing is disabled, falling back to local database file.");
+    const tableKeys = [
+      "rolePermissions", "users", "categories", "suppliers", "medicines", "customers", 
+      "sales", "inventoryLogs", "purchaseOrders", "financeRecords", "auditLogs", "branches", 
+      "apiKeys", "backups", "cashSessions", "weeklyCycles", "mpesaTransactions", "system_settings"
+    ];
+    tableKeys.forEach(t => disabledTables.add(t));
+    disabledTables.add("system_settings");
+    isInitialSyncDone = true;
+    return;
+  }
+
   try {
     // 1. Fetch tables from Supabase in sequence to resolve foreign dependencies correctly
     const tableKeys = [
@@ -1147,6 +1275,8 @@ export async function initSupabaseSync(): Promise<void> {
     ];
 
     for (const key of tableKeys) {
+      if (isSupabaseDisabled || disabledTables.has(key)) continue;
+
       const mapping = tableMappings[key];
       if (!mapping) continue;
 
@@ -1157,6 +1287,18 @@ export async function initSupabaseSync(): Promise<void> {
         .select("*");
         
       if (error) {
+        if (error.message?.includes("API key") || error.message?.includes("invalid_api_key") || error.code === "PGRST301" || (error as any).status === 401) {
+          console.error("❌ [Supabase Sync] Detected Invalid API Key from Supabase. Disabling cloud synchronization completely.");
+          isSupabaseDisabled = true;
+          const allKeys = [
+            "rolePermissions", "users", "categories", "suppliers", "medicines", "customers", 
+            "sales", "inventoryLogs", "purchaseOrders", "financeRecords", "auditLogs", "branches", 
+            "apiKeys", "backups", "cashSessions", "weeklyCycles", "mpesaTransactions", "system_settings"
+          ];
+          allKeys.forEach(t => disabledTables.add(t));
+          disabledTables.add("system_settings");
+          break;
+        }
         if (error.message?.includes("Could not find the table") || error.message?.includes("relation") || error.message?.includes("does not exist")) {
           console.warn(`[Supabase Sync] Table ${mapping.table} does not exist in the active schema cache. Local storage fallback will be active for ${key}.`);
           disabledTables.add(key);
@@ -1210,28 +1352,39 @@ export async function initSupabaseSync(): Promise<void> {
 
     // 2. Clear / seed system settings
     if (!disabledTables.has("system_settings")) {
-      const { data: settingsData, error: settingsError } = await supabase
+      const { data: allSettings, error: settingsError } = await supabase
         .from("system_settings")
         .select("*")
-        .eq("id", "default")
-        .single();
+        .limit(1);
         
-      if (settingsError || !settingsData) {
+      if (settingsError || !allSettings || allSettings.length === 0) {
         if (settingsError && (settingsError.message?.includes("Could not find the table") || settingsError.message?.includes("relation") || settingsError.message?.includes("does not exist"))) {
           console.warn(`[Supabase Settings] system_settings table does not exist in the active schema cache. Local settings used.`);
           disabledTables.add("system_settings");
         } else {
           console.log("[Supabase Settings] Record empty. Seeding system_settings to database...");
-          const settingsRow = mapSettingsToRow(localData.settings);
-          const { error: seedErr } = await supabase
+          let settingsRow: any = mapSettingsToRow(localData.settings);
+          let { error: seedErr } = await supabase
             .from("system_settings")
             .upsert(settingsRow);
+            
+          if (seedErr && (seedErr.message?.includes("integer") || seedErr.code === "22P02")) {
+            console.warn("[Self-Healing Settings Seed] Retrying settings seed with integer ID: 1");
+            settingsRow = { ...settingsRow, id: 1 };
+            const retryResult = await supabase
+              .from("system_settings")
+              .upsert(settingsRow);
+            seedErr = retryResult.error;
+          }
+          
           if (seedErr) {
             console.error("[Supabase Settings Seed Error] Failed:", seedErr.message);
+          } else {
+            console.log("[Supabase Settings Seed] Successfully seeded system_settings!");
           }
         }
       } else {
-        globalStateCache.settings = mapSettingsFromRow(settingsData);
+        globalStateCache.settings = mapSettingsFromRow(allSettings[0]);
         console.log("[Supabase Settings] Loaded settings successfully.");
       }
     }
@@ -1499,6 +1652,21 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
           attemptRows = attemptRows.map((r: any) => ({ ...r, amount: r.amount !== undefined ? Number(r.amount) : 0 }));
           continue;
         }
+        if (notNullCol === "verification_status") {
+          console.warn(`[Self-Healing Not-Null] Column [verification_status] violates constraint in [${tableName}]. Set to 'approved'...`);
+          attemptRows = attemptRows.map((r: any) => ({ ...r, verification_status: r.verification_status || 'approved' }));
+          continue;
+        }
+        if (notNullCol === "expected_closing_balance" || notNullCol === "expected_cash") {
+          console.warn(`[Self-Healing Not-Null] Column [${notNullCol}] violates constraint in [${tableName}]. Retrying with default 0.00...`);
+          attemptRows = attemptRows.map((r: any) => ({ ...r, expected_closing_balance: r.expected_closing_balance || r.expected_cash || 0, expected_cash: r.expected_cash || r.expected_closing_balance || 0 }));
+          continue;
+        }
+        if (notNullCol === "status") {
+          console.warn(`[Self-Healing Not-Null] Column [status] violates constraint in [${tableName}]. Set to 'open'...`);
+          attemptRows = attemptRows.map((r: any) => ({ ...r, status: r.status || 'open' }));
+          continue;
+        }
       }
     }
 
@@ -1570,7 +1738,7 @@ async function syncChildRecords(key: string, rows: any[]) {
 }
 
 async function seedTableToSupabase(key: string, items: any[]) {
-  if (disabledTables.has(key)) return;
+  if (isSupabaseDisabled || disabledTables.has(key)) return;
   if (!items || items.length === 0) return;
   const config = tableMappings[key];
   if (!config) return;
@@ -1582,6 +1750,18 @@ async function seedTableToSupabase(key: string, items: any[]) {
   const { error } = await upsertWithSelfHealing(config.table, rows);
     
   if (error) {
+    if (error.message?.includes("API key") || error.message?.includes("invalid_api_key") || error.code === "PGRST301" || error.status === 401) {
+      console.error(`❌ [Supabase Seed Error] Failed to seed ${config.table}: Detected Invalid API Key. Disabling cloud synchronization completely.`);
+      isSupabaseDisabled = true;
+      const allKeys = [
+        "rolePermissions", "users", "categories", "suppliers", "medicines", "customers", 
+        "sales", "inventoryLogs", "purchaseOrders", "financeRecords", "auditLogs", "branches", 
+        "apiKeys", "backups", "cashSessions", "weeklyCycles", "mpesaTransactions", "system_settings"
+      ];
+      allKeys.forEach(t => disabledTables.add(t));
+      disabledTables.add("system_settings");
+      return;
+    }
     const isRLS = error.message.includes("row-level security") || error.code === "42501";
     if (isRLS) {
       console.log(`[Supabase Seed] Note: Seeding ${config.table} bypassed due to active RLS settings: ${error.message}`);
@@ -1598,6 +1778,7 @@ async function seedTableToSupabase(key: string, items: any[]) {
 
 // --- Supabase Cloud delta synchronization writes helper ---
 async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
+  if (isSupabaseDisabled) return;
   try {
     // 1. Sync standard tables
     for (const [key, mapping] of Object.entries(tableMappings)) {
@@ -1752,6 +1933,10 @@ export function updateDB(updater: (state: DBState) => void): DBState {
 
 // --- Direct Supabase queries for cash sessions (source of truth) ---
 export async function getActiveCashSessionFromSupabase(): Promise<CashSession | null> {
+  if (isSupabaseDisabled) {
+    const session = (globalStateCache?.cashSessions || []).find(s => s.status === "Open");
+    return session || null;
+  }
   try {
     const { data, error } = await supabase
       .from("cash_sessions")
@@ -1779,6 +1964,9 @@ export async function getActiveCashSessionFromSupabase(): Promise<CashSession | 
 }
 
 export async function getAllCashSessionsFromSupabase(): Promise<CashSession[]> {
+  if (isSupabaseDisabled) {
+    return globalStateCache?.cashSessions || [];
+  }
   try {
     const { data, error } = await supabase
       .from("cash_sessions")
@@ -1799,6 +1987,12 @@ export async function getAllCashSessionsFromSupabase(): Promise<CashSession[]> {
 }
 
 export async function insertCashSessionToSupabase(session: CashSession): Promise<CashSession | null> {
+  if (isSupabaseDisabled) {
+    if (!globalStateCache.cashSessions) globalStateCache.cashSessions = [];
+    globalStateCache.cashSessions.unshift(session);
+    writeDBToFileSystem(globalStateCache);
+    return session;
+  }
   try {
     const row = mapToRow("cashSessions", session);
     console.log("[Cash Session] Inserting session with data:", JSON.stringify(row, null, 2));
@@ -1839,6 +2033,16 @@ export async function insertCashSessionToSupabase(session: CashSession): Promise
 }
 
 export async function updateCashSessionInSupabase(sessionId: string, updates: Partial<CashSession>): Promise<CashSession | null> {
+  if (isSupabaseDisabled) {
+    const idx = (globalStateCache?.cashSessions || []).findIndex(s => s.id === sessionId);
+    if (idx !== -1) {
+      const resultObj = { ...globalStateCache.cashSessions[idx], ...updates };
+      globalStateCache.cashSessions[idx] = resultObj;
+      writeDBToFileSystem(globalStateCache);
+      return resultObj;
+    }
+    return null;
+  }
   try {
     const row = mapToRow("cashSessions", updates);
     const { data, error } = await supabase

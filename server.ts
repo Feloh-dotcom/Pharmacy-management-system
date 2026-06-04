@@ -7,7 +7,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
-import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded, pullChangesFromSupabase, mapFromRow, mapToRow, hasServiceRole, getActiveCashSessionFromSupabase, getAllCashSessionsFromSupabase, insertCashSessionToSupabase, updateCashSessionInSupabase } from "./server_db";
+import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded, pullChangesFromSupabase, mapFromRow, mapToRow, hasServiceRole, getActiveCashSessionFromSupabase, getAllCashSessionsFromSupabase, insertCashSessionToSupabase, updateCashSessionInSupabase, isSupabaseActive } from "./server_db";
 import { UserRole, Medicine, Sale, PurchaseOrder, InventoryLog, Customer, FinanceRecord } from "./src/types";
 
 // Lazy-loaded or conditional Gemini API initializer
@@ -64,6 +64,35 @@ async function ensureUserInLocalCache(email: string): Promise<any> {
   // 1. Check local cache memory
   let dbIdx = readDB().users.findIndex(u => u.email.toLowerCase() === normalizedEmail);
   let localUser = dbIdx !== -1 ? readDB().users[dbIdx] : null;
+  
+  if (!isSupabaseActive()) {
+    if (localUser) return localUser;
+    // Auto-generate local profile if not present
+    const namePart = normalizedEmail.split("@")[0] || "Pharmacy User";
+    const nameCapitalized = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+    const newUser = {
+      id: toUUIDIfNeeded(normalizedEmail),
+      name: nameCapitalized,
+      fullName: nameCapitalized,
+      email: normalizedEmail,
+      role: "User" as any,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      passwordHash: "",
+      salt: "",
+      failedLoginAttempts: 0,
+      verificationStatus: "Pending" as any,
+      phone: "",
+      bio: "",
+      nationalId: "",
+      address: "",
+      passwordSetupCompleted: false
+    };
+    updateDB(state => {
+      state.users.push(newUser);
+    });
+    return newUser;
+  }
   
   // 2. Query live Supabase profiles table directly to check if user is registered there
   try {
