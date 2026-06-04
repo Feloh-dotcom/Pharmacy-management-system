@@ -175,12 +175,12 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
     table: "finance_records",
     keyMap: {
       id: "id",
-      type: "type",
+      type: "record_type",
       category: "category",
       amount: "amount",
       description: "description",
       paymentMethod: "payment_method",
-      date: "date"
+      date: "recorded_at"
     }
   },
   auditLogs: {
@@ -300,7 +300,8 @@ function mapToRow(configName: string, item: any): any {
         snakeKey === "category_id" ||
         snakeKey === "supplier_id" ||
         snakeKey === "medicine_id" ||
-        snakeKey === "customer_id"
+        snakeKey === "customer_id" ||
+        snakeKey === "cashier_id"
       ) {
         if (typeof val === "string") {
           val = toUUIDIfNeeded(val);
@@ -531,10 +532,10 @@ async function runMigration() {
                   receiptsRows.push({
                     id: toUUIDIfNeeded(`${saleObj.id}-receipt`),
                     sale_id: saleObj.id,
-                    invoice_number: saleObj.invoice_number || `INV-${Date.now()}`,
-                    total_amount: saleObj.total_price || 0,
-                    payment_method: saleObj.payment_method || "Cash",
-                    issued_at: saleObj.date || new Date().toISOString()
+                    invoice_number: saleObj.invoice_number || saleObj.invoiceNumber || `INV-${Date.now()}`,
+                    total_amount: saleObj.total_amount !== undefined ? saleObj.total_amount : (saleObj.total_price !== undefined ? saleObj.total_price : (saleObj.totalPrice !== undefined ? saleObj.totalPrice : 0)),
+                    payment_method: saleObj.payment_method || saleObj.paymentMethod || "Cash",
+                    issued_at: saleObj.sold_at || saleObj.date || saleObj.issued_at || new Date().toISOString()
                   });
                 }
                 if (saleItemsRows.length > 0) {

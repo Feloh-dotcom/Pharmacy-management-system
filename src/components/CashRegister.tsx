@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { CashSession, CashTransaction, SystemSettings, UserRole } from "../types";
 import { formatCurrency } from "../utils";
+import { Input, CurrencyInput, Textarea } from "./FormInputs";
 
 interface CashRegisterProps {
   user: { id: string; name: string; email: string; role: string; avatarUrl?: string } | null;
@@ -290,7 +291,7 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
                   <p className="text-[10px] font-extrabold text-slate-400 tracking-wider uppercase">Active Register Session ID</p>
                   <h3 className="font-mono text-xs font-bold text-slate-800 uppercase">{activeSession.id}</h3>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-2 text-[11px] text-slate-500 font-medium">
-                    <span className="inline-flex items-center"><Users className="w-3.5 h-3.5 mr-1 text-slate-400" /> Cashier: <strong className="font-semibold text-slate-700 ml-1">{activeSession.openedBy.name} ({activeSession.openedBy.role})</strong></span>
+                    <span className="inline-flex items-center"><Users className="w-3.5 h-3.5 mr-1 text-slate-400" /> Cashier: <strong className="font-semibold text-slate-700 ml-1">{(activeSession.openedBy?.name) || "System Operator"} ({(activeSession.openedBy?.role) || "Admin"})</strong></span>
                     <span className="inline-flex items-center"><Calendar className="w-3.5 h-3.5 mr-1 text-slate-400" /> Opened at: <strong className="font-semibold text-slate-700 ml-1">{new Date(activeSession.openedAt).toLocaleString()}</strong></span>
                   </div>
                 </div>
@@ -492,28 +493,16 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
           </div>
 
           <form onSubmit={handleOpenSession} className="border-t border-slate-100 pt-6 text-left max-w-sm mx-auto space-y-4">
-            <div>
-              <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-1">
-                Enter Register Opening Float ({currencySymbol})
-              </label>
-              <div className="relative">
-                <span className="font-mono text-slate-400 text-xs font-bold absolute left-3 top-1/2 -translate-y-1/2 select-none">
-                  {currencySymbol}
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  value={openingBalance}
-                  onChange={(e) => setOpeningBalance(Number(e.target.value))}
-                  placeholder="100.00"
-                  className="w-full pl-8 pr-4 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold font-mono text-slate-700 tracking-wider focus:outline-none focus:ring-1 focus:ring-teal-500"
-                  required
-                />
-              </div>
-              <p className="text-[10px] text-slate-400 italic mt-1.5 px-0.5 font-medium leading-normal">
-                Standard opening float configuration includes drawer float cash coins for client change.
-              </p>
-            </div>
+            <CurrencyInput
+              label="Enter Register Opening Float"
+              currency={currencySymbol}
+              min="0"
+              value={openingBalance || ""}
+              onChange={(e) => setOpeningBalance(Number(e.target.value))}
+              placeholder="100.00"
+              required
+              helperText="Standard opening float configuration includes drawer float cash coins for client change."
+            />
 
             <button
               id="btn-open-session"
@@ -573,11 +562,11 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
                       <td className="py-4 px-4 font-bold text-slate-800">
                         <div className="flex items-center space-x-2">
                           <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black ${session.status === "Open" ? "bg-teal-100 text-teal-700" : "bg-slate-100 text-slate-600"}`}>
-                            {session.openedBy.name.slice(0, 2).toUpperCase()}
+                            {((session.openedBy?.name) || "System Operator").slice(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <div>{session.openedBy.name}</div>
-                            <div className="text-[9.5px] font-semibold text-slate-400 uppercase tracking-wide">{session.openedBy.role}</div>
+                            <div>{(session.openedBy?.name) || "System Operator"}</div>
+                            <div className="text-[9.5px] font-semibold text-slate-400 uppercase tracking-wide">{(session.openedBy?.role) || "Admin"}</div>
                           </div>
                         </div>
                       </td>
@@ -629,7 +618,7 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
                         </p>
                         {session.closedBy && (
                           <p className="text-[9.5px] font-semibold text-slate-400 tracking-normal mt-0.5 block">
-                            Reconciler: {session.closedBy.name}
+                            Reconciler: {session.closedBy?.name || "System Operator"}
                           </p>
                         )}
                       </td>
@@ -683,26 +672,16 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
               </div>
 
               {/* Enter actual counted value */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-0.5">
-                  Enter counted cash in Drawer ({currencySymbol})
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-xs font-black text-slate-400 select-none">
-                    {currencySymbol}
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={actualBalance}
-                    onChange={(e) => setActualBalance(Number(e.target.value))}
-                    placeholder="0.00"
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold font-mono text-slate-800 tracking-wider focus:outline-none focus:ring-1 focus:ring-teal-500"
-                    required
-                  />
-                </div>
-              </div>
+              <CurrencyInput
+                label="Enter counted cash in Drawer"
+                currency={currencySymbol}
+                min="0"
+                step="0.01"
+                value={actualBalance || ""}
+                onChange={(e) => setActualBalance(Number(e.target.value))}
+                placeholder="0.00"
+                required
+              />
 
               {/* Variance calculator inline */}
               {activeSession && (
@@ -714,7 +693,7 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
                     const isOverage = variance > 0;
                     return (
                       <span className={`font-mono ${isMatched ? "text-slate-600" : isOverage ? "text-emerald-600" : "text-rose-600"}`}>
-                        {isMatched ? "DRAWER MATCHED" : isOverage ? `+$${variance.toFixed(2)} (OVERAGE)` : `-$${Math.abs(variance).toFixed(2)} (SHORTAGE)`}
+                        {isMatched ? "DRAWER MATCHED" : isOverage ? `+${currencySymbol}${variance.toFixed(2)} (OVERAGE)` : `-${currencySymbol}${Math.abs(variance).toFixed(2)} (SHORTAGE)`}
                       </span>
                     );
                   })()}
@@ -722,19 +701,14 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
               )}
 
               {/* Note input */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-0.5">
-                  Audit reconciliation note & explanation
-                </label>
-                <textarea
-                  value={closureNote}
-                  onChange={(e) => setClosureNote(e.target.value)}
-                  rows={2}
-                  maxLength={250}
-                  placeholder="e.g. shift concluded. Counted drawer matches perfect. $1.50 change payout adjust logged..."
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 placeholder-slate-400 focus:outline-none"
-                />
-              </div>
+              <Textarea
+                label="Audit reconciliation note & explanation"
+                value={closureNote}
+                onChange={(e) => setClosureNote(e.target.value)}
+                rows={2}
+                maxLength={250}
+                placeholder="e.g. shift concluded. Counted drawer matches perfect. $1.50 change payout adjust logged..."
+              />
 
               {/* Submit Buttons */}
               <div className="flex space-x-3 pt-4 border-t border-slate-100">
@@ -812,41 +786,26 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
               </div>
 
               {/* Amount field */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-0.5">
-                  Enter transfer amount ({currencySymbol})
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-xs font-bold text-slate-400 select-none">
-                    {currencySymbol}
-                  </span>
-                  <input
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    value={manualTxnAmount}
-                    onChange={(e) => setManualTxnAmount(Number(e.target.value))}
-                    className="w-full pl-7 pr-4 py-2 bg-slate-50 rounded-xl border border-slate-200 text-xs font-bold font-mono text-slate-700 tracking-wider focus:outline-none"
-                    required
-                  />
-                </div>
-              </div>
+              <CurrencyInput
+                label="Enter transfer amount"
+                currency={currencySymbol}
+                min="1"
+                step="0.01"
+                value={manualTxnAmount || ""}
+                onChange={(e) => setManualTxnAmount(Number(e.target.value))}
+                required
+              />
 
               {/* Description explanation */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-0.5">
-                  Adjustment reason and details
-                </label>
-                <input
-                  type="text"
-                  maxLength={100}
-                  value={manualTxnDesc}
-                  onChange={(e) => setManualTxnDesc(e.target.value)}
-                  placeholder="e.g. Added minor coin rolls cache, paid coffee change payout..."
-                  className="w-full px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                  required
-                />
-              </div>
+              <Input
+                label="Adjustment reason and details"
+                type="text"
+                maxLength={100}
+                value={manualTxnDesc}
+                onChange={(e) => setManualTxnDesc(e.target.value)}
+                placeholder="e.g. Added minor coin rolls cache, paid coffee change payout..."
+                required
+              />
 
               {/* Actions */}
               <div className="flex space-x-3 pt-4 border-t border-slate-100">
@@ -897,8 +856,8 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
                   <p className="mt-1">Scheduled status: <span className="text-teal-700 font-extrabold">{selectedSession.status}</span></p>
                 </div>
                 <div className="text-right">
-                  <p>Opened by cashier: <span className="text-slate-800">{selectedSession.openedBy.name}</span></p>
-                  {selectedSession.closedBy && <p className="mt-1">Final reconciler: <span className="text-slate-800">{selectedSession.closedBy.name}</span></p>}
+                  <p>Opened by cashier: <span className="text-slate-800">{selectedSession.openedBy?.name || "System Operator"}</span></p>
+                  {selectedSession.closedBy && <p className="mt-1">Final reconciler: <span className="text-slate-800">{selectedSession.closedBy?.name || "System Operator"}</span></p>}
                 </div>
               </div>
 

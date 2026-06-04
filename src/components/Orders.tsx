@@ -8,6 +8,7 @@ import { ShoppingBag, Plus, Clipboard, CheckCircle2, ChevronRight, RefreshCw, X,
 import { PurchaseOrder, Supplier, Medicine } from "../types";
 import { formatCurrency } from "../utils";
 import BarcodeScannerModal, { playScanBeep } from "./BarcodeScannerModal";
+import { Input, Select, CurrencyInput } from "./FormInputs";
 
 interface OrdersProps {
   settings?: any;
@@ -33,7 +34,7 @@ export default function Orders({ settings }: OrdersProps) {
     if (!clean) return;
 
     const matched = medicines.find(
-      m => m.barcode === clean || m.id === clean || m.SKU.toLowerCase() === clean.toLowerCase()
+      m => m.barcode === clean || m.id === clean || (m.SKU || "").toLowerCase() === clean.toLowerCase()
     );
 
     if (matched) {
@@ -236,105 +237,86 @@ export default function Orders({ settings }: OrdersProps) {
               <button onClick={() => setShowPOModal(false)} className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition">
                 <X className="w-5 h-5" />
               </button>
-            </div>
-
-            <form onSubmit={handleCreatePO} className="p-6 space-y-4">
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                  Target Wholesaler
-                </label>
-                <select
-                  value={selectedSupplierId}
-                  onChange={(e) => setSelectedSupplierId(e.target.value)}
-                  className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl cursor-pointer"
-                >
-                  {suppliers.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
+            </div>            <form onSubmit={handleCreatePO} className="p-6 space-y-4">
+              <Select
+                label="Target Wholesaler"
+                value={selectedSupplierId}
+                onChange={(e) => setSelectedSupplierId(e.target.value)}
+              >
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </Select>
 
                <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                  Drug Formulation Name (or Scan Barcode)
-                </label>
-                <div className="flex space-x-2 items-center">
-                  <input
-                    type="text"
-                    required
-                    value={medicineName}
-                    onChange={(e) => setMedicineName(e.target.value)}
-                    placeholder="e.g. Paracetamol Tablets 500mg"
-                    className="flex-1 text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsPOScannerOpen(true)}
-                    className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-900 rounded-xl transition cursor-pointer shrink-0"
-                    title="Scan supplier box barcode"
-                  >
-                    <Camera className="w-4 h-4" />
-                  </button>
-                </div>
-                {/* Quick Autofill Selector option */}
-                {medicines.length > 0 && (
-                  <div className="mt-1.5 font-sans">
-                    <select
-                      onChange={(e) => {
-                        const m = medicines.find(item => item.id === e.target.value);
-                        if (m) {
-                          setMedicineName(m.name);
-                          setBuyingPrice(String(m.buyingPrice));
-                          if (m.supplierId) setSelectedSupplierId(m.supplierId);
-                        }
-                      }}
-                      className="w-full text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded-xl p-1.5 outline-none cursor-pointer"
-                    >
-                      <option value="">-- Quick autofill from current products list --</option>
-                      {medicines.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.name} {m.barcode ? `(EAN: ${m.barcode})` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
+                 <Input
+                   label="Drug Formulation Name (or Scan Barcode)"
+                   type="text"
+                   required
+                   value={medicineName}
+                   onChange={(e) => setMedicineName(e.target.value)}
+                   placeholder="e.g. Paracetamol Tablets 500mg"
+                   icon={
+                     <button
+                       type="button"
+                       onClick={() => setIsPOScannerOpen(true)}
+                       className="p-1 hover:bg-slate-200 text-slate-500 hover:text-teal-950 rounded-lg transition pointer-events-auto cursor-pointer"
+                       title="Scan supplier box barcode"
+                     >
+                       <Camera className="w-4 h-4" />
+                     </button>
+                   }
+                   iconPosition="right"
+                 />
+                 {/* Quick Autofill Selector option */}
+                 {medicines.length > 0 && (
+                   <div className="mt-1.5 font-sans">
+                     <select
+                       onChange={(e) => {
+                         const m = medicines.find(item => item.id === e.target.value);
+                         if (m) {
+                           setMedicineName(m.name);
+                           setBuyingPrice(String(m.buyingPrice));
+                           if (m.supplierId) setSelectedSupplierId(m.supplierId);
+                         }
+                       }}
+                       className="w-full text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded-xl p-1.5 outline-none cursor-pointer"
+                     >
+                       <option value="">-- Quick autofill from current products list --</option>
+                       {medicines.map(m => (
+                         <option key={m.id} value={m.id}>
+                           {m.name} {m.barcode ? `(EAN: ${m.barcode})` : ""}
+                         </option>
+                       ))}
+                     </select>
+                   </div>
+                 )}
+               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                    Order Quantity (Boxes)
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    placeholder="100"
-                    className="w-full text-xs font-bold font-mono text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
-                </div>
+                <Input
+                  label="Order Quantity (Boxes)"
+                  type="number"
+                  required
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  placeholder="100"
+                  inputClassName="font-mono font-bold"
+                />
 
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                    Unit Buying Cost ({currencySymbol})
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={buyingPrice}
-                    onChange={(e) => setBuyingPrice(e.target.value)}
-                    placeholder="5.50"
-                    className="w-full text-xs font-bold font-mono text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
-                </div>
+                <CurrencyInput
+                  label="Unit Buying Cost"
+                  currency={currencySymbol}
+                  required
+                  value={buyingPrice}
+                  onChange={(e) => setBuyingPrice(e.target.value)}
+                  placeholder="5.50"
+                />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md block mt-4 border-none cursor-pointer"
+                className="w-full py-2.5 bg-teal-650 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-md block mt-4 border-none cursor-pointer h-10 flex items-center justify-center transition"
               >
                 Dispatch Purchase Order
               </button>

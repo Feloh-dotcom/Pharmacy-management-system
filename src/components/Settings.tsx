@@ -1653,10 +1653,10 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                   <div className="space-y-3 max-h-[460px] overflow-y-auto pr-2">
                     {auditLogs
                       .filter(log => {
-                        const matchSearch = log.action.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                                            log.module.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                            log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                            log.userEmail.toLowerCase().includes(searchTerm.toLowerCase());
+                        const matchSearch = (log.action || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+                                            (log.module || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                            (log.details || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                            (log.userEmail || "").toLowerCase().includes(searchTerm.toLowerCase());
                         const matchModule = moduleFilter === "All" || log.module === moduleFilter;
                         return matchSearch && matchModule;
                       })

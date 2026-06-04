@@ -57,16 +57,16 @@ body {
 }
 
 /* Main primary theme overrides mapping */
-.bg-teal-600 {
+.bg-teal-600, .bg-teal-620, .bg-teal-650 {
   background-color: var(--app-primary) !important;
 }
-.hover\:bg-teal-700:hover {
+.hover\:bg-teal-700:hover, .hover\:bg-teal-650\:hover:hover {
   background-color: var(--app-primary-hover) !important;
 }
 .bg-teal-50 {
   background-color: var(--app-primary-light) !important;
 }
-.text-teal-700 {
+.text-teal-700, .text-teal-650, .text-teal-620 {
   color: var(--app-primary) !important;
 }
 .text-teal-850, .text-teal-800 {
@@ -186,4 +186,14 @@ body {
   @page {
     margin: 0;
   }
+}
+
+/* Remove default browser number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
 }

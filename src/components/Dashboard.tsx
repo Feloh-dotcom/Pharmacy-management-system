@@ -215,7 +215,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
   const pctSales = grTotal > 0 ? Math.round((grSalesVal / grTotal) * 100) : 0;
 
   const circ = 238.76;
-  const totalRevenue = metrics?.weeklyRevenue !== undefined ? metrics.weeklyRevenue : sales.reduce((sum, s) => sum + s.totalPrice, 0);
+  const totalRevenue = metrics?.weeklyRevenue ?? 0;
 
   // Filter Sales list based on dynamic search term and role email bounds
   const filteredSales = sales.filter(s => {
@@ -227,8 +227,8 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
     }
     // Search term matching
     return (
-      s.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.items.some(item => item.medicineName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (s.customerName || s.customer_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.items.some(item => (item.medicineName || "").toLowerCase().includes(searchTerm.toLowerCase())) ||
       (s.customerEmail && s.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   });
@@ -929,7 +929,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                 return (
                   <div key={bar.day} className="flex flex-col items-center flex-1 relative group cursor-pointer">
                     {/* Cylinder container */}
-                    <div className="w-10 bg-slate-50 rounded-full h-44 relative overflow-hidden flex items-end border border-slate-100 shadow-inner">
+                    <div className="w-7 sm:w-10 bg-slate-50 rounded-full h-44 relative overflow-hidden flex items-end border border-slate-100 shadow-inner">
                       
                       {/* SVG stripe fill cylinder depending on value */}
                       <div 
@@ -953,9 +953,9 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                       {/* Capsule circle dot indicator inside cylinder */}
                       <div 
                         style={{ bottom: `calc(${fillPercent}% - 14px)` }}
-                        className="absolute left-1/2 -translate-x-1/2 w-7 h-7 rounded-full bg-white shadow-md flex items-center justify-center transition-all duration-700 pointer-events-none"
+                        className="absolute left-1/2 -translate-x-1/2 w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white shadow-md flex items-center justify-center transition-all duration-700 pointer-events-none"
                       >
-                        <div className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: bar.color }} />
+                        <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full" style={{ backgroundColor: bar.color }} />
                       </div>
                     </div>
   

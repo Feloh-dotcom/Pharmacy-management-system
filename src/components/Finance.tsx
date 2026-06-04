@@ -7,6 +7,7 @@ import { useState, useEffect, FormEvent } from "react";
 import { DollarSign, ArrowUpRight, ArrowDownRight, TrendingUp, Plus, Clipboard, RefreshCw } from "lucide-react";
 import { FinanceRecord, SystemSettings } from "../types";
 import { formatSafeDateTime, formatCurrency } from "../utils";
+import { Input, CurrencyInput, Textarea } from "./FormInputs";
 
 interface FinanceProps {
   settings?: SystemSettings | null;
@@ -216,41 +217,33 @@ export default function Finance({ settings }: FinanceProps) {
                 </div>
               </div>
 
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">Classification group</label>
-                <input
-                  type="text"
-                  required
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  placeholder="e.g. Laboratory rent or Copay sales"
-                  className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none"
-                />
-              </div>
+              <Input
+                label="Classification group"
+                type="text"
+                required
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder="e.g. Laboratory rent or Copay sales"
+              />
 
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">Entry Cost ({currencySymbol})</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full text-xs font-mono font-bold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl"
-                />
-              </div>
+              <CurrencyInput
+                label="Entry Cost"
+                currency={currencySymbol}
+                type="number"
+                step="0.01"
+                required
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+              />
 
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">Summary Notes</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Add context..."
-                  className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl"
-                  rows={2}
-                />
-              </div>
+              <Textarea
+                label="Summary Notes"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add context..."
+                rows={2}
+              />
 
               <button
                 type="submit"

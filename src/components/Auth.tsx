@@ -3,15 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { 
   LogIn, Key, Mail, UserPlus, ShieldAlert, CheckCircle, 
-  RefreshCw, Globe, X, Heart, Shield, Landmark, Sparkles,
-  Eye, EyeOff
+  RefreshCw, Globe, Heart, Sparkles, Eye, EyeOff, Phone, Fingerprint 
 } from "lucide-react";
 import { UserRole, SystemSettings } from "../types";
-
-const bgImage = new URL("../assets/images/pharmacy_background_1779486266310.png", import.meta.url).href;
 
 interface AuthProps {
   onLoginSuccess: (user: { id: string; name: string; email: string; role: UserRole; avatarUrl?: string }) => void;
@@ -20,7 +17,6 @@ interface AuthProps {
 
 export default function Auth({ onLoginSuccess, settings }: AuthProps) {
   const [lang, setLang] = useState<"en" | "sw">("en");
-  const [showFormModal, setShowFormModal] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
   const [isForgot, setIsForgot] = useState(false);
   
@@ -31,15 +27,50 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [name, setName] = useState("");
-  const [role, setRole] = useState<UserRole>(UserRole.ADMIN);
+  const [phone, setPhone] = useState("");
+  const [nationalId, setNationalId] = useState("");
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem("pharmacy_remember_me") === "true";
+  });
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  // Prefill email if rememberMe was activated previously
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("pharmacy_remember_email");
+    if (savedEmail && rememberMe) {
+      setEmail(savedEmail);
+    }
+  }, [rememberMe]);
+
+  // Handle password strength scoring
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return { score: 0, label: "None", colorText: "text-slate-400", colorBg: "bg-slate-200" };
+    let score = 0;
+    if (pass.length >= 8) score++;
+    if (/[0-9]/.test(pass)) score++;
+    if (/[a-z]/.test(pass) && /[A-Z]/.test(pass)) score++;
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(pass)) score++;
+
+    if (score <= 1) {
+      return { score, label: lang === "en" ? "Weak" : "Dhaifu", colorText: "text-rose-500", colorBg: "bg-rose-500" };
+    }
+    if (score === 2) {
+      return { score, label: lang === "en" ? "Medium" : "Wastani", colorText: "text-amber-500", colorBg: "bg-amber-500" };
+    }
+    if (score === 3) {
+      return { score, label: lang === "en" ? "Strong" : "Imara", colorText: "text-blue-500", colorBg: "bg-[#2563EB]" };
+    }
+    return { score, label: lang === "en" ? "Excellent" : "Bora Zaidi", colorText: "text-[#10B981]", colorBg: "bg-[#10B981]" };
+  };
+
+  const strengthInfo = getPasswordStrength(password);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (loading) return; // Prevent duplicate submissions
+    if (loading) return;
     setError(null);
     setInfo(null);
     setLoading(true);
@@ -48,21 +79,21 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
       setTimeout(() => {
         setInfo(
           lang === "en" 
-            ? "OTP recovery code transmitted to your email! (Simulator)" 
-            : "Nambari ya kuokoa OTP imetumwa kwenye barua pepe yako! (Kielelezo)"
+            ? "OTP recovery instructions sent to your corporate email workspace." 
+            : "Maelekezo ya kuokoa nenosiri yametumwa kwenye barua pepe yako ya kazi."
         );
         setLoading(false);
         setIsForgot(false);
-      }, 1000);
+      }, 1200);
       return;
     }
 
     if (isRegister) {
-      if (!name || !email || !password || !confirmPassword) {
+      if (!name || !email || !password || !confirmPassword || !phone || !nationalId) {
         setError(
           lang === "en" 
-            ? "All fields are required to register" 
-            : "Mapelelezo yote yanahitajika ili kujiandikisha"
+            ? "Please supply all required clinical registration fields." 
+            : "Tafadhali jaza sifa zote zinazohitajika kusajili."
         );
         setLoading(false);
         return;
@@ -71,22 +102,22 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
       if (password !== confirmPassword) {
         setError(
           lang === "en"
-            ? "Validation Refused: Password and Confirm Password do not match."
-            : "Sera ya Usalama: Nenosiri na Thibitisho la nenosiri hailingani na hili."
+            ? "Validation Rejected: The passwords provided do not match."
+            : "Sera ya Usalama: Nenosiri na uthibitisho wa nenosiri hazilingani."
         );
         setLoading(false);
         return;
       }
 
-      // Dynamic Security & Access Control settings
+      // Dynamic Security settings from configuration parameters
       const minLength = settings?.security?.passwordMinLength || 8;
       const requireSpecial = settings?.security?.requireSpecialChar !== undefined ? settings?.security?.requireSpecialChar : true;
 
       if (password.length < minLength) {
         setError(
           lang === "en"
-            ? `Security Policy Refused: Password must be at least ${minLength} characters.`
-            : `Sera ya Usalama: Nenosiri lazima liwe na angalau herufi ${minLength} kujiandikisha.`
+            ? `Security Policy Blocked: Password must be at least ${minLength} characters.`
+            : `Sera ya Usalama: Nenosiri lazima liwe na angalau herufi ${minLength}.`
         );
         setLoading(false);
         return;
@@ -97,8 +128,8 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
         if (!specialCharRegex.test(password)) {
           setError(
             lang === "en"
-              ? "Security Policy Refused: Password must contain at least one special character."
-              : "Sera ya Usalama: Nenosiri lazima liwe na angalau herufi moja maalum (k.m. @, #, $, Pesa)."
+              ? "Security Policy Blocked: Password must contain at least one special character structural sign."
+              : "Sera ya Usalama: Nenosiri lazima liwe na herufi maalum (k.m., @, #, $, !)."
           );
           setLoading(false);
           return;
@@ -106,11 +137,10 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
       }
 
       try {
-        // Step 2: Register & Assign role inside backend and public.profiles server-side
         const response = await fetch("/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password })
+          body: JSON.stringify({ name, email, password, phone, nationalId })
         });
         let data: any = {};
         if (response.headers.get("Content-Type")?.includes("json")) {
@@ -118,25 +148,27 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
         }
         
         if (!response.ok) {
-          setError(data.error || (lang === "en" ? "Registration failed. Try again." : "Usajili umeshindwa. Jaribu tena."));
+          setError(data.error || (lang === "en" ? "Registration failed. Please consult your administrator." : "Usajili umeshindwa. Tafadhali wasiliana na msimamizi."));
         } else {
           setInfo(
             lang === "en"
-              ? "Registration successful! You have been auto-assigned a secure User role. Log in now."
-              : "Usajili umefaulu! Umepewa jukumu la usalama la User. Ingia sasa."
+              ? "Credentials successfully generated! A standard User security role has been assigned. Please sign in below."
+              : "Akaunti imehifadhiwa kikamilifu! Jukumu thabiti la User limepewa. Tafadhali ingia sasa."
           );
           setIsRegister(false);
           setConfirmPassword("");
+          setPhone("");
+          setNationalId("");
         }
       } catch (err: any) {
-        setError(err.message || (lang === "en" ? "Unable to connect to register server." : "Imeshindwa kuunganisha kwenye seva ya usajili."));
+        setError(err.message || (lang === "en" ? "Failed to establish a network connection with the authentication node." : "Imeshindwa kuunganisha mtawanyo wa uthibitishaji."));
       } finally {
         setLoading(false);
       }
       return;
     }
 
-    // Live Login using server API
+    // Active Login
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -152,17 +184,25 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
         setError(
           data.error || 
           (lang === "en" 
-            ? "Authentication failed. Validate your credentials" 
-            : "Uthibitishaji umeshindwa. Thibitisha sifa zako")
+            ? "Authentication Rejected: Invalid clinical passcode or security email value specified." 
+            : "Uthibitishaji Umekataliwa: Barua pepe au nenosiri lisilo sahihi.")
         );
       } else {
+        // Save state preferences for future logins
+        if (rememberMe) {
+          localStorage.setItem("pharmacy_remember_email", email);
+          localStorage.setItem("pharmacy_remember_me", "true");
+        } else {
+          localStorage.removeItem("pharmacy_remember_email");
+          localStorage.setItem("pharmacy_remember_me", "false");
+        }
         onLoginSuccess(data.user);
       }
     } catch (err) {
       setError(
         lang === "en" 
-          ? "Unable to connect to login server. Retrying..." 
-          : "Imeshindwa kuunganisha kwenye seva ya kuingia. Inajaribu tena..."
+          ? "Workspace network timeout. Unable to communicate with the central database server." 
+          : "Muda wa mtandao umeisha. Imeshindwa kuungana na seva kuu ya mfumo."
       );
     } finally {
       setLoading(false);
@@ -171,55 +211,53 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
 
   const translations = {
     en: {
-      logo: "PHARMACY SYSTEM",
-      title: "Pharmacy Management System",
-      welcome: "Welcome to the Pharmacy Management Platform!",
-      desc: "Manage medicines, customers, suppliers, payments, and reports with ease and security.",
-      register: "Register",
-      login: "Login",
-      aboutTitle: "About the System Platform",
-      aboutDesc: "Designed with state-of-the-art diagnostic compliance, full audit logging mechanisms, barcode integration pathways, and end-to-end stock optimization schemas.",
-      back: "Go Back",
-      credentialsHeader: "Pharmacy Access Control",
-      emailLabel: "Enter Your Email",
-      passLabel: "Enter Password",
-      nameLabel: "Full Name",
-      roleLabel: "Authorized Access Level",
-      forgotPass: "Forgot Password?",
-      rememberPass: "Remember Pass?",
-      alreadyReg: "Already Registered?",
-      regAcct: "Register Account",
-      authBtn: "Log in",
-      sendOtp: "Send OTP Recovery Link",
-      completeOnb: "Complete Security Onboarding",
+      logo: "PharmacySync",
+      securityGateIndicator: "Authorized Clinical Access",
+      signInPrompt: "Access your clinical workspace and secure workflow tools",
+      registerPrompt: "Generate a new secure login token for active pharmacy staff",
+      forgotPrompt: "Supply your registered work email address below for a recovery link",
+      emailLabel: "Email Address",
+      phoneLabel: "Phone Number",
+      nationalIdLabel: "National ID / Employee No",
+      passLabel: "Password",
+      nameLabel: "Your Professional Name",
       confirmPassLabel: "Confirm Password",
-      passwordMismatch: "Passwords do not match",
-      passwordMatch: "Passwords matched successfully"
+      rememberMe: "Remember me",
+      forgotPass: "Forgot password?",
+      backToLogin: "Back to portal sign-in",
+      noAccount: "Don't have an account?",
+      haveAccount: "Already possess active credentials?",
+      registerNow: "Sign up here",
+      loginNow: "Log in here",
+      signInBtn: "Sign In",
+      registerBtn: "Create Account",
+      sendOtpBtn: "Disseminate Reset Instructions",
+      passwordMismatch: "The passwords entered do not align",
+      passwordMatch: "System Passwords aligned successfully"
     },
     sw: {
-      logo: "MFUMO WA FAMASI",
-      title: "Mfumo wa Usimamizi wa Famasi",
-      welcome: "Karibu kwenye Jukwaa la Usimamizi wa Famasi!",
-      desc: "Dhibiti dawa, wateja, wasambazaji, malipo, na ripoti kwa urahisi na usalama.",
-      register: "Jisajili",
-      login: "Ingia",
-      aboutTitle: "Kuhusu Mfumo wa Famasi",
-      aboutDesc: "Iliyoundwa na utii wa kisasa wa utambuzi, njia za usajili kamili wa ukaguzi, mifumo ya ujumuishaji wa barcode, na miradi ya uboreshaji wa hesabu ya dawa.",
-      back: "Rudi Nyuma",
-      credentialsHeader: "Udhibiti wa Kituo cha Kazi",
+      logo: "PharmacySync",
+      securityGateIndicator: "Udhibiti wa Kituo Cha Kazi",
+      signInPrompt: "Ingiza sifa zako zilizoidhinishwa ili kufungua mfumo",
+      registerPrompt: "Tengeneza kitambulisho kipya cha usalama kwa mfanyakazi",
+      forgotPrompt: "Andika barua pepe yako ili kurudisha nenosiri lililosahaulika",
       emailLabel: "Barua Pepe ya Kazi",
+      phoneLabel: "Nambari ya Simu",
+      nationalIdLabel: "Nambari ya Kitambulisho",
       passLabel: "Nenosiri la Usalama",
-      nameLabel: "Majina Kamili ya Kisheria",
-      roleLabel: "Kiwango cha Ufikiaji Kilichoidhinishwa",
-      forgotPass: "Umesahau Nenosiri?",
-      rememberPass: "Unakumbuka Nenosiri?",
-      alreadyReg: "Tayari Umerasajiliwa?",
-      regAcct: "Sajili Akaunti",
-      authBtn: "Ingia",
-      sendOtp: "Tuma Kiungo cha OTP",
-      completeOnb: "Kamilisha Usajili wa Usalama",
+      nameLabel: "Jina Lako Kamili la Kazi",
       confirmPassLabel: "Thibitisha Nenosiri",
-      passwordMismatch: "Nenosiri hailingani",
+      rememberMe: "Nikumbuke kwenye kifaa hiki",
+      forgotPass: "Umesahau nenosiri?",
+      backToLogin: "Rudi kwenye ukurasa wa kuingia",
+      noAccount: "Unataka kusajili akaunti mpya?",
+      haveAccount: "Tayari umeandikisha akaunti yako?",
+      registerNow: "Jisajili hapa sasa",
+      loginNow: "Ingia hapa sasa",
+      signInBtn: "Ingia kwenye Mfumo",
+      registerBtn: "Kamilisha Usajili wa Usalama",
+      sendOtpBtn: "Tuma Maelekezo ya Kuokoa",
+      passwordMismatch: "Mihuri ya nenosiri hailingani",
       passwordMatch: "Nenosiri linalingana kikamilifu"
     }
   };
@@ -229,351 +267,387 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
   return (
     <div 
       id="auth-root" 
-      className="min-h-screen relative overflow-x-hidden select-none font-sans flex flex-col justify-between"
-      style={{
-        backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.75)), url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat"
-      }}
+      className="min-h-screen bg-[#F8FAFC] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden select-none font-sans"
     >
-      {/* 1. Header Navigation Bar inside landing layout */}
-      <header className="w-full max-w-7xl mx-auto px-6 py-5 flex items-center justify-between z-20 relative">
-        <div className="flex items-center space-x-2">
-          {settings?.general?.logoUrl ? (
-            <img 
-              src={settings.general.logoUrl} 
-              alt="Brand Logo" 
-              className="w-8 h-8 rounded-lg object-contain bg-white shadow-sm border border-slate-100"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-lg bg-red-600/95 flex items-center justify-center text-white font-extrabold shadow-sm">
-              ✚
-            </div>
-          )}
-          <span className="text-white font-bold tracking-widest text-sm font-sans">
-            {settings?.general?.pharmacyName || activeTrans.logo}
-          </span>
-        </div>
+      {/* Soft visual healthcare gradients */}
+      <div className="absolute top-0 left-0 w-96 h-96 bg-[#2563EB]/5 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-[#10B981]/5 rounded-full blur-3xl pointer-events-none translate-x-1/3 translate-y-1/3" />
 
-        {/* Language selector badge capsules exactly as image */}
-        <div className="flex bg-black/35 backdrop-blur-md border border-white/10 rounded-full px-1.5 py-1 items-center space-x-1">
+      {/* Floating high-contrast language selector */}
+      <div className="absolute top-6 right-6 z-10">
+        <div className="flex bg-white shadow-sm border border-[#E2E8F0] rounded-full p-1 items-center space-x-1">
           <button
-            onClick={() => setLang("sw")}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 cursor-pointer ${
-              lang === "sw" 
-                ? "bg-red-600 text-white shadow-lg shadow-red-500/25" 
-                : "text-white/80 hover:text-white"
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5 shrink-0" />
-            <span>Swahili</span>
-          </button>
-          
-          <button
-            onClick={() => setLang("en")}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 cursor-pointer ${
+            type="button"
+            onClick={() => {
+              setLang("en");
+              setError(null);
+              setInfo(null);
+            }}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
               lang === "en" 
-                ? "bg-red-600 text-white shadow-lg shadow-red-500/25" 
-                : "text-white/80 hover:text-white"
+                ? "bg-[#2563EB] text-white shadow-sm" 
+                : "text-[#64748B] hover:text-[#0F172A]"
             }`}
           >
-            <Globe className="w-3.5 h-3.5 shrink-0" />
-            <span>English</span>
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setLang("sw");
+              setError(null);
+              setInfo(null);
+            }}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 cursor-pointer ${
+              lang === "sw" 
+                ? "bg-[#2563EB] text-white shadow-sm" 
+                : "text-[#64748B] hover:text-[#0F172A]"
+            }`}
+          >
+            SW
           </button>
         </div>
-      </header>
+      </div>
 
-      {/* 2. Central Promo Messaging */}
-      <main className="flex-1 w-full max-w-5xl mx-auto px-6 flex flex-col items-center justify-center text-center z-15 relative py-12">
-        <h1 className="text-white font-sans font-black text-4xl sm:text-5xl md:text-6xl tracking-tight max-w-4xl leading-tight drop-shadow-lg">
-          {settings?.general?.pharmacyName || activeTrans.title}
-        </h1>
-        
-        <p className="text-base sm:text-lg md:text-xl font-bold text-white mt-5 max-w-2xl drop-shadow">
-          {settings?.general?.pharmacyName ? `Welcome to the ${settings.general.pharmacyName} Hub` : activeTrans.welcome}
-        </p>
+      <div className="sm:mx-auto sm:w-full sm:max-w-md z-10">
+        {/* Healthcare Inspired Authentication Card */}
+        <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-xl shadow-slate-100/70 p-8 sm:p-10 flex flex-col space-y-6">
+          
+          {/* Main header block */}
+          <div className="flex flex-col items-center text-center">
+            {/* PharmacySync Icon Emblem */}
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-2xl shadow-sm mb-4">
+              <Heart className="w-7 h-7 text-[#2563EB]" fill="#2563EB" fillOpacity={0.15} />
+            </div>
 
-        <p className="text-xs sm:text-sm text-slate-200 font-medium max-w-xl leading-relaxed mt-2.5 drop-shadow-sm">
-          {settings?.general?.address ? `Authorized clinical personnel gateway for location at ${settings.general.address}` : activeTrans.desc}
-        </p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-[#0F172A] flex items-center gap-1">
+              {settings?.general?.pharmacyName || activeTrans.logo}
+            </h1>
 
-        {/* Double customized orange-red pill action buttons as screenshot */}
-        <div className="flex flex-wrap items-center justify-center gap-4 mt-8">
-          <button
-            onClick={() => {
-              setIsRegister(true);
-              setIsForgot(false);
-              setShowFormModal(true);
-            }}
-            className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 hover:scale-103 font-sans font-bold text-white text-xs sm:text-sm py-3 px-7 rounded-full transition-all duration-200 shadow-xl shadow-red-500/10 cursor-pointer border-none"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>+ {activeTrans.register}</span>
-          </button>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 px-3 py-0.5 bg-slate-50 border border-slate-100 rounded-full">
+              {activeTrans.securityGateIndicator}
+            </span>
 
-          <button
-            onClick={() => {
-              setIsRegister(false);
-              setIsForgot(false);
-              setShowFormModal(true);
-            }}
-            className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 hover:scale-103 font-sans font-bold text-white text-xs sm:text-sm py-3 px-7 rounded-full transition-all duration-200 shadow-xl shadow-red-500/10 cursor-pointer border-none"
-          >
-            <LogIn className="w-4 h-4" />
-            <span>➡ {activeTrans.login}</span>
-          </button>
-        </div>
-      </main>
-
-      {/* 3. Sliding "About the System" container coming up from the bottom */}
-      <section className="w-full bg-slate-50/95 backdrop-blur-md rounded-t-[40px] border-t border-white/20 px-6 sm:px-12 py-10 z-10 shrink-0 relative shadow-2xl">
-        <div className="max-w-6xl mx-auto text-center space-y-8">
-          <div className="space-y-2">
-            <h2 className="text-red-600 font-sans font-black uppercase text-[11px] tracking-widest">
-              {activeTrans.aboutTitle}
-            </h2>
-            <p className="text-xs sm:text-[13px] text-slate-500 font-semibold max-w-3xl mx-auto leading-relaxed">
-              {activeTrans.aboutDesc}
+            <p className="text-xs text-[#64748B] mt-3 font-semibold leading-relaxed max-w-[280px]">
+              {isForgot 
+                ? activeTrans.forgotPrompt 
+                : isRegister 
+                  ? activeTrans.registerPrompt 
+                  : activeTrans.signInPrompt}
             </p>
           </div>
 
-          {/* Quick value props */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-4 text-left">
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-start space-x-4">
-              <div className="p-3 bg-red-50 rounded-xl text-red-600 border border-red-100">
-                <Shield className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">RBAC Security</h4>
-                <p className="text-[11px] text-slate-400 mt-1 font-semibold leading-normal">Fully auditable permission roles ensuring legal compliance & security logs.</p>
-              </div>
+          {/* Feedback banners */}
+          {error && (
+            <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start space-x-3 animate-in fade-in slide-in-from-top-1 duration-200">
+              <ShieldAlert className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-rose-800 font-semibold leading-relaxed">{error}</p>
             </div>
+          )}
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-start space-x-4">
-              <div className="p-3 bg-red-50 rounded-xl text-red-600 border border-red-100">
-                <Heart className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">Patient Welfare</h4>
-                <p className="text-[11px] text-slate-400 mt-1 font-semibold leading-normal">Smart tracking of prescription limits, customer profiles, and loyalty tiers.</p>
-              </div>
+          {info && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-start space-x-3 animate-in fade-in slide-in-from-top-1 duration-200">
+              <CheckCircle className="w-5 h-5 text-[#10B981] shrink-0 mt-0.5" />
+              <p className="text-xs text-[#065F46] font-bold leading-relaxed">{info}</p>
             </div>
+          )}
 
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-start space-x-4">
-              <div className="p-3 bg-red-50 rounded-xl text-red-600 border border-red-100">
-                <Landmark className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">Ledger Accuracy</h4>
-                <p className="text-[11px] text-slate-400 mt-1 font-semibold leading-normal">Comprehensive sales point checkout channels and real-time ledger accounting.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. Credentials form Modal Overlay when Login/Register is triggered */}
-      {showFormModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 overflow-y-auto transition-all animate-in fade-in duration-250">
-          <div className="w-full max-w-md my-auto bg-slate-950 border border-slate-800/80 rounded-3xl p-6 sm:p-8 backdrop-blur-2xl shadow-2xl relative z-50 animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+          {/* Form wrapper */}
+          <form onSubmit={handleSubmit} className="space-y-4">
             
-            {/* Modal Exit */}
-            <button
-              onClick={() => setShowFormModal(false)}
-              className="absolute top-5 right-5 p-1.5 bg-slate-900 border border-slate-800 rounded-full text-slate-400 hover:text-white transition duration-150 cursor-pointer"
-              title={activeTrans.back}
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            {/* Emblem Form Header */}
-            <div className="flex flex-col items-center mb-6">
-              <div className="w-11 h-11 rounded-2xl bg-red-600/15 border border-red-500/25 flex items-center justify-center text-xl shadow-inner mb-3">
-                💊
-              </div>
-              <h1 className="font-sans font-extrabold text-base text-white tracking-tight">
-                {activeTrans.credentialsHeader}
-              </h1>
-              <p className="text-[10px] text-slate-405 font-mono mt-0.5 uppercase tracking-wider">
-                Authorized Access Node
-              </p>
-            </div>
-
-            {error && (
-              <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 flex items-start space-x-2 mb-4">
-                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-rose-300 font-semibold leading-normal">{error}</p>
-              </div>
-            )}
-
-            {info && (
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-start space-x-2 mb-4">
-                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-emerald-300 font-semibold leading-normal">{info}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Full Legal Name - Register status */}
-              {isRegister && !isForgot && (
-                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-1">
-                    {activeTrans.nameLabel}
-                  </label>
+            {/* Professional Name (Registration state) */}
+            {isRegister && !isForgot && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <label className="text-xs font-bold tracking-wide text-[#0F172A] block px-0.5">
+                  {activeTrans.nameLabel} <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Sparkles className="h-4.5 w-4.5 text-[#64748B]" />
+                  </div>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Workspace Operator"
-                    className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
-                  />
-                </div>
-              )}
-
-              {/* Email */}
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-1">
-                  {activeTrans.emailLabel}
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 select-none pointer-events-none" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="user@halomedical.com"
-                    className="w-full pl-10.5 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
+                    placeholder={lang === "en" ? "e.g. Dr. Sarah Jenkins" : "k.m. Dr. Sarah Jenkins"}
+                    className="block w-full h-12 pl-10 pr-4 bg-white border border-[#E2E8F0] rounded-xl text-sm font-semibold text-[#0F172A] placeholder-[#64748B]/50 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 shadow-sm transition duration-150"
                   />
                 </div>
               </div>
+            )}
 
-              {/* Password */}
-              {!isForgot && (
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-1">
-                    {activeTrans.passLabel}
-                  </label>
-                  <div className="relative">
-                    <Key className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 select-none pointer-events-none" />
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="w-full pl-10.5 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
-                    />
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-all duration-150 p-1 rounded-md focus:outline-none cursor-pointer select-none"
-                      title={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
+            {/* Email Address */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold tracking-wide text-[#0F172A] block px-0.5">
+                {activeTrans.emailLabel} <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <Mail className="h-4.5 w-4.5 text-[#64748B]" />
                 </div>
-              )}
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. healthcare@workspace.com"
+                  className="block w-full h-12 pl-10 pr-4 bg-white border border-[#E2E8F0] rounded-xl text-sm font-semibold text-[#0F172A] placeholder-[#64748B]/50 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 shadow-sm transition duration-150"
+                />
+              </div>
+            </div>
 
-              {/* Confirm Password */}
-              {isRegister && !isForgot && (
-                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-1">
-                    {activeTrans.confirmPassLabel}
-                  </label>
-                  <div className="relative">
-                    <Key className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 select-none pointer-events-none" />
-                    <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="w-full pl-10.5 pr-10 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500/50 transition-all duration-200"
-                    />
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-all duration-150 p-1 rounded-md focus:outline-none cursor-pointer select-none"
-                      title={showConfirmPassword ? "Hide password" : "Show password"}
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
+            {/* Phone Number (Registration state) */}
+            {isRegister && !isForgot && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <label className="text-xs font-bold tracking-wide text-[#0F172A] block px-0.5">
+                  {activeTrans.phoneLabel} <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Phone className="h-4.5 w-4.5 text-[#64748B]" />
                   </div>
-                  
-                  {confirmPassword.length > 0 && (
-                    <div className="mt-2 flex items-center space-x-1.5 px-1 animate-in fade-in duration-205">
-                      <div className={`w-1.5 h-1.5 rounded-full ${password === confirmPassword ? "bg-emerald-500" : "bg-rose-500"}`} />
-                      <span className={`text-[10px] font-bold tracking-wide ${password === confirmPassword ? "text-emerald-400" : "text-rose-400"}`}>
-                        {password === confirmPassword ? activeTrans.passwordMatch : activeTrans.passwordMismatch}
-                      </span>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="e.g. +254712345678"
+                    className="block w-full h-12 pl-10 pr-4 bg-white border border-[#E2E8F0] rounded-xl text-sm font-semibold text-[#0F172A] placeholder-[#64748B]/50 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 shadow-sm transition duration-150"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* National ID / Employee No (Registration state) */}
+            {isRegister && !isForgot && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <label className="text-xs font-bold tracking-wide text-[#0F172A] block px-0.5">
+                  {activeTrans.nationalIdLabel} <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Fingerprint className="h-4.5 w-4.5 text-[#64748B]" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={nationalId}
+                    onChange={(e) => setNationalId(e.target.value)}
+                    placeholder="e.g. ID-8890211"
+                    className="block w-full h-12 pl-10 pr-4 bg-white border border-[#E2E8F0] rounded-xl text-sm font-semibold text-[#0F172A] placeholder-[#64748B]/50 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 shadow-sm transition duration-150"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Password input */}
+            {!isForgot && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold tracking-wide text-[#0F172A] block px-0.5">
+                  {activeTrans.passLabel} <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Key className="h-4.5 w-4.5 text-[#64748B]" />
+                  </div>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="block w-full h-12 pl-10 pr-10 bg-white border border-[#E2E8F0] rounded-xl text-sm font-semibold text-[#0F172A] placeholder-[#64748B]/50 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 shadow-sm transition duration-150"
+                  />
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#64748B] hover:text-[#0F172A] focus:outline-none cursor-pointer"
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {/* Password strength progress indicators during registration */}
+                {isRegister && password.length > 0 && (
+                  <div className="mt-2 space-y-1 pb-1 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between text-[10px] font-bold">
+                      <span className="text-slate-400 uppercase tracking-wider">Passcode Security Strength</span>
+                      <span className={strengthInfo.colorText}>{strengthInfo.label}</span>
                     </div>
-                  )}
-                </div>
-              )}
+                    <div className="grid grid-cols-4 gap-1.5 h-1">
+                      <div className={`rounded-full transition-all duration-300 ${strengthInfo.score >= 1 ? strengthInfo.colorBg : "bg-slate-200"}`} />
+                      <div className={`rounded-full transition-all duration-300 ${strengthInfo.score >= 2 ? strengthInfo.colorBg : "bg-slate-200"}`} />
+                      <div className={`rounded-full transition-all duration-300 ${strengthInfo.score >= 3 ? strengthInfo.colorBg : "bg-slate-200"}`} />
+                      <div className={`rounded-full transition-all duration-300 ${strengthInfo.score >= 4 ? strengthInfo.colorBg : "bg-slate-200"}`} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
-              {/* Options & Forgot links */}
-              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 px-1 pt-1">
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => {
-                    setIsForgot(!isForgot);
-                    setIsRegister(false);
-                    setError(null);
-                    setInfo(null);
-                    setConfirmPassword("");
-                  }}
-                  className="hover:text-red-400 hover:underline cursor-pointer disabled:opacity-40"
-                >
-                  {isForgot ? activeTrans.rememberPass : activeTrans.forgotPass}
-                </button>
+            {/* Password confirmation for registering */}
+            {isRegister && !isForgot && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <label className="text-xs font-bold tracking-wide text-[#0F172A] block px-0.5">
+                  {activeTrans.confirmPassLabel} <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Key className="h-4.5 w-4.5 text-[#64748B]" />
+                  </div>
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="block w-full h-12 pl-10 pr-10 bg-white border border-[#E2E8F0] rounded-xl text-sm font-semibold text-[#0F172A] placeholder-[#64748B]/50 focus:outline-none focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 shadow-sm transition duration-150"
+                  />
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#64748B] hover:text-[#0F172A] focus:outline-none cursor-pointer"
+                    title={showConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                
+                {confirmPassword.length > 0 && (
+                  <div className="mt-1.5 flex items-center space-x-1.5 px-0.5 animate-in fade-in duration-150">
+                    <div className={`w-1.5 h-1.5 rounded-full ${password === confirmPassword ? "bg-[#10B981]" : "bg-rose-500"}`} />
+                    <span className={`text-[11px] font-bold tracking-wide ${password === confirmPassword ? "text-[#10B981]" : "text-rose-500"}`}>
+                      {password === confirmPassword ? activeTrans.passwordMatch : activeTrans.passwordMismatch}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Remember me & Forgot Password block */}
+            {!isForgot && !isRegister && (
+              <div className="flex items-center justify-between text-xs px-0.5 py-1">
+                <label className="flex items-center space-x-2 text-[#64748B] font-semibold cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-[#E2E8F0] text-[#2563EB] focus:ring-[#2563EB]/20 cursor-pointer"
+                  />
+                  <span>{activeTrans.rememberMe}</span>
+                </label>
                 
                 <button
                   type="button"
                   disabled={loading}
                   onClick={() => {
-                    setIsRegister(!isRegister);
-                    setIsForgot(false);
+                    setIsForgot(true);
+                    setIsRegister(false);
                     setError(null);
                     setInfo(null);
                     setConfirmPassword("");
                   }}
-                  className="text-red-400 hover:text-red-300 hover:underline inline-flex items-center cursor-pointer disabled:opacity-40"
+                  className="text-[#2563EB] hover:text-[#1D4ED8] font-bold hover:underline transition cursor-pointer"
                 >
-                  <UserPlus className="w-3.5 h-3.5 mr-1" />
-                  <span>{isRegister ? activeTrans.alreadyReg : activeTrans.regAcct}</span>
+                  {activeTrans.forgotPass}
                 </button>
               </div>
+            )}
 
+            {/* Primary Action Button */}
+            <div className="pt-2">
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-red-500/20 transition-all duration-200 mt-6 flex items-center justify-center space-x-2 disabled:opacity-40 border-none cursor-pointer"
+                disabled={loading || (isRegister && password !== confirmPassword)}
+                className="w-full h-12 bg-[#2563EB] hover:bg-[#1D4ED8] focus:ring-4 focus:ring-[#2563EB]/15 text-white font-bold text-sm rounded-xl shadow-md transition-all duration-150 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed border-none cursor-pointer"
               >
                 {loading ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : isRegister ? (
+                  <UserPlus className="w-5 h-5" />
                 ) : (
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-5 h-5" />
                 )}
                 <span>
-                  {isForgot 
-                    ? activeTrans.sendOtp 
-                    : isRegister 
-                      ? activeTrans.completeOnb 
-                      : activeTrans.authBtn}
+                  {loading 
+                    ? (lang === "en" ? "Processing..." : "Inachakata...") 
+                    : isForgot 
+                      ? activeTrans.sendOtpBtn 
+                      : isRegister 
+                        ? activeTrans.registerBtn 
+                        : activeTrans.signInBtn}
                 </span>
               </button>
-            </form>
-          </div>
+            </div>
+
+            {/* Forgot password switch back */}
+            {isForgot && (
+              <div className="flex items-center justify-center text-xs pt-2">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => {
+                    setIsForgot(false);
+                    setIsRegister(false);
+                    setError(null);
+                    setInfo(null);
+                    setConfirmPassword("");
+                  }}
+                  className="text-[#2563EB] hover:text-[#1D4ED8] font-bold hover:underline transition cursor-pointer flex items-center gap-1 bg-none border-none"
+                >
+                  <span>&larr;</span> {activeTrans.backToLogin}
+                </button>
+              </div>
+            )}
+
+            {/* Toggle Switch between login/register */}
+            {!isForgot && (
+              <div className="text-center text-xs text-[#64748B] font-medium pt-3 px-1 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-center gap-1 select-none">
+                {isRegister ? (
+                  <>
+                    <span>{activeTrans.haveAccount}</span>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setIsRegister(false);
+                        setError(null);
+                        setInfo(null);
+                        setConfirmPassword("");
+                      }}
+                      className="text-[#2563EB] hover:text-[#1D4ED8] font-bold hover:underline transition cursor-pointer bg-none border-none"
+                    >
+                      {activeTrans.loginNow}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span>{activeTrans.noAccount}</span>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setIsRegister(true);
+                        setError(null);
+                        setInfo(null);
+                        setConfirmPassword("");
+                      }}
+                      className="text-[#2563EB] hover:text-[#1D4ED8] font-bold hover:underline transition cursor-pointer bg-none border-none"
+                    >
+                      {activeTrans.registerNow}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+          </form>
         </div>
-      )}
+      </div>
     </div>
   );
 }

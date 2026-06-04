@@ -7,7 +7,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
-import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded, pullChangesFromSupabase, mapFromRow, mapToRow, hasServiceRole } from "./server_db";
+import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded, pullChangesFromSupabase, mapFromRow, mapToRow, hasServiceRole, getActiveCashSessionFromSupabase, getAllCashSessionsFromSupabase, insertCashSessionToSupabase, updateCashSessionInSupabase } from "./server_db";
 import { UserRole, Medicine, Sale, PurchaseOrder, InventoryLog, Customer, FinanceRecord } from "./src/types";
 
 // Lazy-loaded or conditional Gemini API initializer
@@ -208,12 +208,13 @@ function computeWeekValues(cycle: any, db: any) {
     return d >= monday && d <= sunday;
   }).length;
 
-  // 2. Count of sales this week within active cash sessions
+  // 2. Count of sales this week dynamically (all non-refunded/non-reversed sales within the date boundaries)
   const weekSales = db.sales.filter((s: any) => {
+    if (!s.date) return false;
     const d = new Date(s.date);
     if (d >= monday && d <= sunday) {
-      if (s.paymentStatus === "Refunded") return false;
-      return (db.cashSessions || []).some((cs: any) => cs.salesInvoices && cs.salesInvoices.includes(s.invoiceNumber));
+      if (s.paymentStatus === "Refunded" || s.paymentStatus === "Reversed") return false;
+      return true;
     }
     return false;
   });
@@ -243,72 +244,43 @@ function computeWeekValues(cycle: any, db: any) {
 
   const noSalesCount = Object.values(salesByDay).filter(val => val === 0).length;
 
-  const currentWeelyRevenueCalculated = weekSales.reduce((sum: number, s: any) => sum + s.totalPrice, 0);
+  let currentWeeklyRevenueCalculated = weekSales.reduce((sum: number, s: any) => sum + s.totalPrice, 0);
 
-  if (cycle.resetGraphReport) {
-    return {
-      graphReport: { purchases: 0, suppliers: 0, sales: 0, noSales: 100 },
-      weeklyRevenue: 0,
-      totalSalesOverview: cycle.resetTotalSalesOverview ? [
-        { day: "Mon", value: 0, color: "#f97316" },
-        { day: "Tue", value: 0, color: "#ec4899" },
-        { day: "Wed", value: 0, color: "#22c55e" },
-        { day: "Thu", value: 0, color: "#14b8a6" },
-        { day: "Fri", value: 0, color: "#ef4444" },
-        { day: "Sat", value: 0, color: "#a855f7" },
-        { day: "Sun", value: 0, color: "#f59e0b" }
-      ] : [
-        { day: "Mon", value: Number(salesByDay["Mon"].toFixed(2)), color: "#f97316" },
-        { day: "Tue", value: Number(salesByDay["Tue"].toFixed(2)), color: "#ec4899" },
-        { day: "Wed", value: Number(salesByDay["Wed"].toFixed(2)), color: "#22c55e" },
-        { day: "Thu", value: Number(salesByDay["Thu"].toFixed(2)), color: "#14b8a6" },
-        { day: "Fri", value: Number(salesByDay["Fri"].toFixed(2)), color: "#ef4444" },
-        { day: "Sat", value: Number(salesByDay["Sat"].toFixed(2)), color: "#a855f7" },
-        { day: "Sun", value: Number(salesByDay["Sun"].toFixed(2)), color: "#f59e0b" }
-      ]
-    };
-  }
+  // Apply reset analytics flags if set on this cycle
+  const resetAll = !!(cycle.resetGraphReport || cycle.resetTotalSalesOverview);
 
-  if (cycle.resetTotalSalesOverview) {
+  let finalWeeklyRevenue = resetAll ? 0 : currentWeeklyRevenueCalculated;
+
+  // Let's build the totalSalesOverview array
+  const totalSalesOverview = [
+    { day: "Mon", value: resetAll ? 0 : Number(salesByDay["Mon"].toFixed(2)), color: "#f97316" },
+    { day: "Tue", value: resetAll ? 0 : Number(salesByDay["Tue"].toFixed(2)), color: "#ec4899" },
+    { day: "Wed", value: resetAll ? 0 : Number(salesByDay["Wed"].toFixed(2)), color: "#22c55e" },
+    { day: "Thu", value: resetAll ? 0 : Number(salesByDay["Thu"].toFixed(2)), color: "#14b8a6" },
+    { day: "Fri", value: resetAll ? 0 : Number(salesByDay["Fri"].toFixed(2)), color: "#ef4444" },
+    { day: "Sat", value: resetAll ? 0 : Number(salesByDay["Sat"].toFixed(2)), color: "#a855f7" },
+    { day: "Sun", value: resetAll ? 0 : Number(salesByDay["Sun"].toFixed(2)), color: "#f59e0b" }
+  ];
+
+  // Adjust final weekly revenue value to be EXACTLY the sum of the overview slices to maintain absolute identicality!
+  finalWeeklyRevenue = Number(totalSalesOverview.reduce((sum, bar) => sum + bar.value, 0).toFixed(2));
+
+  // Determine donut portions representation (graphReport)
+  let graphReport = { purchases: 0, suppliers: 0, sales: 0, noSales: 100 };
+  if (!resetAll) {
     const totalWeight = purchasesCount + suppliersCount + salesCount + noSalesCount || 100;
-    return {
-      graphReport: {
-        purchases: purchasesCount ? Math.round((purchasesCount / totalWeight) * 100) : 28,
-        suppliers: suppliersCount ? Math.round((suppliersCount / totalWeight) * 100) : 18,
-        sales: salesCount ? Math.round((salesCount / totalWeight) * 100) : 12,
-        noSales: noSalesCount ? Math.round((noSalesCount / totalWeight) * 100) : 42
-      },
-      weeklyRevenue: currentWeelyRevenueCalculated,
-      totalSalesOverview: [
-        { day: "Mon", value: 0, color: "#f97316" },
-        { day: "Tue", value: 0, color: "#ec4899" },
-        { day: "Wed", value: 0, color: "#22c55e" },
-        { day: "Thu", value: 0, color: "#14b8a6" },
-        { day: "Fri", value: 0, color: "#ef4444" },
-        { day: "Sat", value: 0, color: "#a855f7" },
-        { day: "Sun", value: 0, color: "#f59e0b" }
-      ]
-    };
-  }
-
-  const totalWeight = purchasesCount + suppliersCount + salesCount + noSalesCount || 100;
-  return {
-    graphReport: {
+    graphReport = {
       purchases: purchasesCount ? Math.round((purchasesCount / totalWeight) * 100) : 28,
       suppliers: suppliersCount ? Math.round((suppliersCount / totalWeight) * 100) : 18,
       sales: salesCount ? Math.round((salesCount / totalWeight) * 100) : 12,
       noSales: noSalesCount ? Math.round((noSalesCount / totalWeight) * 100) : 42
-    },
-    weeklyRevenue: currentWeelyRevenueCalculated,
-    totalSalesOverview: [
-      { day: "Mon", value: Number(salesByDay["Mon"].toFixed(2)), color: "#f97316" },
-      { day: "Tue", value: Number(salesByDay["Tue"].toFixed(2)), color: "#ec4899" },
-      { day: "Wed", value: Number(salesByDay["Wed"].toFixed(2)), color: "#22c55e" },
-      { day: "Thu", value: Number(salesByDay["Thu"].toFixed(2)), color: "#14b8a6" },
-      { day: "Fri", value: Number(salesByDay["Fri"].toFixed(2)), color: "#ef4444" },
-      { day: "Sat", value: Number(salesByDay["Sat"].toFixed(2)), color: "#a855f7" },
-      { day: "Sun", value: Number(salesByDay["Sun"].toFixed(2)), color: "#f59e0b" }
-    ]
+    };
+  }
+
+  return {
+    graphReport,
+    weeklyRevenue: finalWeeklyRevenue,
+    totalSalesOverview
   };
 }
 
@@ -380,7 +352,7 @@ function checkAndRolloverWeeklyCycle(state: any): void {
 }
 
 // 1. Dashboard Metrics Aggregator
-app.get("/api/dashboard/metrics", (req, res) => {
+app.get("/api/dashboard/metrics", async (req, res) => {
   const { weekId } = req.query;
   const db = readDB();
 
@@ -417,13 +389,16 @@ app.get("/api/dashboard/metrics", (req, res) => {
     computedValues = computeWeekValues(tempCycle, finalState);
   }
 
-  // Calculate Todays Sales dynamically based on calendar dates
+  // Calculate Todays Sales dynamically based on the current active cash registry session
+  const activeSession = await getActiveCashSessionFromSupabase();
+  let todaysSalesSum = 0;
+  if (activeSession) {
+    const summarizedActive = calculateSessionSummary(activeSession, finalState);
+    todaysSalesSum = summarizedActive.totalSalesAmount;
+  }
+
   const nowStr = new Date().toISOString().split('T')[0];
   const yesterdayStr = new Date(new Date().setDate(new Date().getDate() - 1)).toISOString().split('T')[0];
-
-  let todaysSalesSum = finalState.sales
-    .filter((s: any) => s.date.startsWith(nowStr) && s.paymentStatus !== "Refunded" && s.paymentStatus !== "Reversed")
-    .reduce((sum: number, s: any) => sum + s.totalPrice, 0);
 
   let yesterdaySalesSum = finalState.sales
     .filter((s: any) => s.date.startsWith(yesterdayStr) && s.paymentStatus !== "Refunded" && s.paymentStatus !== "Reversed")
@@ -485,13 +460,16 @@ app.get("/api/dashboard/metrics", (req, res) => {
     graphReport: computedValues.graphReport,
     totalSalesOverview: computedValues.totalSalesOverview,
     weeklyRevenue: computedValues.weeklyRevenue ?? 0,
-    weeklyCycles: finalState.weeklyCycles.map((wc: any) => ({
-      id: wc.id,
-      status: wc.status,
-      startDate: wc.startDate,
-      endDate: wc.endDate,
-      weeklyRevenue: wc.weeklyRevenue ?? 0
-    })),
+    weeklyCycles: finalState.weeklyCycles.map((wc: any) => {
+      const dynamicVal = computeWeekValues(wc, finalState);
+      return {
+        id: wc.id,
+        status: wc.status,
+        startDate: wc.startDate,
+        endDate: wc.endDate,
+        weeklyRevenue: dynamicVal.weeklyRevenue
+      };
+    }),
     selectedWeekId: targetCycle ? targetCycle.id : null
   });
 });
@@ -544,15 +522,62 @@ app.get("/api/auth/me", async (req, res) => {
 });
 
 app.post("/api/auth/register", async (req, res) => {
-  const { id, name, email, password } = req.body;
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: "Name, email and password are all required to register" });
+  const { id, name, email, password, phone, nationalId } = req.body;
+  if (!name || !email || !password || !phone || !nationalId) {
+    return res.status(400).json({ error: "Name, email, password, phone number and ID number are all required to register" });
   }
 
   const db = readDB();
-  const existingUser = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (existingUser) {
-    return res.status(409).json({ error: "An account with this email address already exists" });
+  const trimmedEmail = email.toLowerCase().trim();
+  const trimmedPhone = phone.trim();
+  const trimmedNationalId = nationalId.trim();
+
+  // 1. Check local DB cache
+  const existingEmailUser = db.users.find(u => u.email.toLowerCase() === trimmedEmail);
+  if (existingEmailUser) {
+    return res.status(409).json({ error: "This email is already registered. Please use another email or log in." });
+  }
+
+  const existingPhoneUser = db.users.find(u => u.phone && u.phone.trim() === trimmedPhone);
+  if (existingPhoneUser) {
+    return res.status(409).json({ error: "This phone number is already linked to another account." });
+  }
+
+  const existingIdUser = db.users.find(u => u.nationalId && u.nationalId.trim() === trimmedNationalId);
+  if (existingIdUser) {
+    return res.status(409).json({ error: "This ID number is already linked to another account." });
+  }
+
+  // 2. Check live Supabase
+  try {
+    const { data: existingEmailProf } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", trimmedEmail)
+      .maybeSingle();
+    if (existingEmailProf) {
+      return res.status(409).json({ error: "This email is already registered. Please use another email or log in." });
+    }
+    
+    const { data: existingPhoneProf } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("phone", trimmedPhone)
+      .maybeSingle();
+    if (existingPhoneProf) {
+      return res.status(409).json({ error: "This phone number is already linked to another account." });
+    }
+    
+    const { data: existingIdProf } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("national_id", trimmedNationalId)
+      .maybeSingle();
+    if (existingIdProf) {
+      return res.status(409).json({ error: "This ID number is already linked to another account." });
+    }
+  } catch (supabaseErr: any) {
+    console.error("[Register Duplicate Verification Error]", supabaseErr.message);
   }
 
   // Public registration strictly maps to Standard "Customer" or "User" role.
@@ -625,9 +650,9 @@ app.post("/api/auth/register", async (req, res) => {
     salt,
     failedLoginAttempts: 0,
     verificationStatus: "Pending" as any,
-    phone: "",
+    phone: trimmedPhone,
     bio: "",
-    nationalId: "",
+    nationalId: trimmedNationalId,
     address: "",
     passwordSetupCompleted: true
   };
@@ -840,75 +865,91 @@ app.get("/api/medicines", (req, res) => {
   res.json(db.medicines);
 });
 
-app.post("/api/medicines", (req, res) => {
+app.post("/api/medicines", async (req, res) => {
   const permCheck = checkPermission(req, "addProducts");
   if (!permCheck.allowed) {
     return res.status(403).json({ error: "Forbidden: You do not have permission to add products" });
   }
 
-  const medicineData = req.body;
-  const db = readDB();
-  
-  // Validation checks
-  if (!medicineData.name || !medicineData.SKU || !medicineData.expiryDate) {
-    return res.status(400).json({ error: "Name, SKU and Expiry Date are required" });
-  }
-
-  // Barcode uniqueness check
-  if (medicineData.barcode) {
-    const isDuplicate = db.medicines.some(m => m.barcode === medicineData.barcode);
-    if (isDuplicate) {
-      return res.status(400).json({ error: `Barcode duplicate alert: Barcode '${medicineData.barcode}' is already assigned to '${db.medicines.find(m => m.barcode === medicineData.barcode)?.name}'.` });
+  try {
+    const medicineData = req.body;
+    const db = readDB();
+    
+    // Validation checks
+    if (!medicineData.name || !String(medicineData.name).trim()) {
+      return res.status(400).json({ error: "Product name is required" });
     }
+    if (!medicineData.SKU || !String(medicineData.SKU).trim()) {
+      return res.status(400).json({ error: "SKU is required" });
+    }
+    if (!medicineData.expiryDate) {
+      return res.status(400).json({ error: "Expiry date is required" });
+    }
+
+    // Barcode uniqueness check
+    if (medicineData.barcode) {
+      const isDuplicate = db.medicines.some(m => m.barcode === String(medicineData.barcode).trim());
+      if (isDuplicate) {
+        return res.status(400).json({ error: `Barcode '${medicineData.barcode}' is already in use` });
+      }
+    }
+
+    const newMed: Medicine = {
+      id: `med-${Date.now()}`,
+      name: String(medicineData.name).trim(),
+      genericName: medicineData.genericName ? String(medicineData.genericName).trim() : "",
+      SKU: String(medicineData.SKU).trim(),
+      batchNumber: medicineData.batchNumber ? String(medicineData.batchNumber).trim() : `BCH-${Math.floor(10000 + Math.random() * 90000)}`,
+      expiryDate: medicineData.expiryDate,
+      buyingPrice: Number(medicineData.buyingPrice) || 0,
+      sellingPrice: Number(medicineData.sellingPrice) || 0,
+      quantity: Number(medicineData.quantity) || 0,
+      minStockLevel: Number(medicineData.minStockLevel) || 10,
+      manufacturer: medicineData.manufacturer ? String(medicineData.manufacturer).trim() : "",
+      supplierId: medicineData.supplierId || (db.suppliers[0]?.id || ""),
+      categoryId: medicineData.categoryId || (db.categories[0]?.id || ""),
+      barcode: medicineData.barcode ? String(medicineData.barcode).trim() : `890${Math.floor(1000000000 + Math.random() * 9000000000)}`,
+      taxVat: Number(medicineData.taxVat) || 16,
+      prescriptionRequired: !!medicineData.prescriptionRequired,
+      imageUrl: medicineData.imageUrl || "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
+      createdAt: new Date().toISOString()
+    };
+
+    updateDB(state => {
+      state.medicines.push(newMed);
+      state.inventoryLogs.unshift({
+        id: `log-${Date.now()}`,
+        medicineId: newMed.id,
+        medicineName: newMed.name,
+        type: "restock",
+        quantity: newMed.quantity,
+        date: new Date().toISOString(),
+        reason: "Initial Product Creation",
+        userEmail: permCheck.user?.email || getRequesterEmail(req)
+      });
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: permCheck.user?.email || getRequesterEmail(req),
+        action: "Created Medicine",
+        module: "Inventory",
+        date: new Date().toISOString(),
+        details: `Added product ${newMed.name} (SKU: ${newMed.SKU})`
+      });
+    });
+
+    // Immediately refetch from Supabase to ensure consistency
+    await pullChangesFromSupabase(true);
+    const updatedDb = readDB();
+    const savedMed = updatedDb.medicines.find(m => m.id === newMed.id);
+    
+    res.status(201).json(savedMed || newMed);
+  } catch (err: any) {
+    console.error("[API Medicines Error]", err);
+    res.status(500).json({ error: "Failed to register product" });
   }
-
-  const newMed: Medicine = {
-    id: `med-${Date.now()}`,
-    name: medicineData.name,
-    genericName: medicineData.genericName || "",
-    SKU: medicineData.SKU,
-    batchNumber: medicineData.batchNumber || `BCH-${Math.floor(10000 + Math.random() * 90000)}`,
-    expiryDate: medicineData.expiryDate,
-    buyingPrice: Number(medicineData.buyingPrice) || 0,
-    sellingPrice: Number(medicineData.sellingPrice) || 0,
-    quantity: Number(medicineData.quantity) || 0,
-    minStockLevel: Number(medicineData.minStockLevel) || 10,
-    manufacturer: medicineData.manufacturer || "",
-    supplierId: medicineData.supplierId || (db.suppliers[0]?.id || ""),
-    categoryId: medicineData.categoryId || (db.categories[0]?.id || ""),
-    barcode: medicineData.barcode || `890${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-    taxVat: Number(medicineData.taxVat) || 16,
-    prescriptionRequired: !!medicineData.prescriptionRequired,
-    imageUrl: medicineData.imageUrl || "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
-    createdAt: new Date().toISOString()
-  };
-
-  updateDB(state => {
-    state.medicines.push(newMed);
-    state.inventoryLogs.unshift({
-      id: `log-${Date.now()}`,
-      medicineId: newMed.id,
-      medicineName: newMed.name,
-      type: "restock",
-      quantity: newMed.quantity,
-      date: new Date().toISOString(),
-      reason: "Initial Product Creation Restock",
-      userEmail: permCheck.user?.email || getRequesterEmail(req)
-    });
-    state.auditLogs.unshift({
-      id: `aud-${Date.now()}`,
-      userEmail: permCheck.user?.email || getRequesterEmail(req),
-      action: "Created Medicine",
-      module: "Inventory",
-      date: new Date().toISOString(),
-      details: `Added new medicine ${newMed.name} (SKU: ${newMed.SKU}) with ${newMed.quantity} units.`
-    });
-  });
-
-  res.status(201).json(newMed);
 });
 
-app.put("/api/medicines/:id", (req, res) => {
+app.put("/api/medicines/:id", async (req, res) => {
   const medId = req.params.id;
   const editData = req.body;
 
@@ -918,78 +959,92 @@ app.put("/api/medicines/:id", (req, res) => {
     return res.status(403).json({ error: "Forbidden: You do not have permission to edit products" });
   }
 
-  // 2. Adjust stock check if quantity changes
-  const db = readDB();
+  try {
+    // 2. Adjust stock check if quantity changes
+    const db = readDB();
 
-  // Barcode uniqueness check for updates
-  if (editData.barcode) {
-    const isDuplicate = db.medicines.some(m => m.barcode === editData.barcode && m.id !== medId);
-    if (isDuplicate) {
-      return res.status(400).json({ error: `Barcode duplicate alert: Barcode '${editData.barcode}' is already assigned to '${db.medicines.find(m => m.barcode === editData.barcode && m.id !== medId)?.name}'.` });
+    // Barcode uniqueness check for updates
+    if (editData.barcode) {
+      const isDuplicate = db.medicines.some(m => m.barcode === editData.barcode && m.id !== medId);
+      if (isDuplicate) {
+        return res.status(400).json({ error: `Barcode '${editData.barcode}' is already in use` });
+      }
     }
-  }
 
-  const existingMed = db.medicines.find(m => m.id === medId);
-  if (existingMed && existingMed.quantity !== Number(editData.quantity)) {
-    const stockCheck = checkPermission(req, "adjustStock");
-    if (!stockCheck.allowed) {
-      return res.status(403).json({ error: "Forbidden: You do not have permission to adjust stock quantities" });
+    const existingMed = db.medicines.find(m => m.id === medId);
+    if (!existingMed) {
+      return res.status(404).json({ error: "Product not found" });
     }
-  }
 
-  let updatedMed: Medicine | null = null;
+    if (existingMed.quantity !== Number(editData.quantity)) {
+      const stockCheck = checkPermission(req, "adjustStock");
+      if (!stockCheck.allowed) {
+        return res.status(403).json({ error: "Forbidden: You do not have permission to adjust stock quantities" });
+      }
+    }
 
-  updateDB(state => {
-    const idx = state.medicines.findIndex(m => m.id === medId);
-    if (idx !== -1) {
-      const oldQty = state.medicines[idx].quantity;
-      const newQty = Number(editData.quantity);
-      
-      updatedMed = {
-        ...state.medicines[idx],
-        ...editData,
-        buyingPrice: Number(editData.buyingPrice),
-        sellingPrice: Number(editData.sellingPrice),
-        quantity: newQty,
-        minStockLevel: Number(editData.minStockLevel),
-        id: medId // protect id
-      };
-      
-      state.medicines[idx] = updatedMed;
+    let updatedMed: Medicine | null = null;
 
-      // Log inventory diff if quantities count changed
-      if (oldQty !== newQty) {
-        state.inventoryLogs.unshift({
-          id: `log-${Date.now()}`,
-          medicineId: medId,
-          medicineName: updatedMed.name,
-          type: newQty > oldQty ? "restock" : "damaged",
-          quantity: Math.abs(newQty - oldQty),
+    updateDB(state => {
+      const idx = state.medicines.findIndex(m => m.id === medId);
+      if (idx !== -1) {
+        const oldQty = state.medicines[idx].quantity;
+        const newQty = Number(editData.quantity);
+        
+        updatedMed = {
+          ...state.medicines[idx],
+          ...editData,
+          buyingPrice: Number(editData.buyingPrice),
+          sellingPrice: Number(editData.sellingPrice),
+          quantity: newQty,
+          minStockLevel: Number(editData.minStockLevel),
+          id: medId // protect id
+        };
+        
+        state.medicines[idx] = updatedMed;
+
+        // Log inventory diff if quantities count changed
+        if (oldQty !== newQty) {
+          state.inventoryLogs.unshift({
+            id: `log-${Date.now()}`,
+            medicineId: medId,
+            medicineName: updatedMed.name,
+            type: newQty > oldQty ? "restock" : "damaged",
+            quantity: Math.abs(newQty - oldQty),
+            date: new Date().toISOString(),
+            reason: `Quantity manually modified from ${oldQty} to ${newQty}`,
+            userEmail: editCheck.user?.email || getRequesterEmail(req)
+          });
+        }
+
+        state.auditLogs.unshift({
+          id: `aud-${Date.now()}`,
+          userEmail: editCheck.user?.email || getRequesterEmail(req),
+          action: "Updated Medicine",
+          module: "Inventory",
           date: new Date().toISOString(),
-          reason: `Quantity manually modified from ${oldQty} to ${newQty}`,
-          userEmail: editCheck.user?.email || getRequesterEmail(req)
+          details: `Modified specifications for ${updatedMed.name}.`
         });
       }
+    });
 
-      state.auditLogs.unshift({
-        id: `aud-${Date.now()}`,
-        userEmail: editCheck.user?.email || getRequesterEmail(req),
-        action: "Updated Medicine",
-        module: "Inventory",
-        date: new Date().toISOString(),
-        details: `Modified specifications for ${updatedMed.name}.`
-      });
+    if (!updatedMed) {
+      return res.status(404).json({ error: "Product not found" });
     }
-  });
 
-  if (!updatedMed) {
-    return res.status(404).json({ error: "Medicine not found" });
+    // Immediately refetch from Supabase to ensure consistency
+    await pullChangesFromSupabase(true);
+    const updatedDb = readDB();
+    const savedMed = updatedDb.medicines.find(m => m.id === medId);
+
+    res.json(savedMed || updatedMed);
+  } catch (err: any) {
+    console.error("[API Medicines Update Error]", err);
+    res.status(500).json({ error: "Failed to update product" });
   }
-
-  res.json(updatedMed);
 });
 
-app.delete("/api/medicines/:id", (req, res) => {
+app.delete("/api/medicines/:id", async (req, res) => {
   const medId = req.params.id;
   const email = req.headers["x-user-email"] || req.headers["X-User-Email"] || req.body?.userEmail || req.query?.userEmail;
   const db = readDB();
@@ -998,29 +1053,37 @@ app.delete("/api/medicines/:id", (req, res) => {
     return res.status(403).json({ error: "Forbidden: Only Administrators and Pharmacists are authorized to delete products" });
   }
 
-  let deletedName = "";
+  try {
+    let deletedName = "";
 
-  updateDB(state => {
-    const idx = state.medicines.find(m => m.id === medId);
-    if (idx) {
-      deletedName = idx.name;
-      state.medicines = state.medicines.filter(m => m.id !== medId);
-      state.auditLogs.unshift({
-        id: `aud-${Date.now()}`,
-        userEmail: user.email,
-        action: "Deleted Medicine",
-        module: "Inventory",
-        date: new Date().toISOString(),
-        details: `Deleted product record ${deletedName} (ID: ${medId}).`
-      });
+    updateDB(state => {
+      const idx = state.medicines.findIndex(m => m.id === medId);
+      if (idx !== -1) {
+        deletedName = state.medicines[idx].name;
+        state.medicines = state.medicines.filter(m => m.id !== medId);
+        state.auditLogs.unshift({
+          id: `aud-${Date.now()}`,
+          userEmail: user.email,
+          action: "Deleted Medicine",
+          module: "Inventory",
+          date: new Date().toISOString(),
+          details: `Deleted product record ${deletedName} (ID: ${medId}).`
+        });
+      }
+    });
+
+    if (!deletedName) {
+      return res.status(404).json({ error: "Product not found" });
     }
-  });
 
-  if (!deletedName) {
-    return res.status(404).json({ error: "Medicine not found" });
+    // Immediately refetch from Supabase to ensure consistency
+    await pullChangesFromSupabase(true);
+
+    res.json({ message: `Successfully deleted product: ${deletedName}` });
+  } catch (err: any) {
+    console.error("[API Medicines Delete Error]", err);
+    res.status(500).json({ error: "Failed to delete product" });
   }
-
-  res.json({ message: `Successfully deleted product: ${deletedName}` });
 });
 
 // 4. Categories API
@@ -1029,34 +1092,53 @@ app.get("/api/categories", (req, res) => {
   res.json(db.categories);
 });
 
-app.post("/api/categories", (req, res) => {
+app.post("/api/categories", async (req, res) => {
   const permCheck = checkPermission(req, "addCategories");
   if (!permCheck.allowed) {
     return res.status(403).json({ error: "Forbidden: You do not have permission to add categories" });
   }
 
   const { name, description } = req.body;
-  if (!name) return res.status(400).json({ error: "Category name is required" });
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ error: "Category name is required" });
+  }
 
-  const newCat = {
-    id: `cat-${Date.now()}`,
-    name,
-    description: description || ""
-  };
+  try {
+    // Check for duplicate category names
+    const db = readDB();
+    const existing = db.categories.find(c => c.name.toLowerCase() === String(name).toLowerCase().trim());
+    if (existing) {
+      return res.status(400).json({ error: `Category "${name}" already exists` });
+    }
 
-  updateDB(state => {
-    state.categories.push(newCat);
-    state.auditLogs.unshift({
-      id: `aud-${Date.now()}`,
-      userEmail: permCheck.user?.email || getRequesterEmail(req),
-      action: "Created Category",
-      module: "Inventory",
-      date: new Date().toISOString(),
-      details: `Added medical category: ${name}`
+    const newCat = {
+      id: `cat-${Date.now()}`,
+      name: String(name).trim(),
+      description: description ? String(description).trim() : ""
+    };
+
+    updateDB(state => {
+      state.categories.push(newCat);
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: permCheck.user?.email || getRequesterEmail(req),
+        action: "Created Category",
+        module: "Inventory",
+        date: new Date().toISOString(),
+        details: `Added medical category: ${newCat.name}`
+      });
     });
-  });
 
-  res.status(201).json(newCat);
+    // Immediately refetch from Supabase to ensure consistency
+    await pullChangesFromSupabase(true);
+    const updatedDb = readDB();
+    const savedCategory = updatedDb.categories.find(c => c.id === newCat.id);
+    
+    res.status(201).json(savedCategory || newCat);
+  } catch (err: any) {
+    console.error("[API Categories Error]", err);
+    res.status(500).json({ error: "Failed to register category" });
+  }
 });
 
 // 5. Suppliers API
@@ -1191,7 +1273,7 @@ app.get("/api/sales", (req, res) => {
   res.json(db.sales);
 });
 
-app.post("/api/sales/checkout", (req, res) => {
+app.post("/api/sales/checkout", async (req, res) => {
   const { 
     customerId, 
     items, 
@@ -1209,8 +1291,8 @@ app.post("/api/sales/checkout", (req, res) => {
 
   const db = readDB();
 
-  // Validate Active Cash Session is Open
-  const activeSession = (db.cashSessions || []).find((s: any) => s.status === "Open");
+  // Validate Active Cash Session is Open (query Supabase directly)
+  const activeSession = await getActiveCashSessionFromSupabase();
   if (!activeSession) {
     return res.status(403).json({ 
       error: "No active Cash Register session found. An administrator or cashier must launch and Open Cash Register Session before dispensing medicines or recording POS sales transactions." 
@@ -1351,15 +1433,13 @@ app.post("/api/sales/checkout", (req, res) => {
     // 2. Add Sale record
     state.sales.unshift(newSale);
 
-    // Link invoice with active open Cash Session
-    const activeSessionIdx = (state.cashSessions || []).findIndex(s => s.status === "Open");
-    if (activeSessionIdx !== -1) {
-      const activeSess = state.cashSessions[activeSessionIdx];
-      if (!activeSess.salesInvoices) {
-        activeSess.salesInvoices = [];
+    // Link invoice with active open Cash Session (will be synced to Supabase after updateDB)
+    if (activeSession) {
+      if (!activeSession.salesInvoices) {
+        activeSession.salesInvoices = [];
       }
-      if (!activeSess.salesInvoices.includes(newSale.invoiceNumber)) {
-        activeSess.salesInvoices.push(newSale.invoiceNumber);
+      if (!activeSession.salesInvoices.includes(newSale.invoiceNumber)) {
+        activeSession.salesInvoices.push(newSale.invoiceNumber);
       }
     }
 
@@ -1400,6 +1480,16 @@ app.post("/api/sales/checkout", (req, res) => {
       details: `Completed sale barcode checkout for ${invoiceNumber}, amount: Ksh. ${totalPrice} via ${paymentMethod}${paymentMethod === 'Split' ? ` (Cash: ${cashPaid}, M-Pesa: ${mpesaPaid})` : ''}`
     });
   });
+
+  // Update cash session in Supabase with new sales invoice (if active session exists)
+  if (activeSession) {
+    await updateCashSessionInSupabase(activeSession.id, {
+      salesInvoices: activeSession.salesInvoices as any
+    });
+  }
+
+  // Wait for Supabase sync before responding
+  await pullChangesFromSupabase(true);
 
   res.status(201).json({
     message: "Checkout completed successfully!",
@@ -2403,16 +2493,16 @@ app.get("/api/search", (req, res) => {
   // 1. Search Medicines (drugs, generic names, SKU/Product codes)
   db.medicines.forEach(m => {
     if (
-      m.name.toLowerCase().includes(q) ||
-      m.genericName.toLowerCase().includes(q) ||
-      m.SKU.toLowerCase().includes(q) ||
-      (m.batchNumber && m.batchNumber.toLowerCase().includes(q))
+      (m.name || "").toLowerCase().includes(q) ||
+      (m.genericName || "").toLowerCase().includes(q) ||
+      (m.SKU || "").toLowerCase().includes(q) ||
+      (m.batchNumber && (m.batchNumber || "").toLowerCase().includes(q))
     ) {
       results.push({
         id: m.id,
         category: "Medicines",
         title: m.name,
-        subtitle: `Generic: ${m.genericName} | SKU: ${m.SKU} | Qty: ${m.quantity}`,
+        subtitle: `Generic: ${m.genericName || ""} | SKU: ${m.SKU || ""} | Qty: ${m.quantity || 0}`,
         tab: "products",
         payload: m
       });
@@ -2422,16 +2512,16 @@ app.get("/api/search", (req, res) => {
   // 2. Search Customers (including Prescriptions)
   db.customers.forEach(c => {
     if (
-      c.name.toLowerCase().includes(q) ||
-      c.email.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      (c.insuranceProvider && c.insuranceProvider.toLowerCase().includes(q))
+      (c.name || "").toLowerCase().includes(q) ||
+      (c.email || "").toLowerCase().includes(q) ||
+      (c.phone || "").includes(q) ||
+      (c.insuranceProvider && (c.insuranceProvider || "").toLowerCase().includes(q))
     ) {
       results.push({
         id: c.id,
         category: "Customers",
         title: c.name,
-        subtitle: `Phone: ${c.phone} | Email: ${c.email}`,
+        subtitle: `Phone: ${c.phone || ""} | Email: ${c.email || ""}`,
         tab: "customers",
         payload: c
       });
@@ -2439,12 +2529,12 @@ app.get("/api/search", (req, res) => {
 
     if (c.prescriptionHistory) {
       c.prescriptionHistory.forEach(p => {
-        if (p.medicineName.toLowerCase().includes(q)) {
+        if (p.medicineName && (p.medicineName || "").toLowerCase().includes(q)) {
           results.push({
             id: `prescription-${c.id}-${p.medicineName}-${p.date}`,
             category: "Prescriptions",
             title: `Prescription: ${p.medicineName}`,
-            subtitle: `Assigned to ${c.name} (Qty: ${p.quantity}) on ${p.date}`,
+            subtitle: `Assigned to ${c.name || ""} (Qty: ${p.quantity || 0}) on ${p.date || ""}`,
             tab: "customers",
             payload: { ...c, highlightPrescription: p.medicineName }
           });
@@ -2456,16 +2546,16 @@ app.get("/api/search", (req, res) => {
   // 3. Search Suppliers
   db.suppliers.forEach(s => {
     if (
-      s.name.toLowerCase().includes(q) ||
-      s.companyName.toLowerCase().includes(q) ||
-      s.email.toLowerCase().includes(q) ||
-      s.phone.includes(q)
+      (s.name || "").toLowerCase().includes(q) ||
+      (s.companyName || "").toLowerCase().includes(q) ||
+      (s.email || "").toLowerCase().includes(q) ||
+      (s.phone || "").includes(q)
     ) {
       results.push({
         id: s.id,
         category: "Suppliers",
         title: s.name,
-        subtitle: `Company: ${s.companyName} | Phone: ${s.phone}`,
+        subtitle: `Company: ${s.companyName || ""} | Phone: ${s.phone || ""}`,
         tab: "suppliers",
         payload: s
       });
@@ -2475,15 +2565,15 @@ app.get("/api/search", (req, res) => {
   // 4. Search Sales / Transactions / Invoice numbers
   db.sales.forEach(sale => {
     if (
-      sale.invoiceNumber.toLowerCase().includes(q) ||
-      sale.customerName.toLowerCase().includes(q) ||
-      sale.customerEmail.toLowerCase().includes(q)
+      (sale.invoiceNumber || "").toLowerCase().includes(q) ||
+      (sale.customerName || "").toLowerCase().includes(q) ||
+      (sale.customerEmail || "").toLowerCase().includes(q)
     ) {
       results.push({
         id: sale.id,
         category: "Transactions",
-        title: `Invoice #${sale.invoiceNumber}`,
-        subtitle: `Customer: ${sale.customerName} | Total: $${sale.totalPrice.toFixed(2)} | Items: ${sale.items?.length || 0}`,
+        title: `Invoice #${sale.invoiceNumber || ""}`,
+        subtitle: `Customer: ${sale.customerName || ""} | Total: $${(sale.totalPrice || 0).toFixed(2)} | Items: ${sale.items?.length || 0}`,
         tab: "sales",
         payload: sale
       });
@@ -3125,111 +3215,125 @@ function calculateSessionSummary(session: any, db: any) {
   };
 }
 
-app.get("/api/cash-register/sessions", (req, res) => {
+app.get("/api/cash-register/sessions", async (req, res) => {
+  const sessions = await getAllCashSessionsFromSupabase();
   const db = readDB();
-  const sorted = [...(db.cashSessions || [])].map(session => calculateSessionSummary(session, db));
+  const sorted = sessions.map(session => calculateSessionSummary(session, db));
   res.json(sorted);
 });
 
-app.get("/api/cash-register/active", (req, res) => {
-  const db = readDB();
-  const active = (db.cashSessions || []).find((s: any) => s.status === "Open");
+app.get("/api/cash-register/active", async (req, res) => {
+  const active = await getActiveCashSessionFromSupabase();
   if (!active) {
     return res.json(null);
   }
+  const db = readDB();
   const summarized = calculateSessionSummary(active, db);
   res.json(summarized);
 });
 
-app.post("/api/cash-register/open", (req, res) => {
-  const { openingBalance, openedBy } = req.body;
-  if (openingBalance === undefined || !openedBy) {
-    return res.status(400).json({ error: "Opening Balance and Cashier details are required" });
-  }
-
-  const db = readDB();
-  const active = (db.cashSessions || []).find((s: any) => s.status === "Open");
-  if (active) {
-    return res.status(400).json({ error: "A cash session is currently active. Please close the active session first." });
-  }
-
-  const newSession = {
-    id: `session-${Date.now()}`,
-    status: "Open" as const,
-    openedBy,
-    openedAt: new Date().toISOString(),
-    openingBalance: Number(openingBalance),
-    expectedClosingBalance: Number(openingBalance),
-    totalSalesAmount: 0,
-    totalInvoicesCount: 0,
-    cashPayments: 0,
-    mobileMoneyPayments: 0,
-    cardPayments: 0,
-    discounts: 0,
-    refunds: 0,
-    expenses: 0,
-    transactions: [],
-    salesInvoices: []
-  };
-
-  updateDB(state => {
-    if (!state.cashSessions) {
-      state.cashSessions = [];
+app.post("/api/cash-register/open", async (req, res) => {
+  try {
+    const { openingBalance, openedBy } = req.body;
+    console.log("[Cash Register API] /api/cash-register/open called with:", { openingBalance, openedBy });
+    
+    if (openingBalance === undefined || !openedBy) {
+      console.warn("[Cash Register API] Missing required fields");
+      return res.status(400).json({ error: "Opening Balance and Cashier details are required" });
     }
-    state.cashSessions.unshift(newSession);
-    state.auditLogs.unshift({
-      id: `aud-${Date.now()}`,
-      userEmail: openedBy.email,
-      action: "Open Cash Session",
-      module: "Cash Register",
-      date: new Date().toISOString(),
-      details: `Opened cash register session with opening balance: $${openingBalance}`
-    });
-  });
 
-  res.status(201).json(newSession);
+    // Query Supabase for active session
+    const active = await getActiveCashSessionFromSupabase();
+    if (active) {
+      console.warn("[Cash Register API] Active session already exists");
+      return res.status(400).json({ error: "A cash session is currently active. Please close the active session first." });
+    }
+
+    const newSession = {
+      id: `session-${Date.now()}`,
+      status: "Open" as const,
+      openedBy,
+      openedAt: new Date().toISOString(),
+      openingBalance: Number(openingBalance),
+      expectedClosingBalance: Number(openingBalance),
+      totalSalesAmount: 0,
+      totalInvoicesCount: 0,
+      cashPayments: 0,
+      mobileMoneyPayments: 0,
+      cardPayments: 0,
+      discounts: 0,
+      refunds: 0,
+      expenses: 0,
+      transactions: [],
+      salesInvoices: []
+    };
+
+    // Insert directly to Supabase
+    const createdSession = await insertCashSessionToSupabase(newSession);
+    
+    if (!createdSession) {
+      console.error("[Cash Register API] Failed to create cash session");
+      return res.status(500).json({ error: "Failed to create cash session in database. Check server logs for details." });
+    }
+
+    // Log audit
+    updateDB(state => {
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: openedBy.email,
+        action: "Open Cash Session",
+        module: "Cash Register",
+        date: new Date().toISOString(),
+        details: `Opened cash register session with opening balance: $${openingBalance}`
+      });
+    });
+
+    console.log("[Cash Register API] Cash session opened successfully:", createdSession.id);
+    res.status(201).json(createdSession);
+  } catch (error: any) {
+    console.error("[Cash Register API] Exception in /api/cash-register/open:", error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
 });
 
-app.post("/api/cash-register/close", (req, res) => {
+app.post("/api/cash-register/close", async (req, res) => {
   const { actualClosingBalance, note, closedBy } = req.body;
   if (actualClosingBalance === undefined || !closedBy) {
     return res.status(400).json({ error: "Actual Counted Cash and Cashier details are required" });
   }
 
-  const db = readDB();
-  const activeIdx = (db.cashSessions || []).findIndex((s: any) => s.status === "Open");
-  if (activeIdx === -1) {
+  // Query Supabase for active session
+  const active = await getActiveCashSessionFromSupabase();
+  if (!active) {
     return res.status(400).json({ error: "No active cash register session found to close." });
   }
 
-  const active = db.cashSessions[activeIdx];
+  const db = readDB();
   const summarized = calculateSessionSummary(active, db);
   const variance = Number(actualClosingBalance) - summarized.expectedClosingBalance;
 
-  updateDB(state => {
-    const sidx = state.cashSessions.findIndex((s: any) => s.id === active.id);
-    if (sidx !== -1) {
-      const stateActive = state.cashSessions[sidx];
-      stateActive.status = "Closed";
-      stateActive.closedBy = closedBy;
-      stateActive.closedAt = new Date().toISOString();
-      stateActive.actualClosingBalance = Number(actualClosingBalance);
-      stateActive.variance = Number(variance.toFixed(2));
-      stateActive.note = note || "";
-      
-      // Save static values for historical records snapshot
-      stateActive.totalSalesAmount = summarized.totalSalesAmount;
-      stateActive.totalInvoicesCount = summarized.totalInvoicesCount;
-      stateActive.cashPayments = summarized.cashPayments;
-      stateActive.mobileMoneyPayments = summarized.mobileMoneyPayments;
-      stateActive.cardPayments = summarized.cardPayments;
-      stateActive.discounts = summarized.discounts;
-      stateActive.refunds = summarized.refunds;
-      stateActive.expenses = summarized.expenses;
-      stateActive.expectedClosingBalance = summarized.expectedClosingBalance;
-      stateActive.transactions = summarized.transactions;
-    }
+  // Update directly in Supabase
+  const updatedSession = await updateCashSessionInSupabase(active.id, {
+    status: "closed" as any,
+    closedBy,
+    closedAt: new Date().toISOString(),
+    actualClosingBalance: Number(actualClosingBalance),
+    variance: Number(variance.toFixed(2)),
+    note: note || "",
+    totalSalesAmount: summarized.totalSalesAmount,
+    totalInvoicesCount: summarized.totalInvoicesCount,
+    cashPayments: summarized.cashPayments,
+    mobileMoneyPayments: summarized.mobileMoneyPayments,
+    cardPayments: summarized.cardPayments,
+    discounts: summarized.discounts,
+    refunds: summarized.refunds,
+    expenses: summarized.expenses,
+    expectedClosingBalance: summarized.expectedClosingBalance,
+    transactions: summarized.transactions
+  });
 
+  // Log audit
+  updateDB(state => {
     state.auditLogs.unshift({
       id: `aud-${Date.now()}`,
       userEmail: closedBy.email,
@@ -3240,15 +3344,11 @@ app.post("/api/cash-register/close", (req, res) => {
     });
   });
 
-  res.json({
-    ...summarized,
-    status: "Closed",
-    closedBy,
-    closedAt: new Date().toISOString(),
-    actualClosingBalance,
-    variance: Number(variance.toFixed(2)),
-    note: note || ""
-  });
+  if (!updatedSession) {
+    return res.status(500).json({ error: "Failed to update cash session in database" });
+  }
+
+  res.json(updatedSession);
 });
 
 app.post("/validation", (req, res) => {

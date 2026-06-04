@@ -7,6 +7,7 @@ import { useState, useEffect, FormEvent } from "react";
 import { Users, Plus, Clipboard, Gift, Heart, ShieldAlert, RefreshCw, X } from "lucide-react";
 import { Customer } from "../types";
 import { formatSafeDateOnly } from "../utils";
+import { Input } from "./FormInputs";
 
 export default function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -184,96 +185,67 @@ export default function Customers() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                  Legal Full Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Susan Williams"
-                  className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none"
-                />
-              </div>
+              <Input
+                label="Legal Full Name"
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Susan Williams"
+              />
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. +254 711..."
-                    className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none"
-                  />
-                </div>
+                <Input
+                  label="Phone Number"
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. +254 711..."
+                />
 
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. susan@mail.com"
-                    className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none"
-                  />
-                </div>
+                <Input
+                  label="Email Address"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. susan@mail.com"
+                />
               </div>
 
               <div className="border-t border-slate-100 pt-4 space-y-4">
                 <p className="text-[10px] font-bold tracking-wider text-slate-450 uppercase block mb-1 px-0.5">Insurance Cover policy linkage</p>
                 
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                    Insurance Provider
-                  </label>
-                  <input
-                    type="text"
-                    value={insuranceProvider}
-                    onChange={(e) => setInsuranceProvider(e.target.value)}
-                    placeholder="e.g. Jubilee Insurance or AAR"
-                    className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none"
-                  />
-                </div>
+                <Input
+                  label="Insurance Provider"
+                  type="text"
+                  value={insuranceProvider}
+                  onChange={(e) => setInsuranceProvider(e.target.value)}
+                  placeholder="e.g. Jubilee Insurance or AAR"
+                />
 
                 {insuranceProvider && (
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                        Policy Number
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={insurancePolicyNumber}
-                        onChange={(e) => setInsurancePolicyNumber(e.target.value)}
-                        placeholder="POL-JUB-09921"
-                        className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl"
-                      />
-                    </div>
+                    <Input
+                      label="Policy Number"
+                      type="text"
+                      required
+                      value={insurancePolicyNumber}
+                      onChange={(e) => setInsurancePolicyNumber(e.target.value)}
+                      placeholder="POL-JUB-09921"
+                    />
 
-                    <div>
-                      <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                        Patient Copay Percentage
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        required
-                        value={copayPercent}
-                        onChange={(e) => setCopayPercent(e.target.value)}
-                        placeholder="20"
-                        className="w-full text-xs font-bold font-mono text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl"
-                      />
-                    </div>
+                    <Input
+                      label="Patient Copay Percentage"
+                      type="number"
+                      min="0"
+                      max="100"
+                      required
+                      value={copayPercent}
+                      onChange={(e) => setCopayPercent(e.target.value)}
+                      placeholder="20"
+                      inputClassName="font-mono font-bold"
+                    />
                   </div>
                 )}
               </div>

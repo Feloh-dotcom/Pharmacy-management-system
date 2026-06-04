@@ -13,6 +13,7 @@ import { Medicine, Customer, Sale, SystemSettings, UserRole } from "../types";
 import { formatSafeDateTime, formatCurrency, getDaysToExpiry, getExpiryStatus, formatSafeDateOnly } from "../utils";
 import BarcodeScannerModal, { playScanBeep } from "./BarcodeScannerModal";
 import { useHardwareBarcodeScanner } from "../hooks/useHardwareBarcodeScanner";
+import { Input, CurrencyInput, Select } from "./FormInputs";
 
 interface POSProps {
   settings?: SystemSettings | null;
@@ -62,7 +63,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
     if (!clean) return;
 
     const matched = medicines.find(
-      m => m.barcode === clean || m.id === clean || m.SKU.toLowerCase() === clean.toLowerCase()
+      m => m.barcode === clean || m.id === clean || (m.SKU || "").toLowerCase() === clean.toLowerCase()
     );
 
     if (matched) {
@@ -542,9 +543,9 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
   }, [finalTotal, paymentMethod]);
 
   const filteredMedicines = medicines.filter(m => 
-    m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.genericName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.SKU.toLowerCase().includes(searchQuery.toLowerCase())
+    (m.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (m.genericName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (m.SKU || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -629,16 +630,14 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
 
         {/* Quick Search bar */}
         <div className="relative flex space-x-2 items-center">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search EAN, brand tablet, generic capsule composition..."
-              className="w-full pl-9 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:ring-1 focus:ring-teal-500"
-            />
-          </div>
+          <Input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search EAN, brand tablet, generic capsule composition..."
+            icon={<Search className="w-4 h-4 text-slate-400" />}
+            containerClassName="flex-1"
+          />
           <button
             type="button"
             onClick={() => setIsPOSScannerOpen(true)}
@@ -868,24 +867,21 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
                     <span className="font-mono text-slate-500 font-bold">{formatCurrency(finalTotal, currencySymbol)} total</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-wider text-slate-400 block mb-1">Cash Paid (💵)</label>
-                      <input 
-                        type="number"
-                        min="0"
-                        max={finalTotal}
-                        value={cashSplitPaid}
-                        onChange={(e) => {
-                          const val = Math.min(finalTotal, Number(e.target.value) || 0);
-                          setCashSplitPaid(val);
-                          setMpesaSplitPaid(Math.max(0, Number((finalTotal - val).toFixed(2))));
-                        }}
-                        className="w-full text-xs font-bold font-mono text-slate-700 bg-white border border-slate-200 rounded-xl p-2 focus:outline-[#093530]"
-                      />
-                    </div>
+                    <CurrencyInput
+                      label="Cash Paid (💵)"
+                      currency={currencySymbol}
+                      min="0"
+                      max={finalTotal}
+                      value={cashSplitPaid || ""}
+                      onChange={(e) => {
+                        const val = Math.min(finalTotal, Number(e.target.value) || 0);
+                        setCashSplitPaid(val);
+                        setMpesaSplitPaid(Math.max(0, Number((finalTotal - val).toFixed(2))));
+                      }}
+                    />
                     <div>
                       <label className="text-[9px] font-black uppercase tracking-wider text-[#093530] block mb-1">M-Pesa Portion (📲)</label>
-                      <div className="w-full text-xs font-black font-mono text-teal-800 bg-teal-50 border border-teal-100/60 rounded-xl p-2 select-none">
+                      <div className="w-full text-xs font-black font-mono text-teal-800 bg-teal-50 border border-teal-100/60 rounded-xl p-2 select-none" style={{ height: "38px", display: "flex", alignItems: "center" }}>
                         {formatCurrency(mpesaSplitPaid, currencySymbol)}
                       </div>
                     </div>
@@ -895,19 +891,14 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
             </div>
 
             {/* Discount field */}
-            <div>
-              <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                Discount Code / Rebate Amount ({currencySymbol})
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={discountAmount}
-                onChange={(e) => setDiscountAmount(Number(e.target.value))}
-                placeholder="0.00"
-                className="w-full text-xs font-bold font-mono text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-              />
-            </div>
+            <CurrencyInput
+              label="Discount Code / Rebate Amount"
+              currency={currencySymbol}
+              min="0"
+              value={discountAmount || ""}
+              onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
+              placeholder="0.00"
+            />
 
             {/* Financial Calculations list */}
             <div className="space-y-2 border-t border-slate-100 pt-4.5 text-slate-500 font-semibold text-xs leading-none">

@@ -9,6 +9,7 @@ import {
   Search, Trash2, Edit2, RefreshCw, X, ShieldAlert, Check, Landmark
 } from "lucide-react";
 import { Supplier } from "../types";
+import { Input } from "./FormInputs";
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -138,11 +139,11 @@ export default function Suppliers() {
   const filteredSuppliers = suppliers.filter(sup => {
     const query = searchQuery.toLowerCase();
     return (
-      sup.name.toLowerCase().includes(query) ||
-      sup.companyName.toLowerCase().includes(query) ||
-      sup.email.toLowerCase().includes(query) ||
-      sup.phone.toLowerCase().includes(query) ||
-      sup.address.toLowerCase().includes(query)
+      (sup.name || "").toLowerCase().includes(query) ||
+      (sup.companyName || "").toLowerCase().includes(query) ||
+      (sup.email || "").toLowerCase().includes(query) ||
+      (sup.phone || "").toLowerCase().includes(query) ||
+      (sup.address || "").toLowerCase().includes(query)
     );
   });
 
@@ -186,7 +187,7 @@ export default function Suppliers() {
           <div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-mono">Manufacturers</p>
             <p className="text-lg font-black text-slate-700">
-              {suppliers.filter(s => s.companyName.toLowerCase().includes("pharma") || s.companyName.toLowerCase().includes("labs") || s.companyName.toLowerCase().includes("lab")).length} active labs
+              {suppliers.filter(s => (s.companyName || "").toLowerCase().includes("pharma") || (s.companyName || "").toLowerCase().includes("labs") || (s.companyName || "").toLowerCase().includes("lab")).length} active labs
             </p>
           </div>
         </div>
@@ -204,16 +205,14 @@ export default function Suppliers() {
 
       {/* Filter and Search */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search suppliers by contact, company name, address or email..."
-            className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 pl-10 pr-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-          />
-        </div>
+        <Input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search suppliers by contact, company name, address or email..."
+          icon={<Search className="w-4 h-4 text-slate-400" />}
+          containerClassName="flex-1"
+        />
         <div className="shrink-0 flex items-center space-x-2 text-xs text-slate-400 font-semibold font-mono">
           <span>Displaying {filteredSuppliers.length} of {suppliers.length} records</span>
           <button 
@@ -363,74 +362,49 @@ export default function Suppliers() {
                 </div>
               )}
 
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                  Company / Organization Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="e.g. Novartis Pharmaceuticals or Astra Labs"
-                  className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/10 focus:border-teal-500"
-                />
-              </div>
+              <Input
+                label="Company / Organization Name"
+                type="text"
+                required
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="e.g. Novartis Pharmaceuticals or Astra Labs"
+              />
 
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                  Contact Representative Name
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Susan Williams"
-                  className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/10 focus:border-teal-500"
-                />
-              </div>
+              <Input
+                label="Contact Representative Name"
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Susan Williams"
+              />
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. +254 711 000000"
-                    className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/10 focus:border-teal-500"
-                  />
-                </div>
+                <Input
+                  label="Phone Number"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. +254 711 000000"
+                />
 
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. licensing@company.com"
-                    className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/10 focus:border-teal-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-0.5">
-                  Physical Address / Warehouse Location
-                </label>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="e.g. Plot 12, Industrial Area, Nairobi, Kenya"
-                  className="w-full text-xs font-semibold text-slate-705 bg-slate-50 border border-slate-200 p-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/10 focus:border-teal-500"
+                <Input
+                  label="Email Address"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. licensing@company.com"
                 />
               </div>
+
+              <Input
+                label="Physical Address / Warehouse Location"
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="e.g. Plot 12, Industrial Area, Nairobi, Kenya"
+              />
 
               <button
                 type="submit"

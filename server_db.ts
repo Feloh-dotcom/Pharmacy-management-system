@@ -17,14 +17,21 @@ import {
 
 // Dynamic Supabase client configuration
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://ofwkndpzjlkumowdeaol.supabase.co";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_D-MOhLsaD69okFRm-FcAXg_vx_unfXt";
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "sb_secret_placeholder_not_configured";
+
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn("⚠️ Warning: Missing SUPABASE_SERVICE_ROLE_KEY environment variable. Supabase integration calls will fail until configured.");
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export function hasServiceRole(): boolean {
-  if (!supabaseKey || typeof supabaseKey !== "string" || !supabaseKey.includes(".")) return false;
+  const realKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!realKey || typeof realKey !== "string") return false;
+  if (realKey.startsWith("sb_secret_")) return true;
+  if (!realKey.includes(".")) return false;
   try {
-    const parts = supabaseKey.split(".");
+    const parts = realKey.split(".");
     if (parts.length !== 3) return false;
     const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf-8"));
     return payload?.role === "service_role";
@@ -376,14 +383,13 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
     table: "customers",
     keyMap: {
       id: "id",
-      name: "name",
+      name: "full_name",
       email: "email",
       phone: "phone",
       loyaltyPoints: "loyalty_points",
       insuranceProvider: "insurance_provider",
       insurancePolicyNumber: "insurance_policy_number",
-      copayPercent: "copay_percent",
-      prescriptionHistory: "prescription_history"
+      copayPercent: "copay_percent"
     }
   },
   sales: {
@@ -395,13 +401,13 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
       customerEmail: "customer_email",
       invoiceNumber: "invoice_number",
       items: "items",
-      totalPrice: "total_price",
-      discount: "discount",
+      totalPrice: "total_amount",
+      discount: "discount_amount",
       taxAmount: "tax_amount",
       paymentMethod: "payment_method",
       paymentStatus: "payment_status",
-      cashierEmail: "cashier_email",
-      date: "date"
+      cashierEmail: "cashier_id",
+      date: "sold_at"
     }
   },
   inventoryLogs: {
@@ -434,12 +440,12 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
     table: "finance_records",
     keyMap: {
       id: "id",
-      type: "type",
+      type: "record_type",
       category: "category",
       amount: "amount",
       description: "description",
       paymentMethod: "payment_method",
-      date: "date"
+      date: "recorded_at"
     }
   },
   auditLogs: {
@@ -507,9 +513,6 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
       actualClosingBalance: "actual_cash",
       variance: "discrepancy",
       notes: "notes",
-      salesInvoices: "sales_invoices",
-      mpesaTransactionsAndAmounts: "mpesa_transactions_and_amounts",
-      cashTransactions: "cash_transactions",
       totalSalesAmount: "total_sales_amount",
       totalMpesaAmount: "total_mpesa_amount",
       totalCashAmount: "total_cash_amount",
@@ -601,7 +604,8 @@ export function mapToRow(configName: string, item: any): any {
         snakeKey === "category_id" ||
         snakeKey === "supplier_id" ||
         snakeKey === "medicine_id" ||
-        snakeKey === "customer_id"
+        snakeKey === "customer_id" ||
+        snakeKey === "cashier_id"
       ) {
         if (typeof val === "string") {
           val = toUUIDIfNeeded(val);
@@ -641,11 +645,65 @@ export function mapToRow(configName: string, item: any): any {
     row.actor_id = item.userEmail ? toUUIDIfNeeded(item.userEmail) : toUUIDIfNeeded("system@halomedical.com");
   }
   if (configName === "cashSessions") {
+    row.status = String(item.status || "open").toLowerCase();
     row.opening_cash = Number(item.openingBalance || 0);
     row.expected_cash = Number(item.expectedClosingBalance || 0);
     row.actual_cash = item.actualClosingBalance !== undefined && item.actualClosingBalance !== null ? Number(item.actualClosingBalance) : null;
     row.discrepancy = item.variance !== undefined && item.variance !== null ? Number(item.variance) : null;
     row.notes = item.notes || item.note || "";
+  }
+  if (configName === "customers") {
+    row.notes = JSON.stringify(item.prescriptionHistory || []);
+  }
+  if (configName === "sales") {
+    const total = Number(item.totalPrice || 0);
+    const discount = Number(item.discount || 0);
+    const tax = Number(item.taxAmount || 0);
+    row.subtotal = Number((total + discount - tax).toFixed(2));
+    
+    let paidVal = 0;
+    if (item.paymentMethod === "Cash") {
+      paidVal = item.cashPaid !== undefined ? Number(item.cashPaid) : total;
+    } else if (item.paymentMethod === "M-Pesa") {
+      paidVal = item.mpesaPaid !== undefined ? Number(item.mpesaPaid) : total;
+    } else if (item.paymentMethod === "Card") {
+      paidVal = total;
+    } else if (item.paymentMethod === "Split") {
+      paidVal = Number(item.cashPaid || 0) + Number(item.mpesaPaid || 0);
+    }
+    row.amount_paid = paidVal;
+
+    let changeVal = 0;
+    if (item.paymentMethod === "Cash" && item.cashPaid !== undefined) {
+      changeVal = Math.max(0, Number(item.cashPaid) - total);
+    } else if (item.paymentMethod === "Split" && paidVal > total) {
+      changeVal = paidVal - total;
+    }
+    row.change_amount = Number(changeVal.toFixed(2));
+
+    row.payment_method = String(item.paymentMethod || "cash").toLowerCase();
+    
+    let payStatus = "paid";
+    if (item.paymentStatus) {
+      const psLower = item.paymentStatus.toLowerCase();
+      if (psLower.includes("refund")) payStatus = "refunded";
+      else if (psLower.includes("pend")) payStatus = "pending";
+    }
+    row.payment_status = payStatus;
+    row.sale_status = "completed";
+
+    // Serialize extra fields into notes JSON
+    const meta = {
+      cashPaid: item.cashPaid,
+      mpesaPaid: item.mpesaPaid,
+      mpesaTransactionCode: item.mpesaTransactionCode,
+      mpesaPhoneNumber: item.mpesaPhoneNumber,
+      customNotes: item.notes || item.note || "",
+      items: item.items || [],
+      customerName: item.customerName,
+      customerEmail: item.customerEmail
+    };
+    row.notes = JSON.stringify(meta);
   }
   return row;
 }
@@ -701,6 +759,13 @@ export function mapFromRow(configName: string, row: any): any {
     }
   }
   if (configName === "cashSessions") {
+    item.salesInvoices = [];
+    item.mpesaTransactionsAndAmounts = [];
+    item.cashTransactions = [];
+    if (typeof item.status === "string") {
+      const lowerStatus = item.status.toLowerCase().trim();
+      item.status = (lowerStatus === "open" ? "Open" : "Closed") as any;
+    }
     item.openingBalance = Number(row.opening_cash || 0);
     item.expectedClosingBalance = Number(row.expected_cash || 0);
     item.actualClosingBalance = row.actual_cash !== null ? Number(row.actual_cash) : undefined;
@@ -710,9 +775,76 @@ export function mapFromRow(configName: string, row: any): any {
 
     if (typeof item.openedBy === "string") {
       item.openedBy = findUserByUUID(item.openedBy);
+    } else if (!item.openedBy || typeof item.openedBy !== "object" || !item.openedBy.name) {
+      item.openedBy = findUserByUUID(String(item.openedBy || "system"));
     }
-    if (item.closedBy !== undefined && typeof item.closedBy === "string") {
-      item.closedBy = findUserByUUID(item.closedBy);
+
+    if (item.closedBy !== undefined && item.closedBy !== null) {
+      if (typeof item.closedBy === "string") {
+        item.closedBy = findUserByUUID(item.closedBy);
+      } else if (typeof item.closedBy !== "object" || !item.closedBy.name) {
+        item.closedBy = findUserByUUID(String(item.closedBy));
+      }
+    }
+  }
+  if (configName === "customers") {
+    item.prescriptionHistory = [];
+    if (row.notes) {
+      try {
+        const decoded = JSON.parse(row.notes);
+        if (Array.isArray(decoded)) {
+          item.prescriptionHistory = decoded;
+        }
+      } catch (e) {
+        // Fallback or ignore if plain text notes
+      }
+    }
+  }
+  if (configName === "sales") {
+    // Standardize payment method capitalization
+    if (typeof item.paymentMethod === "string") {
+      const pmLower = item.paymentMethod.toLowerCase().trim();
+      if (pmLower === "cash") item.paymentMethod = "Cash";
+      else if (pmLower === "m-pesa" || pmLower === "mpesa") item.paymentMethod = "M-Pesa";
+      else if (pmLower === "card") item.paymentMethod = "Card";
+      else if (pmLower === "split") item.paymentMethod = "Split";
+      else item.paymentMethod = "Cash";
+    }
+    // Standardize payment status capitalization
+    if (typeof item.paymentStatus === "string") {
+      const psLower = item.paymentStatus.toLowerCase().trim();
+      if (psLower === "paid" || psLower === "completed" || psLower === "completed_paid") item.paymentStatus = "Paid";
+      else if (psLower === "refunded" || psLower === "refund") item.paymentStatus = "Refunded";
+      else if (psLower === "pending") item.paymentStatus = "Pending";
+      else item.paymentStatus = "Paid";
+    }
+    // Decode payment metadata from notes column
+    item.items = [];
+    if (row.notes) {
+      try {
+        const meta = JSON.parse(row.notes);
+        if (meta && typeof meta === "object") {
+          if (meta.cashPaid !== undefined) item.cashPaid = meta.cashPaid;
+          if (meta.mpesaPaid !== undefined) item.mpesaPaid = meta.mpesaPaid;
+          if (meta.mpesaTransactionCode !== undefined) item.mpesaTransactionCode = meta.mpesaTransactionCode;
+          if (meta.mpesaPhoneNumber !== undefined) item.mpesaPhoneNumber = meta.mpesaPhoneNumber;
+          if (meta.items !== undefined) item.items = meta.items;
+          if (meta.customerName !== undefined) item.customerName = meta.customerName;
+          if (meta.customerEmail !== undefined) item.customerEmail = meta.customerEmail;
+          item.notes = meta.customNotes || "";
+          item.note = meta.customNotes || "";
+        }
+      } catch (ex) {
+        item.notes = row.notes;
+        item.note = row.notes;
+      }
+    }
+    // Convert cashier_id (UUID or identifier) back to email if possible
+    if (typeof item.cashierEmail === "string" && !item.cashierEmail.includes("@")) {
+      const userObj = findUserByUUID(item.cashierEmail);
+      if (userObj && userObj.email) {
+        item.cashierEmail = userObj.email;
+      }
     }
   }
   return item;
@@ -1316,6 +1448,10 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
         console.warn(`[Self-Healing FKey] customer_id constraint violation in [${tableName}]. Set to null.`);
         attemptRows = attemptRows.map((r: any) => ({ ...r, customer_id: null }));
         healed = true;
+      } else if (errMsg.includes("cashier_id")) {
+        console.warn(`[Self-Healing FKey] cashier_id constraint violation in [${tableName}]. Set to null.`);
+        attemptRows = attemptRows.map((r: any) => ({ ...r, cashier_id: null }));
+        healed = true;
       } else if (errMsg.includes("supplier_id")) {
         console.warn(`[Self-Healing FKey] supplier_id constraint violation in [${tableName}]. Set to null.`);
         attemptRows = attemptRows.map((r: any) => ({ ...r, supplier_id: null }));
@@ -1324,13 +1460,21 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
         console.warn(`[Self-Healing FKey] category_id constraint violation in [${tableName}]. Set to null.`);
         attemptRows = attemptRows.map((r: any) => ({ ...r, category_id: null }));
         healed = true;
+      } else if (errMsg.includes("medicine_id")) {
+        console.warn(`[Self-Healing FKey] medicine_id constraint violation in [${tableName}]. Set to null.`);
+        attemptRows = attemptRows.map((r: any) => ({ ...r, medicine_id: null }));
+        healed = true;
+      } else if (errMsg.includes("sale_id")) {
+        console.warn(`[Self-Healing FKey] sale_id constraint violation in [${tableName}]. Set to null.`);
+        attemptRows = attemptRows.map((r: any) => ({ ...r, sale_id: null }));
+        healed = true;
       }
       if (healed) {
         continue;
       }
     }
 
-    // Self-healing for NOT NULL constraint violations (23502)
+     // Self-healing for NOT NULL constraint violations (23502)
     if (errCode === "23502" || errMsg.includes("violates not-null constraint")) {
       const matchNotNull = errMsg.match(/column "([^"]+)"/);
       if (matchNotNull) {
@@ -1338,6 +1482,21 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
         if (notNullCol === "opening_balance" || notNullCol === "opening_cash") {
           console.warn(`[Self-Healing Not-Null] Column [${notNullCol}] violates constraint in [${tableName}]. Retrying with default 0.00...`);
           attemptRows = attemptRows.map((r: any) => ({ ...r, [notNullCol]: r[notNullCol] || 0 }));
+          continue;
+        }
+        if (notNullCol === "record_type") {
+          console.warn(`[Self-Healing Not-Null] Column [${notNullCol}] violates constraint in [${tableName}]. Retrying with default "income"...`);
+          attemptRows = attemptRows.map((r: any) => ({ ...r, record_type: r.record_type || "income" }));
+          continue;
+        }
+        if (notNullCol === "category") {
+          console.warn(`[Self-Healing Not-Null] Column [${notNullCol}] violates constraint in [${tableName}]. Retrying with default "General"...`);
+          attemptRows = attemptRows.map((r: any) => ({ ...r, category: r.category || "General" }));
+          continue;
+        }
+        if (notNullCol === "amount") {
+          console.warn(`[Self-Healing Not-Null] Column [${notNullCol}] violates constraint in [${tableName}]. Retrying with default 0.00...`);
+          attemptRows = attemptRows.map((r: any) => ({ ...r, amount: r.amount !== undefined ? Number(r.amount) : 0 }));
           continue;
         }
       }
@@ -1366,24 +1525,24 @@ async function syncChildRecords(key: string, rows: any[]) {
             medicine_id: item.medicineId ? toUUIDIfNeeded(item.medicineId) : null,
             medicine_name: item.medicineName,
             quantity: item.quantity || 1,
-            price: item.price || 0,
-            tax: item.tax || 0
+            unit_price: item.price !== undefined ? item.price : 0,
+            line_total: Number(((item.price || 0) * (item.quantity || 1) + (item.tax || 0)).toFixed(2))
           });
         });
         receiptsRows.push({
           id: toUUIDIfNeeded(`${saleObj.id}-receipt`),
           sale_id: saleObj.id,
-          invoice_number: saleObj.invoice_number || `INV-${Date.now()}`,
-          total_amount: saleObj.total_price || 0,
-          payment_method: saleObj.payment_method || "Cash",
-          issued_at: saleObj.date || new Date().toISOString()
+          invoice_number: saleObj.invoice_number || saleObj.invoiceNumber || `INV-${Date.now()}`,
+          total_amount: saleObj.total_amount !== undefined ? saleObj.total_amount : (saleObj.total_price !== undefined ? saleObj.total_price : (saleObj.totalPrice !== undefined ? saleObj.totalPrice : 0)),
+          payment_method: saleObj.payment_method || saleObj.paymentMethod || "Cash",
+          issued_at: saleObj.sold_at || saleObj.date || saleObj.issued_at || new Date().toISOString()
         });
       }
       if (saleItemsRows.length > 0) {
-        await supabase.from("sale_items").upsert(saleItemsRows);
+        await upsertWithSelfHealing("sale_items", saleItemsRows);
       }
       if (receiptsRows.length > 0) {
-        await supabase.from("receipts").upsert(receiptsRows);
+        await upsertWithSelfHealing("receipts", receiptsRows);
       }
     } else if (key === "purchaseOrders") {
       const poItemsRows: any[] = [];
@@ -1402,7 +1561,7 @@ async function syncChildRecords(key: string, rows: any[]) {
         });
       }
       if (poItemsRows.length > 0) {
-        await supabase.from("purchase_order_items").upsert(poItemsRows);
+        await upsertWithSelfHealing("purchase_order_items", poItemsRows);
       }
     }
   } catch (err: any) {
@@ -1418,6 +1577,7 @@ async function seedTableToSupabase(key: string, items: any[]) {
   
   console.log(`[Supabase Config Seeder] Seeding ${items.length} rows for ${config.table}...`);
   const rows = items.map(item => mapToRow(key, item));
+  const rowsCopyForChildren = JSON.parse(JSON.stringify(rows));
   
   const { error } = await upsertWithSelfHealing(config.table, rows);
     
@@ -1431,7 +1591,7 @@ async function seedTableToSupabase(key: string, items: any[]) {
   } else {
     console.log(`[Supabase Seed] Seeding of ${config.table} complete.`);
     if (key === "sales" || key === "purchaseOrders") {
-      await syncChildRecords(key, rows);
+      await syncChildRecords(key, rowsCopyForChildren);
     }
   }
 }
@@ -1462,6 +1622,7 @@ async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
       if (upserts.length > 0) {
         for (let i = 0; i < upserts.length; i += 100) {
           const chunk = upserts.slice(i, i + 100);
+          const chunkCopyForChildren = JSON.parse(JSON.stringify(chunk));
           const { error } = await upsertWithSelfHealing(mapping.table, chunk);
           if (error) {
             const isRLS = error.message.includes("row-level security") || error.code === "42501";
@@ -1472,7 +1633,7 @@ async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
             }
           } else {
             if (key === "sales" || key === "purchaseOrders") {
-              await syncChildRecords(key, chunk);
+              await syncChildRecords(key, chunkCopyForChildren);
             }
           }
         }
@@ -1587,4 +1748,124 @@ export function updateDB(updater: (state: DBState) => void): DBState {
     pullChangesFromSupabase(true).catch(e => console.error("[Sync Trigger Fail]", e));
   });
   return stateCopy;
+}
+
+// --- Direct Supabase queries for cash sessions (source of truth) ---
+export async function getActiveCashSessionFromSupabase(): Promise<CashSession | null> {
+  try {
+    const { data, error } = await supabase
+      .from("cash_sessions")
+      .select("*")
+      .eq("status", "open")
+      .order("opened_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        // No rows found
+        return null;
+      }
+      console.error("[Supabase Query Error] Failed to get active cash session:", error.message);
+      return null;
+    }
+
+    if (!data) return null;
+    return mapFromRow("cashSessions", data);
+  } catch (err) {
+    console.error("[Supabase Exception] getActiveCashSessionFromSupabase:", err);
+    return null;
+  }
+}
+
+export async function getAllCashSessionsFromSupabase(): Promise<CashSession[]> {
+  try {
+    const { data, error } = await supabase
+      .from("cash_sessions")
+      .select("*")
+      .order("opened_at", { ascending: false });
+
+    if (error) {
+      console.error("[Supabase Query Error] Failed to get cash sessions:", error.message);
+      return [];
+    }
+
+    if (!data || !Array.isArray(data)) return [];
+    return data.map(row => mapFromRow("cashSessions", row));
+  } catch (err) {
+    console.error("[Supabase Exception] getAllCashSessionsFromSupabase:", err);
+    return [];
+  }
+}
+
+export async function insertCashSessionToSupabase(session: CashSession): Promise<CashSession | null> {
+  try {
+    const row = mapToRow("cashSessions", session);
+    console.log("[Cash Session] Inserting session with data:", JSON.stringify(row, null, 2));
+    
+    const { data, error } = await supabase
+      .from("cash_sessions")
+      .insert([row])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[Supabase Insert Error] Failed to insert cash session:");
+      console.error("  Message:", error.message);
+      console.error("  Code:", error.code);
+      console.error("  Details:", error.details);
+      console.error("  Hint:", error.hint);
+      console.error("  Row being inserted:", JSON.stringify(row, null, 2));
+      return null;
+    }
+
+    if (!data) {
+      console.error("[Supabase Insert Error] No data returned from insert");
+      return null;
+    }
+    
+    const result = mapFromRow("cashSessions", data);
+    
+    // Update local cache
+    globalStateCache.cashSessions.unshift(result);
+    writeDBToFileSystem(globalStateCache);
+    
+    console.log("[Cash Session] Successfully inserted session:", result.id);
+    return result;
+  } catch (err) {
+    console.error("[Supabase Exception] insertCashSessionToSupabase:", err);
+    return null;
+  }
+}
+
+export async function updateCashSessionInSupabase(sessionId: string, updates: Partial<CashSession>): Promise<CashSession | null> {
+  try {
+    const row = mapToRow("cashSessions", updates);
+    const { data, error } = await supabase
+      .from("cash_sessions")
+      .update(row)
+      .eq("id", sessionId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[Supabase Update Error] Failed to update cash session:", error.message);
+      return null;
+    }
+
+    if (!data) return null;
+    const result = mapFromRow("cashSessions", data);
+    
+    // Update local cache
+    const idx = globalStateCache.cashSessions.findIndex(s => s.id === sessionId);
+    if (idx !== -1) {
+      globalStateCache.cashSessions[idx] = result;
+    }
+    writeDBToFileSystem(globalStateCache);
+    
+    return result;
+  } catch (err) {
+    console.error("[Supabase Exception] updateCashSessionInSupabase:", err);
+    return null;
+  }
 }

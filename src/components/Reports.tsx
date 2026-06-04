@@ -137,10 +137,10 @@ export default function Reports({ settings }: ReportsProps) {
   const targetExpiryList = medicines.filter(m => {
     const days = getDaysToExpiry(m.expiryDate);
     const matchesSearch = 
-      m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.genericName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (m.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (m.genericName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (m.batchNumber && m.batchNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      m.SKU.toLowerCase().includes(searchTerm.toLowerCase());
+      (m.SKU || "").toLowerCase().includes(searchTerm.toLowerCase());
 
     if (!matchesSearch) return false;
 

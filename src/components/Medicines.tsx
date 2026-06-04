@@ -14,6 +14,7 @@ import { formatSafeDateOnly, isDateExpired, formatCurrency, getDaysToExpiry } fr
 import BarcodeScannerModal from "./BarcodeScannerModal";
 import BarcodeRenderer from "./BarcodeRenderer";
 import { useHardwareBarcodeScanner } from "../hooks/useHardwareBarcodeScanner";
+import { Input, CurrencyInput, Select, DateInput } from "./FormInputs";
 
 interface MedicinesProps {
   editFocusMedicine: Medicine | null;
@@ -169,21 +170,48 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    
+    // Validation
+    if (!name.trim()) {
+      setToastMessage("Product name is required");
+      return;
+    }
+    if (!SKU.trim()) {
+      setToastMessage("SKU is required");
+      return;
+    }
+    if (!expiryDate) {
+      setToastMessage("Expiry date is required");
+      return;
+    }
+    if (!categoryId) {
+      setToastMessage("Category is required");
+      return;
+    }
+    
     const payload = {
-      name, genericName, SKU, batchNumber, expiryDate,
-      buyingPrice: Number(buyingPrice),
-      sellingPrice: Number(sellingPrice),
-      quantity: Number(quantity),
-      minStockLevel: Number(minStockLevel),
-      manufacturer, categoryId, supplierId,
-      prescriptionRequired, barcode,
-      taxVat: Number(taxVat)
+      name: name.trim(), 
+      genericName: genericName.trim(), 
+      SKU: SKU.trim(), 
+      batchNumber: batchNumber.trim(),
+      expiryDate,
+      buyingPrice: Number(buyingPrice) || 0,
+      sellingPrice: Number(sellingPrice) || 0,
+      quantity: Number(quantity) || 0,
+      minStockLevel: Number(minStockLevel) || 10,
+      manufacturer: manufacturer.trim(), 
+      categoryId, 
+      supplierId,
+      prescriptionRequired, 
+      barcode: barcode.trim(),
+      taxVat: Number(taxVat) || 16
     };
 
     const url = editingId ? `/api/medicines/${editingId}` : "/api/medicines";
     const method = editingId ? "PUT" : "POST";
 
     try {
+      setLoading(true);
       const res = await fetch(url, {
         method,
         headers: { 
@@ -192,17 +220,21 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
         },
         body: JSON.stringify(payload)
       });
+      
       if (res.ok) {
-        setToastMessage(`Product records ${editingId ? 'saved' : 'created'} successfully!`);
+        setToastMessage(`Product ${editingId ? 'updated' : 'created'} successfully!`);
         setShowFormModal(false);
-        loadData();
+        await loadData();
         setTimeout(() => setToastMessage(null), 3000);
       } else {
         const err = await res.json();
-        alert(`Failed: ${err.error}`);
+        setToastMessage(`Error: ${err.error || 'Failed to save product'}`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setToastMessage(`Error: ${e.message || 'Failed to save product'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -229,9 +261,9 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
   const now = new Date();
   const filteredMedicines = medicines.filter(m => {
     const matchesSearch = 
-      m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.genericName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.SKU.toLowerCase().includes(searchTerm.toLowerCase());
+      (m.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (m.genericName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (m.SKU || "").toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesCategory = categoryFilter === "all" || m.categoryId === categoryFilter;
     
@@ -584,87 +616,70 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 {/* Medicine Trademark Name */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Formulation Trademark Name (Brand)
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Amoxil-500"
-                    className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
+                <Input
+                  label="Formulation Trademark Name (Brand)"
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Amoxil-500"
+                />
 
                 {/* Generic ingredient Name */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Generic Composition Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={genericName}
-                    onChange={(e) => setGenericName(e.target.value)}
-                    placeholder="Amoxicillin Trihydrate"
-                    className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
-                </div>
+                <Input
+                  label="Generic Composition Name"
+                  type="text"
+                  required
+                  value={genericName}
+                  onChange={(e) => setGenericName(e.target.value)}
+                  placeholder="Amoxicillin Trihydrate"
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
                 {/* SKU Code */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    SKU Code
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={SKU}
-                    onChange={(e) => setSKU(e.target.value)}
-                    placeholder="MED-AMX-001"
-                    className="w-full text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
-                </div>
+                <Input
+                  label="SKU Code"
+                  type="text"
+                  required
+                  value={SKU}
+                  onChange={(e) => setSKU(e.target.value)}
+                  placeholder="MED-AMX-001"
+                  inputClassName="font-mono font-bold"
+                />
 
                 {/* Batch Identification Number */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Batch Number (Manufacturer)
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={batchNumber}
-                    onChange={(e) => setBatchNumber(e.target.value)}
-                    placeholder="BCH-99210"
-                    className="w-full text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
-                </div>
+                <Input
+                  label="Batch Number (Manufacturer)"
+                  type="text"
+                  required
+                  value={batchNumber}
+                  onChange={(e) => setBatchNumber(e.target.value)}
+                  placeholder="BCH-99210"
+                  inputClassName="font-mono font-bold"
+                />
 
                 {/* Barcode representation */}
-                <div className="flex flex-col space-y-1">
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1 px-1">
                     Barcode ID / EAN Range
                   </label>
                   <div className="flex space-x-1.5 items-center">
-                    <input
+                    <Input
                       type="text"
                       required
                       value={barcode}
                       onChange={(e) => setBarcode(e.target.value)}
                       placeholder="e.g. 8901234567890"
-                      className="flex-1 text-xs font-mono text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl focus:ring-1 focus:ring-teal-500 focus:outline-none"
+                      inputClassName="font-mono flex-1"
                     />
                     
                     {/* Active Form scan camera trigger */}
                     <button
                       type="button"
                       onClick={() => setIsFormScannerOpen(true)}
-                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-900 rounded-xl transition cursor-pointer shrink-0"
+                      className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-900 rounded-xl transition cursor-pointer shrink-0 mt-0"
+                      style={{ height: "38px" }}
                       title="Scan using webcam"
                     >
                       <Camera className="w-4 h-4" />
@@ -679,7 +694,8 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
                         setToastMessage("Created unique EAN barcode profile.");
                         setTimeout(() => setToastMessage(null), 3000);
                       }}
-                      className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-800 rounded-xl transition cursor-pointer shrink-0 flex items-center space-x-1 font-bold text-[10px]"
+                      className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-teal-800 rounded-xl transition cursor-pointer shrink-0 flex items-center space-x-1 font-bold text-[10px]"
+                      style={{ height: "38px" }}
                       title="Auto generate barcode"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
@@ -711,147 +727,104 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
 
               <div className="grid grid-cols-3 gap-4">
                 {/* Category ID mapping */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Therapeutic Category Group
-                  </label>
-                  <select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl cursor-pointer"
-                  >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <Select
+                  label="Therapeutic Category Group"
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                >
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </Select>
 
                 {/* Primary Supplier Map */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Contract supplier Linkage
-                  </label>
-                  <select
-                    value={supplierId}
-                    onChange={(e) => setSupplierId(e.target.value)}
-                    className="w-full text-xs font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl cursor-pointer"
-                  >
-                    {suppliers.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <Select
+                  label="Contract supplier Linkage"
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
+                >
+                  {suppliers.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </Select>
 
                 {/* Manufacturer Branding */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Branded Manufacturer Corp.
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={manufacturer}
-                    onChange={(e) => setManufacturer(e.target.value)}
-                    placeholder="Pfizer Ltd"
-                    className="w-full text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
-                </div>
+                <Input
+                  label="Branded Manufacturer Corp."
+                  type="text"
+                  required
+                  value={manufacturer}
+                  onChange={(e) => setManufacturer(e.target.value)}
+                  placeholder="Pfizer Ltd"
+                />
               </div>
 
               <div className="grid grid-cols-4 gap-4">
                 {/* Pack Buying Price cost */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Buying Price Cost ({currencySymbol})
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={buyingPrice}
-                    onChange={(e) => setBuyingPrice(e.target.value)}
-                    placeholder="90.00"
-                    className="w-full text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
-                </div>
+                <CurrencyInput
+                  label="Buying Price Cost"
+                  currency={currencySymbol}
+                  required
+                  step="0.01"
+                  value={buyingPrice}
+                  onChange={(e) => setBuyingPrice(e.target.value)}
+                  placeholder="90.00"
+                />
 
                 {/* Pack Retail Selling Price */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Selling Retail price ({currencySymbol})
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={sellingPrice}
-                    onChange={(e) => setSellingPrice(e.target.value)}
-                    placeholder="150.00"
-                    className="w-full text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
-                </div>
+                <CurrencyInput
+                  label="Selling Retail price"
+                  currency={currencySymbol}
+                  required
+                  step="0.01"
+                  value={sellingPrice}
+                  onChange={(e) => setSellingPrice(e.target.value)}
+                  placeholder="150.00"
+                />
 
                 {/* Available Quantity */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Current Box Quantity
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={quantity}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    placeholder="100"
-                    disabled={!canAdjustStock}
-                    className="w-full text-[12px] font-mono font-black text-slate-700 bg-slate-50 border border-slate-200 p-1.5 rounded-xl disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                  />
-                </div>
+                <Input
+                  label="Current Box Quantity"
+                  type="number"
+                  required
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  placeholder="100"
+                  disabled={!canAdjustStock}
+                  inputClassName="font-mono font-bold"
+                />
 
                 {/* Minimum stock thresholds level */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Safety Margin Min
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={minStockLevel}
-                    onChange={(e) => setMinStockLevel(e.target.value)}
-                    disabled={!canAdjustStock}
-                    className="w-full text-[12px] font-mono font-black text-slate-700 bg-slate-50 border border-slate-200 p-1.5 rounded-xl disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                  />
-                </div>
+                <Input
+                  label="Safety Margin Min"
+                  type="number"
+                  required
+                  value={minStockLevel}
+                  onChange={(e) => setMinStockLevel(e.target.value)}
+                  disabled={!canAdjustStock}
+                  inputClassName="font-mono font-bold"
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4 pt-1.5">
                 {/* Expiry Date picker */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    Clinical shelf Expiry Date
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={expiryDate}
-                    onChange={(e) => setExpiryDate(e.target.value)}
-                    className="w-full text-xs font-mono font-bold text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl cursor-pointer"
-                  />
-                </div>
+                <DateInput
+                  label="Clinical shelf Expiry Date"
+                  required
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+                />
 
                 {/* Tax / VAT representation */}
-                <div>
-                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1">
-                    VAT Tax Index (%)
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={taxVat}
-                    onChange={(e) => setTaxVat(e.target.value)}
-                    placeholder="16"
-                    className="w-full text-xs font-bold font-mono text-slate-700 bg-slate-50 border border-slate-200 p-2 rounded-xl"
-                  />
-                </div>
+                <Input
+                  label="VAT Tax Index (%)"
+                  type="number"
+                  required
+                  value={taxVat}
+                  onChange={(e) => setTaxVat(e.target.value)}
+                  placeholder="16"
+                  inputClassName="font-mono font-bold"
+                />
 
                 {/* Prescription regulations required check */}
                 <div className="flex flex-col justify-end pb-1.5 px-1.5">
