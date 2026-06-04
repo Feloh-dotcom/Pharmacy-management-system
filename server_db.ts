@@ -40,16 +40,17 @@ export function hasServiceRole(): boolean {
   }
 }
 
-export let isSupabaseDisabled = false;
+const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+export const isRealKeyConfigured = !!(
+  rawKey &&
+  rawKey !== "placeholder_not_configured" &&
+  rawKey.trim() !== ""
+);
+
+export let isSupabaseDisabled = !isRealKeyConfigured;
 
 export function isSupabaseActive(): boolean {
   return !isSupabaseDisabled;
-}
-
-// Automatically detect missing or invalid key during module initialization
-const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!rawKey || rawKey === "placeholder_not_configured" || rawKey.trim() === "") {
-  isSupabaseDisabled = false; // Always keep active as source of truth
 }
 
 export function hashPassword(password: string, salt?: string) {
@@ -1285,7 +1286,9 @@ export async function initSupabaseSync(): Promise<void> {
         }
         if (error.message?.includes("Could not find the table") || error.message?.includes("relation") || error.message?.includes("does not exist")) {
           console.log(`[Supabase Sync Standby] Table ${mapping.table} does not exist in the active schema cache. Local storage backup will be active.`);
-          disabledTables.add(key);
+          if (!isRealKeyConfigured) {
+            disabledTables.add(key);
+          }
           continue;
         }
         console.log(`[Supabase Sync Standby] Query on ${mapping.table} failed. Seeder will auto-create: ${error.message}`);
@@ -1346,7 +1349,9 @@ export async function initSupabaseSync(): Promise<void> {
           console.log("[Supabase Settings] Standby mode: Supabase is unconfigured or key is invalid.");
         } else if (settingsError && (settingsError.message?.includes("Could not find the table") || settingsError.message?.includes("relation") || settingsError.message?.includes("does not exist"))) {
           console.log("[Supabase Settings] system_settings table does not exist in schema cache. Local settings fallback active.");
-          disabledTables.add("system_settings");
+          if (!isRealKeyConfigured) {
+            disabledTables.add("system_settings");
+          }
         } else {
           console.log("[Supabase Settings] Record empty. Seeding system_settings to database...");
           let settingsRow: any = mapSettingsToRow(localData.settings);
