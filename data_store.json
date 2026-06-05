@@ -74,7 +74,14 @@
       "failedLoginAttempts": 0,
       "passwordHash": "8f4a33360c37d7a4b1a643d31bf7e3cbaa3e48e572a9d94517caa70518a0849d4a59dc6d39e302dbd69767e6efb179185e0957e62a0e1a887787d1025acb0f93",
       "salt": "48197b83664b6533ec28d1d0561fa152",
-      "passwordSetupCompleted": false
+      "passwordSetupCompleted": true,
+      "verificationSubmittedAt": "2026-06-05T05:48:52.150Z",
+      "verificationDetails": {
+        "docType": "National ID",
+        "submittedDocumentUrl": "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=400&h=300",
+        "selfieUrl": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400",
+        "submittedAt": "2026-06-05T05:48:52.150Z"
+      }
     }
   ],
   "categories": [
@@ -181,6 +188,22 @@
   "purchaseOrders": [],
   "financeRecords": [],
   "auditLogs": [
+    {
+      "id": "aud-1780638532150-notif",
+      "userEmail": "system@halomedical.com",
+      "action": "Verification Request Pending",
+      "module": "Admin Notification",
+      "date": "2026-06-05T05:48:52.150Z",
+      "details": "ACTION REQUIRED: User New Pharmacy User submitted their verification documents for review in the onboarding queue."
+    },
+    {
+      "id": "aud-1780638532150",
+      "userEmail": "oundofelix04@gmail.com",
+      "action": "Identity Verification Submitted",
+      "module": "Personnel Onboarding",
+      "date": "2026-06-05T05:48:52.150Z",
+      "details": "User [New Pharmacy User] submitted National ID (ID: 40868336) for secure identity verification. Status set to Under Review."
+    },
     {
       "id": "38848457-f234-46ac-959d-d4c8321eca14",
       "action": "User Login",
@@ -344,7 +367,10 @@
     },
     "inventory": {
       "low_stock_alert": true,
-      "expiry_alert_days": 90
+      "expiry_alert_days": 90,
+      "expiryAlertSeverity": "high",
+      "preventSaleOfExpiredGoods": true,
+      "notifyOnExpiryNear": true
     },
     "notifications": {
       "email_notifications": true,
@@ -369,7 +395,12 @@
     {
       "role": "super_admin",
       "permissions": {
-        "all": true
+        "all": true,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
       }
     },
     {
@@ -381,7 +412,12 @@
         "reports": true,
         "settings": true,
         "inventory": true,
-        "purchases": true
+        "purchases": true,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
       }
     },
     {
@@ -390,7 +426,12 @@
         "sales": true,
         "customers": true,
         "inventory": true,
-        "prescriptions": true
+        "prescriptions": true,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
       }
     },
     {
@@ -398,7 +439,12 @@
       "permissions": {
         "sales": true,
         "receipts": true,
-        "customers": true
+        "customers": true,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
       }
     },
     {
@@ -406,7 +452,12 @@
       "permissions": {
         "inventory": true,
         "purchases": true,
-        "suppliers": true
+        "suppliers": true,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
       }
     },
     {
@@ -414,13 +465,151 @@
       "permissions": {
         "sales": true,
         "finance": true,
-        "reports": true
+        "reports": true,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
       }
     },
     {
       "role": "user",
       "permissions": {
-        "profile": true
+        "profile": true,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
+      }
+    },
+    {
+      "role": "Admin",
+      "permissions": {
+        "manageMedicines": true,
+        "deleteSales": true,
+        "viewReports": true,
+        "approvePurchases": true,
+        "manageInventory": true,
+        "modifySettings": true,
+        "addProducts": true,
+        "editProducts": true,
+        "addCategories": true,
+        "editCategories": true,
+        "adjustStock": true
+      }
+    },
+    {
+      "role": "Pharmacist",
+      "permissions": {
+        "manageMedicines": true,
+        "deleteSales": false,
+        "viewReports": true,
+        "approvePurchases": false,
+        "manageInventory": true,
+        "modifySettings": false,
+        "addProducts": true,
+        "editProducts": true,
+        "addCategories": true,
+        "editCategories": true,
+        "adjustStock": true
+      }
+    },
+    {
+      "role": "Cashier",
+      "permissions": {
+        "manageMedicines": true,
+        "deleteSales": false,
+        "viewReports": false,
+        "approvePurchases": false,
+        "manageInventory": true,
+        "modifySettings": false,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
+      }
+    },
+    {
+      "role": "Customer",
+      "permissions": {
+        "manageMedicines": false,
+        "deleteSales": false,
+        "viewReports": false,
+        "approvePurchases": false,
+        "manageInventory": false,
+        "modifySettings": false,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
+      }
+    },
+    {
+      "role": "Supplier",
+      "permissions": {
+        "manageMedicines": false,
+        "deleteSales": false,
+        "viewReports": false,
+        "approvePurchases": false,
+        "manageInventory": false,
+        "modifySettings": false,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
+      }
+    },
+    {
+      "role": "Accountant",
+      "permissions": {
+        "manageMedicines": false,
+        "deleteSales": false,
+        "viewReports": true,
+        "approvePurchases": false,
+        "manageInventory": false,
+        "modifySettings": false,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
+      }
+    },
+    {
+      "role": "Inventory Manager",
+      "permissions": {
+        "manageMedicines": true,
+        "deleteSales": false,
+        "viewReports": true,
+        "approvePurchases": false,
+        "manageInventory": true,
+        "modifySettings": false,
+        "addProducts": true,
+        "editProducts": true,
+        "addCategories": true,
+        "editCategories": true,
+        "adjustStock": true
+      }
+    },
+    {
+      "role": "User",
+      "permissions": {
+        "manageMedicines": false,
+        "deleteSales": false,
+        "viewReports": false,
+        "approvePurchases": false,
+        "manageInventory": false,
+        "modifySettings": false,
+        "addProducts": false,
+        "editProducts": false,
+        "addCategories": false,
+        "editCategories": false,
+        "adjustStock": false
       }
     }
   ],

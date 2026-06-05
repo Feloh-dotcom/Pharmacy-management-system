@@ -639,7 +639,7 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
               <h4 className="text-[10px] font-extrabold tracking-wider text-slate-400 uppercase mb-3">
                 Preselected Clinical Illustrators
               </h4>
-              <div className="grid grid-cols-6 gap-2.5">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
                 {DEFAULT_AVATARS.map((avUrl, index) => (
                   <button
                     key={index}

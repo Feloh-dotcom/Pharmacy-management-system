@@ -93,7 +93,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
     try {
       // Check active Cash Register session first
       const sessRes = await fetch("/api/cash-register/active");
-      if (sessRes.ok) {
+      if (sessRes.ok && sessRes.headers.get("Content-Type")?.includes("json")) {
         const sessData = await sessRes.json();
         setHasActiveSession(!!sessData);
       } else {
@@ -285,7 +285,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
       iframeDoc.write(`
         <html>
           <head>
-            <title>Receipt_${checkoutResult?.sale?.invoiceNumber || "Print"}</title>
+            <title>Receipt_${checkoutResult?.sale?.invoiceNumber || checkoutResult?.invoiceNumber || "Print"}</title>
             <style>
               @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
               * {
@@ -400,7 +400,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
   const fetchUnclaimedMpesaTxns = async () => {
     try {
       const res = await fetch("/api/mpesa/unclaimed");
-      if (res.ok) {
+      if (res.ok && res.headers.get("Content-Type")?.includes("json")) {
         const data = await res.json();
         if (data.success) {
           setUnclaimedMpesaTxns(data.transactions || []);
@@ -464,7 +464,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
         body: JSON.stringify(reqPayload)
       });
       
-      if (res.ok) {
+      if (res.ok && res.headers.get("Content-Type")?.includes("json")) {
         const data = await res.json();
         if (data.success) {
           setMpesaTxCode(data.transaction.code);
@@ -834,7 +834,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
               <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-1.5 px-0.5">
                 Settlement Channel
               </label>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {(["Cash", "M-Pesa", "Card", "Split"] as const).map(method => (
                   <button
                     key={method}
@@ -953,196 +953,200 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
       </div>
 
       {/* Receipts Invoice visual representation modal */}
-      {showReceiptModal && checkoutResult && (
-        <div 
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all"
-          id="printable-receipt-backdrop"
-        >
+      {showReceiptModal && checkoutResult && (() => {
+        const sale = checkoutResult.sale || (checkoutResult as any);
+        if (!sale) return null;
+        return (
           <div 
-            className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col"
-            id="printable-receipt-modal"
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all"
+            id="printable-receipt-backdrop"
           >
-            {/* Header */}
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0 no-print">
-              <h3 className="font-sans font-bold text-slate-800 flex items-center">
-                <FileText className="w-4.5 h-4.5 text-teal-600 mr-2" />
-                <span className="text-xs font-extrabold uppercase tracking-wider">Receipt Generated</span>
-              </h3>
-              <button 
-                onClick={() => setShowReceiptModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Printable Prescription Bill Receipt style layout */}
             <div 
-              className="flex-1 overflow-y-auto p-6 space-y-5 font-mono text-slate-800 text-xs text-left"
-              id="printable-receipt-paper"
+              className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col"
+              id="printable-receipt-modal"
             >
-              {/* Receipt Header Banner */}
-              <div className="text-center pb-4 border-b border-dashed border-slate-300">
-                <div className="flex items-center justify-center space-x-1.5 mb-1.5 text-[#093530]">
-                  <span className="text-lg">✚</span>
-                  <p className="text-sm font-black tracking-widest uppercase">
-                    {settings?.general?.pharmacyName || "NAIROBI PHARMACY"}
+              {/* Header */}
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0 no-print">
+                <h3 className="font-sans font-bold text-slate-800 flex items-center">
+                  <FileText className="w-4.5 h-4.5 text-teal-600 mr-2" />
+                  <span className="text-xs font-extrabold uppercase tracking-wider">Receipt Generated</span>
+                </h3>
+                <button 
+                  onClick={() => setShowReceiptModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Printable Prescription Bill Receipt style layout */}
+              <div 
+                className="flex-1 overflow-y-auto p-6 space-y-5 font-mono text-slate-800 text-xs text-left"
+                id="printable-receipt-paper"
+              >
+                {/* Receipt Header Banner */}
+                <div className="text-center pb-4 border-b border-dashed border-slate-300">
+                  <div className="flex items-center justify-center space-x-1.5 mb-1.5 text-[#093530]">
+                    <span className="text-lg">✚</span>
+                    <p className="text-sm font-black tracking-widest uppercase">
+                      {settings?.general?.pharmacyName || "NAIROBI PHARMACY"}
+                    </p>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-bold leading-normal">
+                    {settings?.general?.address || "Industrial Area, Sec 4, Nairobi"}
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-bold mt-0.5">
+                    {settings?.general?.phone ? `Tel: ${settings.general.phone}` : "Tel: +254 711 222333"}
+                  </p>
+                  <p className="text-[9px] text-slate-400 uppercase tracking-widest font-black mt-1">
+                    *** OFFICIAL RECEIPTS / CASH BILL ***
                   </p>
                 </div>
-                <p className="text-[10px] text-slate-500 font-bold leading-normal">
-                  {settings?.general?.address || "Industrial Area, Sec 4, Nairobi"}
-                </p>
-                <p className="text-[10px] text-slate-500 font-bold mt-0.5">
-                  {settings?.general?.phone ? `Tel: ${settings.general.phone}` : "Tel: +254 711 222333"}
-                </p>
-                <p className="text-[9px] text-slate-400 uppercase tracking-widest font-black mt-1">
-                  *** OFFICIAL RECEIPTS / CASH BILL ***
-                </p>
-              </div>
 
-              {/* invoice metadata list */}
-              <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-150 uppercase font-bold text-[10px] text-slate-600">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Receipt No:</span> 
-                  <span className="font-mono text-slate-800">{checkoutResult.sale.invoiceNumber}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Date/Time:</span> 
-                  <span>{formatSafeDateTime(checkoutResult.sale.date)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Sales Operator:</span> 
-                  <span className="text-slate-850 truncate max-w-[160px]">
-                    {user?.name || user?.email ? `${user.name || user.email.split("@")[0]}` : "SYSTEM OPERATOR #A"}
-                  </span>
-                </div>
-                <div className="h-px bg-slate-200 my-1" />
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Customer Client:</span> 
-                  <span className="text-slate-800 truncate max-w-[160px]">{checkoutResult.sale.customerName}</span>
-                </div>
-                <div className="flex justify-between items-center text-[9.5px]">
-                  <span className="text-slate-400">Payment Settle:</span> 
-                  <span className="bg-teal-50 text-teal-850 px-1.5 py-0.5 rounded border border-teal-200">
-                    {checkoutResult.sale.paymentMethod}
-                  </span>
-                </div>
-
-                {checkoutResult.sale.paymentMethod === "Split" && (
-                  <div className="bg-white border border-slate-200 rounded-xl p-2 text-[9px] font-bold text-slate-500 space-y-1 mt-1 font-mono uppercase">
-                    <div className="flex justify-between">
-                      <span>Cash Portion:</span>
-                      <span className="text-slate-800">{formatCurrency(checkoutResult.sale.cashPaid || 0, currencySymbol)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>M-Pesa Portion:</span>
-                      <span className="text-[#093530]">{formatCurrency(checkoutResult.sale.mpesaPaid || 0, currencySymbol)}</span>
-                    </div>
+                {/* invoice metadata list */}
+                <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-150 uppercase font-bold text-[10px] text-slate-600">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Receipt No:</span> 
+                    <span className="font-mono text-slate-800">{sale.invoiceNumber}</span>
                   </div>
-                )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Date/Time:</span> 
+                    <span>{formatSafeDateTime(sale.date)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Sales Operator:</span> 
+                    <span className="text-slate-850 truncate max-w-[160px]">
+                      {user?.name || user?.email ? `${user.name || user.email.split("@")[0]}` : "SYSTEM OPERATOR #A"}
+                    </span>
+                  </div>
+                  <div className="h-px bg-slate-200 my-1" />
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Customer Client:</span> 
+                    <span className="text-slate-800 truncate max-w-[160px]">{sale.customerName}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[9.5px]">
+                    <span className="text-slate-400">Payment Settle:</span> 
+                    <span className="bg-teal-50 text-teal-850 px-1.5 py-0.5 rounded border border-teal-200">
+                      {sale.paymentMethod}
+                    </span>
+                  </div>
 
-                {checkoutResult.sale.mpesaTransactionCode && (
-                  <div className="bg-emerald-50 text-[#093530] border border-emerald-150 p-2.5 rounded-xl font-mono mt-1 space-y-0.5 text-left">
-                    <div className="flex justify-between">
-                      <span>M-Pesa Tx Code:</span>
-                      <span className="font-black tracking-wider uppercase">{checkoutResult.sale.mpesaTransactionCode}</span>
-                    </div>
-                    {checkoutResult.sale.mpesaPhoneNumber && (
-                      <div className="flex justify-between text-[9px] text-teal-800">
-                        <span>Payer Mobile:</span>
-                        <span>{checkoutResult.sale.mpesaPhoneNumber}</span>
+                  {sale.paymentMethod === "Split" && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-2 text-[9px] font-bold text-slate-500 space-y-1 mt-1 font-mono uppercase">
+                      <div className="flex justify-between">
+                        <span>Cash Portion:</span>
+                        <span className="text-slate-800">{formatCurrency(sale.cashPaid || 0, currencySymbol)}</span>
                       </div>
-                    )}
+                      <div className="flex justify-between">
+                        <span>M-Pesa Portion:</span>
+                        <span className="text-[#093530]">{formatCurrency(sale.mpesaPaid || 0, currencySymbol)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {sale.mpesaTransactionCode && (
+                    <div className="bg-emerald-50 text-[#093530] border border-emerald-150 p-2.5 rounded-xl font-mono mt-1 space-y-0.5 text-left">
+                      <div className="flex justify-between">
+                        <span>M-Pesa Tx Code:</span>
+                        <span className="font-black tracking-wider uppercase">{sale.mpesaTransactionCode}</span>
+                      </div>
+                      {sale.mpesaPhoneNumber && (
+                        <div className="flex justify-between text-[9px] text-teal-800">
+                          <span>Payer Mobile:</span>
+                          <span>{sale.mpesaPhoneNumber}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Items Table ledger */}
+                <div className="border-t border-b border-dashed border-slate-300 py-3 space-y-2">
+                  <div className="flex justify-between font-black text-[9.5px] text-slate-400 uppercase tracking-wider">
+                    <span className="w-1/2">Product Description</span>
+                    <span className="w-1/4 text-center">Qty * Rate</span>
+                    <span className="w-1/4 text-right">Value ({currencySymbol})</span>
                   </div>
-                )}
-              </div>
-
-              {/* Items Table ledger */}
-              <div className="border-t border-b border-dashed border-slate-300 py-3 space-y-2">
-                <div className="flex justify-between font-black text-[9.5px] text-slate-400 uppercase tracking-wider">
-                  <span className="w-1/2">Product Description</span>
-                  <span className="w-1/4 text-center">Qty * Rate</span>
-                  <span className="w-1/4 text-right">Value ({currencySymbol})</span>
+                  <div className="h-px bg-slate-200 my-1" />
+                  {(sale.items || []).map((item: any, idx: number) => (
+                    <div key={idx} className="flex justify-between font-bold text-slate-800 text-[10.5px] leading-tight">
+                      <span className="w-1/2 truncate pr-2">{item.medicineName}</span>
+                      <span className="w-1/4 text-center font-mono whitespace-nowrap">{item.quantity} × {item.price}</span>
+                      <span className="w-1/4 text-right font-mono">{formatCurrency(item.price * item.quantity, currencySymbol)}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="h-px bg-slate-200 my-1" />
-                {checkoutResult.sale.items.map((item, idx) => (
-                  <div key={idx} className="flex justify-between font-bold text-slate-800 text-[10.5px] leading-tight">
-                    <span className="w-1/2 truncate pr-2">{item.medicineName}</span>
-                    <span className="w-1/4 text-center font-mono whitespace-nowrap">{item.quantity} × {item.price}</span>
-                    <span className="w-1/4 text-right font-mono">{formatCurrency(item.price * item.quantity, currencySymbol)}</span>
+
+                {/* Calculation list */}
+                <div className="space-y-1.5 text-right font-bold text-[10.5px]">
+                  <div className="flex justify-between text-slate-500">
+                    <span>Gross Subtotal:</span>
+                    <span className="font-mono">{formatCurrency((sale.items || []).reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0), currencySymbol)}</span>
                   </div>
-                ))}
-              </div>
-
-              {/* Calculation list */}
-              <div className="space-y-1.5 text-right font-bold text-[10.5px]">
-                <div className="flex justify-between text-slate-500">
-                  <span>Gross Subtotal:</span>
-                  <span className="font-mono">{formatCurrency(checkoutResult.sale.items.reduce((sum, item) => sum + (item.price * item.quantity), 0), currencySymbol)}</span>
-                </div>
-                <div className="flex justify-between text-slate-500">
-                  <span>VAT Assessed (16%):</span>
-                  <span className="font-mono">{formatCurrency(checkoutResult.sale.taxAmount, currencySymbol)}</span>
-                </div>
-                {checkoutResult.sale.discount > 0 && (
-                  <div className="flex justify-between text-emerald-600 font-extrabold pr-0">
-                    <span>Rebate / discount:</span>
-                    <span className="font-mono">-{formatCurrency(checkoutResult.sale.discount, currencySymbol)}</span>
+                  <div className="flex justify-between text-slate-500">
+                    <span>VAT Assessed (16%):</span>
+                    <span className="font-mono">{formatCurrency(sale.taxAmount || 0, currencySymbol)}</span>
                   </div>
-                )}
-                <div className="h-px bg-slate-200 my-1" />
-                <div className="flex justify-between text-base font-black text-[#093530] pt-1 leading-none">
-                  <span>Total Settled:</span>
-                  <span className="font-mono text-teal-800">{formatCurrency(checkoutResult.sale.totalPrice, currencySymbol)}</span>
+                  {sale.discount > 0 && (
+                    <div className="flex justify-between text-emerald-600 font-extrabold pr-0">
+                      <span>Rebate / discount:</span>
+                      <span className="font-mono">-{formatCurrency(sale.discount, currencySymbol)}</span>
+                    </div>
+                  )}
+                  <div className="h-px bg-slate-200 my-1" />
+                  <div className="flex justify-between text-base font-black text-[#093530] pt-1 leading-none">
+                    <span>Total Settled:</span>
+                    <span className="font-mono text-teal-800">{formatCurrency(sale.totalPrice || 0, currencySymbol)}</span>
+                  </div>
+                </div>
+
+                {/* Barcode/QR footprint representation */}
+                <div className="text-center pt-4 flex flex-col items-center border-t border-dashed border-slate-300">
+                  {/* Simulated barcode */}
+                  <div className="w-48 h-8 flex items-center justify-around border-t-2 border-b-2 border-slate-800 py-3.5 select-none opacity-60 mb-1 leading-none">
+                    <div className="w-0.5 h-full bg-black shrink-0" />
+                    <div className="w-1 h-full bg-black shrink-0" />
+                    <div className="w-0.5 h-full bg-black shrink-0" />
+                    <div className="w-2.5 h-full bg-black shrink-0" />
+                    <div className="w-0.5 h-full bg-black shrink-0" />
+                    <div className="w-1 h-full bg-black shrink-0" />
+                    <div className="w-0.5 h-full bg-black shrink-0" />
+                    <div className="w-1.5 h-full bg-black shrink-0" />
+                    <div className="w-2 h-full bg-black shrink-0" />
+                    <div className="w-0.5 h-full bg-black shrink-0" />
+                    <div className="w-1 h-full bg-black shrink-0" />
+                  </div>
+                  <span className="text-[9px] font-black tracking-widest text-slate-500">* {sale.invoiceNumber} *</span>
+                  
+                  <p className="text-[9.5px] text-slate-500 text-center mt-3 max-w-[280px] font-extrabold leading-normal italic block break-words border-t border-slate-150 pt-2.5">
+                    {settings?.receipts?.receiptFooterText || "Clinical prescription complete. Thank you for choosing Nairobi Health Care Services!"}
+                  </p>
+                  <div className="mt-2 text-[8px] text-slate-400 font-bold uppercase tracking-wider">
+                    Powered by Nairobi Pharmacy ERP Enterprise
+                  </div>
                 </div>
               </div>
 
-              {/* Barcode/QR footprint representation */}
-              <div className="text-center pt-4 flex flex-col items-center border-t border-dashed border-slate-300">
-                {/* Simulated barcode */}
-                <div className="w-48 h-8 flex items-center justify-around border-t-2 border-b-2 border-slate-800 py-3.5 select-none opacity-60 mb-1 leading-none">
-                  <div className="w-0.5 h-full bg-black shrink-0" />
-                  <div className="w-1 h-full bg-black shrink-0" />
-                  <div className="w-0.5 h-full bg-black shrink-0" />
-                  <div className="w-2.5 h-full bg-black shrink-0" />
-                  <div className="w-0.5 h-full bg-black shrink-0" />
-                  <div className="w-1 h-full bg-black shrink-0" />
-                  <div className="w-0.5 h-full bg-black shrink-0" />
-                  <div className="w-1.5 h-full bg-black shrink-0" />
-                  <div className="w-2 h-full bg-black shrink-0" />
-                  <div className="w-0.5 h-full bg-black shrink-0" />
-                  <div className="w-1 h-full bg-black shrink-0" />
-                </div>
-                <span className="text-[9px] font-black tracking-widest text-slate-500">* {checkoutResult.sale.invoiceNumber} *</span>
-                
-                <p className="text-[9.5px] text-slate-500 text-center mt-3 max-w-[280px] font-extrabold leading-normal italic block break-words border-t border-slate-150 pt-2.5">
-                  {settings?.receipts?.receiptFooterText || "Clinical prescription complete. Thank you for choosing Nairobi Health Care Services!"}
-                </p>
-                <div className="mt-2 text-[8px] text-slate-400 font-bold uppercase tracking-wider">
-                  Powered by Nairobi Pharmacy ERP Enterprise
-                </div>
+              {/* footer with printing triggers */}
+              <div className="p-4 border-t border-slate-100 flex space-x-3 shrink-0 bg-slate-50 no-print">
+                <button 
+                  onClick={handlePrintReceipt}
+                  className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-100 font-black text-xs rounded-xl flex items-center justify-center space-x-1.5 text-slate-700 transition cursor-pointer"
+                >
+                  <Printer className="w-4 h-4 text-slate-500" />
+                  <span>Print Receipt</span>
+                </button>
+                <button 
+                  onClick={() => setShowReceiptModal(false)}
+                  className="flex-1 py-2.5 bg-[#093530] hover:bg-[#0c443e] text-white font-black text-xs rounded-xl flex items-center justify-center cursor-pointer shadow shadow-[#093530]/10 transition"
+                >
+                  Done
+                </button>
               </div>
-            </div>
-
-            {/* footer with printing triggers */}
-            <div className="p-4 border-t border-slate-100 flex space-x-3 shrink-0 bg-slate-50 no-print">
-              <button 
-                onClick={handlePrintReceipt}
-                className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-100 font-black text-xs rounded-xl flex items-center justify-center space-x-1.5 text-slate-700 transition cursor-pointer"
-              >
-                <Printer className="w-4 h-4 text-slate-500" />
-                <span>Print Receipt</span>
-              </button>
-              <button 
-                onClick={() => setShowReceiptModal(false)}
-                className="flex-1 py-2.5 bg-[#093530] hover:bg-[#0c443e] text-white font-black text-xs rounded-xl flex items-center justify-center cursor-pointer shadow shadow-[#093530]/10 transition"
-              >
-                Done
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Safaricom M-Pesa Payment Processing & Verification Hub (Pure C2B Flow) */}
       {showMpesaModal && (

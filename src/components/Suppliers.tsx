@@ -380,7 +380,7 @@ export default function Suppliers() {
                 placeholder="e.g. Susan Williams"
               />
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Phone Number"
                   type="tel"

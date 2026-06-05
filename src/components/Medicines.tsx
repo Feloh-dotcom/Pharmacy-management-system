@@ -307,7 +307,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
             <p className="text-base font-extrabold text-slate-700">{medicines.length}</p>
           </div>
         </div>
-        <div className="flex items-center space-x-3.5 border-l border-slate-200 pl-4">
+        <div className="flex items-center space-x-3.5 border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 pl-0 md:pl-4">
           <ShieldAlert className="w-5 h-5 text-amber-500" />
           <div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-mono">Low Stock Alerts</p>
@@ -316,7 +316,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
             </p>
           </div>
         </div>
-        <div className="flex items-center space-x-3.5 border-l border-slate-200 pl-4">
+        <div className="flex items-center space-x-3.5 border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 pl-0 md:pl-4">
           <ShieldAlert className="w-5 h-5 text-rose-500" />
           <div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-mono">Expired Batches</p>
@@ -325,7 +325,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
             </p>
           </div>
         </div>
-        <div className="flex items-center space-x-3.5 border-l border-slate-200 pl-4">
+        <div className="flex items-center space-x-3.5 border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 pl-0 md:pl-4">
           <Tag className="w-5 h-5 text-indigo-500" />
           <div>
             <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 font-mono">Active Categories</p>
@@ -614,7 +614,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
             </div>
 
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Medicine Trademark Name */}
                 <Input
                   label="Formulation Trademark Name (Brand)"
@@ -636,7 +636,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* SKU Code */}
                 <Input
                   label="SKU Code"
@@ -725,7 +725,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
                 </div>
               )}
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* Category ID mapping */}
                 <Select
                   label="Therapeutic Category Group"
@@ -759,7 +759,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
                 />
               </div>
 
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Pack Buying Price cost */}
                 <CurrencyInput
                   label="Buying Price Cost"
@@ -806,7 +806,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-4 pt-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1.5">
                 {/* Expiry Date picker */}
                 <DateInput
                   label="Clinical shelf Expiry Date"

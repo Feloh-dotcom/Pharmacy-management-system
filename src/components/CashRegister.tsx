@@ -850,19 +850,19 @@ export default function CashRegister({ user, settings, onNavigate }: CashRegiste
             <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs font-medium text-slate-600 leading-normal">
               
               {/* Cashier profile block */}
-              <div className="grid grid-cols-2 gap-4 uppercase font-bold text-[10px] text-slate-400 border-b border-slate-100 pb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 uppercase font-bold text-[10px] text-slate-400 border-b border-slate-100 pb-4">
                 <div>
                   <p>Register Shift ID: <span className="font-mono text-slate-800">{selectedSession.id}</span></p>
                   <p className="mt-1">Scheduled status: <span className="text-teal-700 font-extrabold">{selectedSession.status}</span></p>
                 </div>
-                <div className="text-right">
+                <div className="text-left sm:text-right">
                   <p>Opened by cashier: <span className="text-slate-800">{selectedSession.openedBy?.name || "System Operator"}</span></p>
                   {selectedSession.closedBy && <p className="mt-1">Final reconciler: <span className="text-slate-800">{selectedSession.closedBy?.name || "System Operator"}</span></p>}
                 </div>
               </div>
 
               {/* Core numbers widget */}
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
                 <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl">
                   <p className="text-[10px] font-bold text-slate-400 tracking-wider uppercase">Opening Floats</p>
                   <div className="text-lg font-black font-mono text-slate-800 mt-1">{currencySymbol}{selectedSession.openingBalance.toFixed(2)}</div>
