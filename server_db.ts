@@ -2003,15 +2003,20 @@ export async function getActiveCashSessionFromSupabase(): Promise<CashSession | 
         // No rows found
         return null;
       }
-      console.error("[Supabase Query Error] Failed to get active cash session:", error.message);
-      return null;
+      console.error("[Supabase Query Error] Failed to get active cash session. Falling back to local state:", error.message);
+      const session = (globalStateCache?.cashSessions || []).find(s => s.status === "Open");
+      return session || null;
     }
 
-    if (!data) return null;
+    if (!data) {
+      const session = (globalStateCache?.cashSessions || []).find(s => s.status === "Open");
+      return session || null;
+    }
     return mapFromRow("cashSessions", data);
   } catch (err) {
-    console.error("[Supabase Exception] getActiveCashSessionFromSupabase:", err);
-    return null;
+    console.error("[Supabase Exception] getActiveCashSessionFromSupabase. Falling back to local state:", err);
+    const session = (globalStateCache?.cashSessions || []).find(s => s.status === "Open");
+    return session || null;
   }
 }
 
@@ -2026,15 +2031,15 @@ export async function getAllCashSessionsFromSupabase(): Promise<CashSession[]> {
       .order("opened_at", { ascending: false });
 
     if (error) {
-      console.error("[Supabase Query Error] Failed to get cash sessions:", error.message);
-      return [];
+      console.error("[Supabase Query Error] Failed to get cash sessions. Falling back to local state:", error.message);
+      return globalStateCache?.cashSessions || [];
     }
 
-    if (!data || !Array.isArray(data)) return [];
+    if (!data || !Array.isArray(data)) return globalStateCache?.cashSessions || [];
     return data.map(row => mapFromRow("cashSessions", row));
   } catch (err) {
-    console.error("[Supabase Exception] getAllCashSessionsFromSupabase:", err);
-    return [];
+    console.error("[Supabase Exception] getAllCashSessionsFromSupabase. Falling back to local state:", err);
+    return globalStateCache?.cashSessions || [];
   }
 }
 
@@ -2094,14 +2099,25 @@ export async function insertCashSessionToSupabase(session: CashSession): Promise
         }
       }
 
-      console.error("[Supabase Insert Error] Failed to insert cash session:", error.message);
-      return null;
+      console.error("[Supabase Insert Error] Failed to insert cash session to Cloud:", error.message);
+      break;
     } catch (err: any) {
       console.error("[Supabase Exception] insertCashSessionToSupabase exception:", err);
-      return null;
+      break;
     }
   }
-  return null;
+
+  // --- OFFLINE-FIRST FALLBACK ---
+  console.warn("[Supabase Fallback] Saving the cash session to local workstation cache instead of cloud database...");
+  if (!globalStateCache.cashSessions) globalStateCache.cashSessions = [];
+  const existingIdx = globalStateCache.cashSessions.findIndex(s => s.id === session.id);
+  if (existingIdx === -1) {
+    globalStateCache.cashSessions.unshift(session);
+  } else {
+    globalStateCache.cashSessions[existingIdx] = session;
+  }
+  writeDBToFileSystem(globalStateCache);
+  return session;
 }
 
 export async function updateCashSessionInSupabase(sessionId: string, updates: Partial<CashSession>): Promise<CashSession | null> {
@@ -2169,11 +2185,21 @@ export async function updateCashSessionInSupabase(sessionId: string, updates: Pa
       }
 
       console.error("[Supabase Update Error] Failed to update cash session:", error.message);
-      return null;
+      break;
     } catch (err: any) {
       console.error("[Supabase Exception] updateCashSessionInSupabase exception:", err);
-      return null;
+      break;
     }
+  }
+
+  // --- OFFLINE-FIRST FALLBACK ---
+  console.warn("[Supabase Fallback] Saving the cash session updates to local workstation cache instead of cloud database...");
+  const idx = (globalStateCache?.cashSessions || []).findIndex(s => s.id === sessionId);
+  if (idx !== -1) {
+    const resultObj = { ...globalStateCache.cashSessions[idx], ...updates };
+    globalStateCache.cashSessions[idx] = resultObj;
+    writeDBToFileSystem(globalStateCache);
+    return resultObj;
   }
   return null;
 }
