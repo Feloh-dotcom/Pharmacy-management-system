@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import dotenv from "dotenv";
+dotenv.config();
+
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
@@ -708,50 +711,67 @@ export function mapToRow(configName: string, item: any): any {
 
   // 3. Extra logic for cashSessions
   if (configName === "cashSessions") {
-    const statusVal = String(item.status || "open").toLowerCase();
-    row.status = statusVal;
+    if (item.status !== undefined) {
+      const statusVal = String(item.status || "open").toLowerCase();
+      row.status = statusVal;
+    }
     
-    const openingVal = Number(item.openingBalance || item.opening_cash || item.opening_balance || 0);
-    row.opening_cash = openingVal;
-    row.opening_balance = openingVal;
-    
-    const expectedVal = Number(item.expectedClosingBalance || item.expected_cash || item.expected_closing_balance || 0);
-    row.expected_cash = expectedVal;
-    row.expected_closing_balance = expectedVal;
-    
-    const actualVal = (item.actualClosingBalance !== undefined && item.actualClosingBalance !== null) 
-      ? Number(item.actualClosingBalance) 
-      : ((item.actual_cash !== undefined && item.actual_cash !== null) ? Number(item.actual_cash) : ((item.actual_closing_balance !== undefined && item.actual_closing_balance !== null) ? Number(item.actual_closing_balance) : null));
-    row.actual_cash = actualVal;
-    row.actual_closing_balance = actualVal;
-    
-    const discrepancyVal = (item.variance !== undefined && item.variance !== null) 
-      ? Number(item.variance) 
-      : ((item.discrepancy !== undefined && item.discrepancy !== null) ? Number(item.discrepancy) : null);
-    row.discrepancy = discrepancyVal;
-    row.variance = discrepancyVal;
+    // Convert status to lowercase if present in mapped row
+    if (row.status !== undefined) {
+      row.status = String(row.status).toLowerCase();
+    }
 
-    const users = (globalStateCache && globalStateCache.users) || [];
-    let openedById = row.opened_by || (item.openedBy ? (typeof item.openedBy === "object" ? toUUIDIfNeeded(item.openedBy.id) : toUUIDIfNeeded(item.openedBy)) : undefined);
-    
-    if (!openedById) {
-      openedById = toUUIDIfNeeded("system@halomedical.com");
+    // opening cash
+    const openingVal = item.openingBalance !== undefined ? Number(item.openingBalance) : (item.opening_cash !== undefined ? Number(item.opening_cash) : (item.opening_balance !== undefined ? Number(item.opening_balance) : undefined));
+    if (openingVal !== undefined) {
+      row.opening_cash = openingVal;
     }
-    
-    const openerExists = users.some(u => u.id === openedById || toUUIDIfNeeded(u.id) === openedById);
-    if (!openerExists && users.length > 0) {
-      openedById = toUUIDIfNeeded(users[0].id);
-    }
-    row.opened_by = openedById;
-    row.openedBy = openedById;
 
-    if (row.closed_by) {
-      const closerExists = users.some(u => u.id === row.closed_by || toUUIDIfNeeded(u.id) === row.closed_by);
-      if (!closerExists) {
-        row.closed_by = null;
-      }
+    // expected closing
+    const expectedVal = item.expectedClosingBalance !== undefined ? Number(item.expectedClosingBalance) : (item.expected_cash !== undefined ? Number(item.expected_cash) : (item.expected_closing_balance !== undefined ? Number(item.expected_closing_balance) : undefined));
+    if (expectedVal !== undefined) {
+      row.expected_cash = expectedVal;
     }
-    row.notes = item.notes || item.note || "";
+
+    // actual closing
+    const actualVal = item.actualClosingBalance !== undefined ? Number(item.actualClosingBalance) : (item.actual_cash !== undefined ? Number(item.actual_cash) : (item.actual_closing_balance !== undefined ? Number(item.actual_closing_balance) : undefined));
+    if (actualVal !== undefined) {
+      row.actual_cash = actualVal;
+    }
+
+    // variance / discrepancy
+    const discrepancyVal = item.variance !== undefined ? Number(item.variance) : (item.discrepancy !== undefined ? Number(item.discrepancy) : undefined);
+    if (discrepancyVal !== undefined) {
+      row.discrepancy = discrepancyVal;
+    }
+
+    // opened_by
+    const openedById = item.openedBy !== undefined ? (typeof item.openedBy === "object" && item.openedBy ? toUUIDIfNeeded(item.openedBy.id) : toUUIDIfNeeded(item.openedBy)) : (row.opened_by !== undefined ? toUUIDIfNeeded(row.opened_by) : undefined);
+    if (openedById !== undefined) {
+      row.opened_by = openedById;
+    }
+
+    // closed_by
+    const closedById = item.closedBy !== undefined ? (typeof item.closedBy === "object" && item.closedBy ? toUUIDIfNeeded(item.closedBy.id) : toUUIDIfNeeded(item.closedBy)) : (row.closed_by !== undefined ? toUUIDIfNeeded(row.closed_by) : undefined);
+    if (closedById !== undefined) {
+      row.closed_by = closedById;
+    }
+
+    // Note/notes
+    if (item.notes !== undefined || item.note !== undefined) {
+      row.notes = item.notes || item.note || "";
+    }
+
+    // Map additional JSONB column fields if provided in item
+    if (item.salesInvoices !== undefined) {
+      row.sales_invoices = item.salesInvoices;
+    }
+    if (item.mpesaTransactionsAndAmounts !== undefined) {
+      row.mpesa_transactions_and_amounts = item.mpesaTransactionsAndAmounts;
+    }
+    if (item.cashTransactions !== undefined) {
+      row.cash_transactions = item.cashTransactions;
+    }
   }
 
   if (configName === "customers") {
@@ -1466,12 +1486,10 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
   if (tableName === "cash_sessions") {
     attemptRows = attemptRows.map((r: any) => {
       const copy = { ...r };
-      const expectedVal = copy.expected_cash !== undefined && copy.expected_cash !== null ? copy.expected_cash : (copy.expected_closing_balance !== undefined && copy.expected_closing_balance !== null ? copy.expected_closing_balance : 0);
+      const expectedVal = copy.expected_cash !== undefined && copy.expected_cash !== null ? copy.expected_cash : 0;
       copy.expected_cash = expectedVal;
-      copy.expected_closing_balance = expectedVal;
-      const openingVal = copy.opening_cash !== undefined && copy.opening_cash !== null ? copy.opening_cash : (copy.opening_balance !== undefined && copy.opening_balance !== null ? copy.opening_balance : 0);
+      const openingVal = copy.opening_cash !== undefined && copy.opening_cash !== null ? copy.opening_cash : 0;
       copy.opening_cash = openingVal;
-      copy.opening_balance = openingVal;
       return copy;
     });
   }
@@ -2027,43 +2045,63 @@ export async function insertCashSessionToSupabase(session: CashSession): Promise
     writeDBToFileSystem(globalStateCache);
     return session;
   }
-  try {
-    const row = mapToRow("cashSessions", session);
-    console.log("[Cash Session] Inserting session with data:", JSON.stringify(row, null, 2));
-    
-    const { data, error } = await supabase
-      .from("cash_sessions")
-      .insert([row])
-      .select()
-      .single();
+  
+  let row = mapToRow("cashSessions", session);
+  let attempts = 0;
+  const maxAttempts = 15;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      console.log(`[Cash Session] Inserting session (attempt ${attempts}) with data:`, JSON.stringify(row, null, 2));
+      const { data, error } = await supabase
+        .from("cash_sessions")
+        .insert([row])
+        .select()
+        .single();
 
-    if (error) {
-      console.error("[Supabase Insert Error] Failed to insert cash session:");
-      console.error("  Message:", error.message);
-      console.error("  Code:", error.code);
-      console.error("  Details:", error.details);
-      console.error("  Hint:", error.hint);
-      console.error("  Row being inserted:", JSON.stringify(row, null, 2));
+      if (!error) {
+        if (!data) return null;
+        const result = mapFromRow("cashSessions", data);
+        
+        // Update local cache
+        if (!globalStateCache.cashSessions) globalStateCache.cashSessions = [];
+        globalStateCache.cashSessions.unshift(result);
+        writeDBToFileSystem(globalStateCache);
+        
+        console.log("[Cash Session] Successfully inserted session:", result.id);
+        return result;
+      }
+
+      const errMsg = error.message || "";
+      const errCode = error.code || "";
+      console.warn(`[Self-Healing Cash Session Insert] Attempt ${attempts} failed: Code ${errCode}, Msg: ${errMsg}`);
+
+      const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
+                          errMsg.match(/column "([^"]+)" of relation/i) ||
+                          errMsg.match(/column "([^"]+)" does not exist/i);
+      
+      if (cacheMatch || errCode === "42703") {
+        let badColumn = cacheMatch ? cacheMatch[1] : null;
+        if (!badColumn) {
+          const colMatch = errMsg.match(/column "([^"]+)"/i) || errMsg.match(/column '([^']+)'/i);
+          if (colMatch) badColumn = colMatch[1];
+        }
+        if (badColumn) {
+          console.warn(`[Self-Healing Cash Session Insert] Column [${badColumn}] not found. Auto-pruning and retrying...`);
+          const { [badColumn]: _, ...rest } = row;
+          row = rest;
+          continue;
+        }
+      }
+
+      console.error("[Supabase Insert Error] Failed to insert cash session:", error.message);
+      return null;
+    } catch (err: any) {
+      console.error("[Supabase Exception] insertCashSessionToSupabase exception:", err);
       return null;
     }
-
-    if (!data) {
-      console.error("[Supabase Insert Error] No data returned from insert");
-      return null;
-    }
-    
-    const result = mapFromRow("cashSessions", data);
-    
-    // Update local cache
-    globalStateCache.cashSessions.unshift(result);
-    writeDBToFileSystem(globalStateCache);
-    
-    console.log("[Cash Session] Successfully inserted session:", result.id);
-    return result;
-  } catch (err) {
-    console.error("[Supabase Exception] insertCashSessionToSupabase:", err);
-    return null;
   }
+  return null;
 }
 
 export async function updateCashSessionInSupabase(sessionId: string, updates: Partial<CashSession>): Promise<CashSession | null> {
@@ -2077,33 +2115,65 @@ export async function updateCashSessionInSupabase(sessionId: string, updates: Pa
     }
     return null;
   }
-  try {
-    const row = mapToRow("cashSessions", updates);
-    const { data, error } = await supabase
-      .from("cash_sessions")
-      .update(row)
-      .eq("id", sessionId)
-      .select()
-      .single();
+  
+  let row = mapToRow("cashSessions", updates);
+  // Ensure we don't try to sync id as update payload
+  delete row.id;
 
-    if (error) {
+  let attempts = 0;
+  const maxAttempts = 15;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const { data, error } = await supabase
+        .from("cash_sessions")
+        .update(row)
+        .eq("id", sessionId)
+        .select()
+        .single();
+
+      if (!error) {
+        if (!data) return null;
+        const result = mapFromRow("cashSessions", data);
+        
+        // Update local cache
+        const idx = globalStateCache.cashSessions.findIndex(s => s.id === sessionId);
+        if (idx !== -1) {
+          globalStateCache.cashSessions[idx] = result;
+        }
+        writeDBToFileSystem(globalStateCache);
+        
+        return result;
+      }
+
+      const errMsg = error.message || "";
+      const errCode = error.code || "";
+      console.warn(`[Self-Healing Cash Session Update] Attempt ${attempts} failed: Code ${errCode}, Msg: ${errMsg}`);
+
+      const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
+                          errMsg.match(/column "([^"]+)" of relation/i) ||
+                          errMsg.match(/column "([^"]+)" does not exist/i);
+      
+      if (cacheMatch || errCode === "42703") {
+        let badColumn = cacheMatch ? cacheMatch[1] : null;
+        if (!badColumn) {
+          const colMatch = errMsg.match(/column "([^"]+)"/i) || errMsg.match(/column '([^']+)'/i);
+          if (colMatch) badColumn = colMatch[1];
+        }
+        if (badColumn) {
+          console.warn(`[Self-Healing Cash Session Update] Column [${badColumn}] not found. Auto-pruning and retrying...`);
+          const { [badColumn]: _, ...rest } = row;
+          row = rest;
+          continue;
+        }
+      }
+
       console.error("[Supabase Update Error] Failed to update cash session:", error.message);
       return null;
+    } catch (err: any) {
+      console.error("[Supabase Exception] updateCashSessionInSupabase exception:", err);
+      return null;
     }
-
-    if (!data) return null;
-    const result = mapFromRow("cashSessions", data);
-    
-    // Update local cache
-    const idx = globalStateCache.cashSessions.findIndex(s => s.id === sessionId);
-    if (idx !== -1) {
-      globalStateCache.cashSessions[idx] = result;
-    }
-    writeDBToFileSystem(globalStateCache);
-    
-    return result;
-  } catch (err) {
-    console.error("[Supabase Exception] updateCashSessionInSupabase:", err);
-    return null;
   }
+  return null;
 }

@@ -13,11 +13,7 @@
       "bio": null,
       "nationalId": null,
       "address": null,
-      "verificationStatus": "Pending",
-      "passwordHash": "0983af93817c806385e3b9a90ce177ae3a17c9d72263c9838abc9bd5e28820563baf06effbf73e6ec7b44565cd0a9d59192b2daa53f5f6ac95675f1480d480eb",
-      "salt": "5730fb0a13119dc1e79d7317ce33105c",
-      "failedLoginAttempts": 0,
-      "passwordSetupCompleted": false
+      "verificationStatus": "Pending"
     },
     {
       "id": "5051f137-70e5-4d8d-b6c0-9b9e927da9c8",
@@ -32,11 +28,7 @@
       "bio": null,
       "nationalId": null,
       "address": null,
-      "verificationStatus": "Pending",
-      "passwordHash": "b5408cb4e529f98a0afbc0272a3a0c0eb2351fd5373d0f4e00fa9ffb0f168f1d3b61397ea4884b9cd31aa45f7b019ccd29642a39ae8f937c01b8674a11c4ba5b",
-      "salt": "7af199d0b1ea750a9299c3fff66b48d8",
-      "failedLoginAttempts": 0,
-      "passwordSetupCompleted": false
+      "verificationStatus": "Pending"
     },
     {
       "id": "f177c66a-d5ec-4586-81b4-afcdf08095b9",
@@ -51,16 +43,42 @@
       "bio": "",
       "nationalId": "40863346",
       "address": "Nairobi HQ",
-      "verificationStatus": "Verified",
-      "passwordHash": "6e3148f352136aa39daed6e55f96628d1fc11e8fd34a72ae72bbc74d0415192fba712483a1157a685770a01c0a446ac4245a6ac6771213b293681d9564aad8c9",
-      "salt": "1642f3940a022386e9df393fe6f72994",
-      "failedLoginAttempts": 0,
-      "passwordSetupCompleted": false
+      "verificationStatus": "Verified"
+    },
+    {
+      "id": "b1d66ab8-6435-4131-a42f-5ec493b3c159",
+      "name": "Julian Chebeti",
+      "fullName": "Julian Chebeti",
+      "email": "felixf5747@gmail.com",
+      "role": "Admin",
+      "avatarUrl": null,
+      "isActive": true,
+      "createdAt": "2026-06-03T21:17:54.568+00:00",
+      "phone": "0110426874",
+      "bio": "",
+      "nationalId": "40868336",
+      "address": "Chokaa",
+      "verificationStatus": "Verified"
+    },
+    {
+      "id": "b92d9c81-d7e5-4f56-8931-fa1bb724e564",
+      "name": "Dr.john",
+      "fullName": "Dr.john",
+      "email": "evidentconfusion1@gmail.com",
+      "role": "User",
+      "avatarUrl": null,
+      "isActive": true,
+      "createdAt": "2026-06-04T13:34:56.14442+00:00",
+      "phone": null,
+      "bio": null,
+      "nationalId": null,
+      "address": null,
+      "verificationStatus": "Pending"
     },
     {
       "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-      "name": "New Pharmacy User",
-      "fullName": "New Pharmacy User",
+      "name": "Dr.Felix Ouma",
+      "fullName": "Dr.Felix Ouma",
       "email": "oundofelix04@gmail.com",
       "role": "Admin",
       "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop",
@@ -70,18 +88,7 @@
       "bio": "",
       "nationalId": "40868336",
       "address": "Kayole junction ",
-      "verificationStatus": "Verified",
-      "failedLoginAttempts": 0,
-      "passwordHash": "8f4a33360c37d7a4b1a643d31bf7e3cbaa3e48e572a9d94517caa70518a0849d4a59dc6d39e302dbd69767e6efb179185e0957e62a0e1a887787d1025acb0f93",
-      "salt": "48197b83664b6533ec28d1d0561fa152",
-      "passwordSetupCompleted": true,
-      "verificationSubmittedAt": "2026-06-05T05:48:52.150Z",
-      "verificationDetails": {
-        "docType": "National ID",
-        "submittedDocumentUrl": "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=400&h=300",
-        "selfieUrl": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400",
-        "submittedAt": "2026-06-05T05:48:52.150Z"
-      }
+      "verificationStatus": "Verified"
     }
   ],
   "categories": [
@@ -99,6 +106,11 @@
       "id": "24e225fc-b15f-41a6-977f-3781dbcae832",
       "name": "Therapist",
       "description": "new gategory"
+    },
+    {
+      "id": "25ad8ef5-5e87-4a2b-930b-2d8a93ebfecb",
+      "name": "Baba Bwoy",
+      "description": "protection tools"
     }
   ],
   "medicines": [
@@ -131,7 +143,7 @@
       "expiryDate": "2027-10-10",
       "buyingPrice": 10,
       "sellingPrice": 15,
-      "quantity": 93,
+      "quantity": 79,
       "minStockLevel": 5,
       "manufacturer": null,
       "supplierId": null,
@@ -171,39 +183,228 @@
       "cashierEmail": null,
       "date": "2026-06-03T06:17:42.228603+00:00",
       "items": []
-    }
-  ],
-  "inventoryLogs": [
+    },
     {
-      "id": "log-1780486621218-ac3e6b32-27e1-4f37-b4c8-632739596616",
-      "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
-      "medicineName": "Diagnostic Product",
-      "type": "sale",
-      "quantity": 1,
-      "date": "2026-06-03T11:37:01.218Z",
-      "reason": "POS Immediate Checklist Sale",
-      "userEmail": "oundofelix04@gmail.com, oundofelix04@gmail.com"
+      "id": "a8893051-0e68-4861-80d7-0369be27390b",
+      "customerId": null,
+      "invoiceNumber": "INV-855399",
+      "totalPrice": 17.4,
+      "discount": 0,
+      "taxAmount": 2.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-03T11:40:55.399+00:00",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 1,
+          "price": 15,
+          "tax": 2.4
+        }
+      ],
+      "cashPaid": 17.4,
+      "mpesaPaid": 0,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "6a7fe78a-5330-4b12-93e6-f6167a8d9c2d",
+      "customerId": null,
+      "invoiceNumber": "INV-986306",
+      "totalPrice": 17.4,
+      "discount": 0,
+      "taxAmount": 2.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-03T11:43:06.306+00:00",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 1,
+          "price": 15,
+          "tax": 2.4
+        }
+      ],
+      "cashPaid": 17.4,
+      "mpesaPaid": 0,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "94bc86f4-1383-4ff3-b790-f3f6f6454464",
+      "customerId": null,
+      "invoiceNumber": "INV-187603",
+      "totalPrice": 34.8,
+      "discount": 0,
+      "taxAmount": 4.8,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-03T17:36:27.603+00:00",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 2,
+          "price": 15,
+          "tax": 4.8
+        }
+      ],
+      "cashPaid": 34.8,
+      "mpesaPaid": 0,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "1d73116f-b263-4e76-8491-3b16544ec89d",
+      "customerId": null,
+      "invoiceNumber": "INV-875911",
+      "totalPrice": 17.4,
+      "discount": 0,
+      "taxAmount": 2.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-04T08:31:15.911+00:00",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 1,
+          "price": 15,
+          "tax": 2.4
+        }
+      ],
+      "cashPaid": 17.4,
+      "mpesaPaid": 0,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "d1aee451-a416-414b-bdfa-a665cd52a75d",
+      "customerId": null,
+      "invoiceNumber": "INV-328513",
+      "totalPrice": 15.4,
+      "discount": 2,
+      "taxAmount": 2.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-04T08:38:48.513+00:00",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 1,
+          "price": 15,
+          "tax": 2.4
+        }
+      ],
+      "cashPaid": 15.399999999999999,
+      "mpesaPaid": 0,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "1b7d25fb-bac7-4c51-8e97-fe4b1a46dbc5",
+      "customerId": null,
+      "invoiceNumber": "INV-845235",
+      "totalPrice": 17.4,
+      "discount": 0,
+      "taxAmount": 2.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-04T09:37:25.235+00:00",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 1,
+          "price": 15,
+          "tax": 2.4
+        }
+      ],
+      "cashPaid": 17.4,
+      "mpesaPaid": 0,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "3ee38a54-8931-46b9-9d7d-a6a2a800b78e",
+      "customerId": null,
+      "invoiceNumber": "INV-212477",
+      "totalPrice": 17.4,
+      "discount": 0,
+      "taxAmount": 2.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-04T11:40:12.478+00:00",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 1,
+          "price": 15,
+          "tax": 2.4
+        }
+      ],
+      "cashPaid": 17.4,
+      "mpesaPaid": 0,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "11ce0b69-0dc3-4530-8228-021bd69ec27c",
+      "customerId": null,
+      "invoiceNumber": "INV-525317",
+      "totalPrice": 104.4,
+      "discount": 0,
+      "taxAmount": 14.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-05T08:02:05.317+00:00",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 6,
+          "price": 15,
+          "tax": 14.4
+        }
+      ],
+      "cashPaid": 104.4,
+      "mpesaPaid": 0,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "notes": "",
+      "note": ""
     }
   ],
+  "inventoryLogs": [],
   "purchaseOrders": [],
   "financeRecords": [],
   "auditLogs": [
-    {
-      "id": "aud-1780638532150-notif",
-      "userEmail": "system@halomedical.com",
-      "action": "Verification Request Pending",
-      "module": "Admin Notification",
-      "date": "2026-06-05T05:48:52.150Z",
-      "details": "ACTION REQUIRED: User New Pharmacy User submitted their verification documents for review in the onboarding queue."
-    },
-    {
-      "id": "aud-1780638532150",
-      "userEmail": "oundofelix04@gmail.com",
-      "action": "Identity Verification Submitted",
-      "module": "Personnel Onboarding",
-      "date": "2026-06-05T05:48:52.150Z",
-      "details": "User [New Pharmacy User] submitted National ID (ID: 40868336) for secure identity verification. Status set to Under Review."
-    },
     {
       "id": "38848457-f234-46ac-959d-d4c8321eca14",
       "action": "User Login",
@@ -350,6 +551,209 @@
       "module": "Authentication",
       "date": "2026-06-03T11:24:11.045+00:00",
       "details": "SaaS Session opened securely via login endpoint with Supabase single source of truth validation."
+    },
+    {
+      "id": "9f27fc43-efa0-45d1-8d5f-1460b599f159",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-03T11:40:20.274+00:00",
+      "details": "Closed cash drawer session. Expected: $0, Counted: $0, Variance: $0"
+    },
+    {
+      "id": "1140003f-d932-470e-91e4-5e915113d9f0",
+      "action": "Created Category",
+      "module": "Inventory",
+      "date": "2026-06-03T11:47:10.124+00:00",
+      "details": "Added medical category: Baba Bwoy"
+    },
+    {
+      "id": "994297c6-2f6d-402f-b735-3ba100bbc1a6",
+      "action": "Verification Request Pending",
+      "module": "Admin Notification",
+      "date": "2026-06-03T17:07:25.839+00:00",
+      "details": "ACTION REQUIRED: User New Pharmacy User submitted their verification documents for review in the onboarding queue."
+    },
+    {
+      "id": "b2f34faa-e132-43e2-98c1-77c7d2a0a653",
+      "action": "Identity Verification Submitted",
+      "module": "Personnel Onboarding",
+      "date": "2026-06-03T17:07:25.839+00:00",
+      "details": "User [New Pharmacy User] submitted National ID (ID: 40868336) for secure identity verification. Status set to Under Review."
+    },
+    {
+      "id": "1d1f4086-c2b0-4b53-8c1c-9cabaa93fe27",
+      "action": "User Login",
+      "module": "Authentication",
+      "date": "2026-06-03T17:15:50.745+00:00",
+      "details": "SaaS Session opened securely via login endpoint with Supabase single source of truth validation."
+    },
+    {
+      "id": "259a297f-a50e-477a-9110-9d30ebbcf492",
+      "action": "User Login",
+      "module": "Authentication",
+      "date": "2026-06-03T17:30:40.564+00:00",
+      "details": "SaaS Session opened securely via login endpoint with Supabase single source of truth validation."
+    },
+    {
+      "id": "8d053f3e-4f34-4cc4-8785-2128074418b8",
+      "action": "Verification Request Pending",
+      "module": "Admin Notification",
+      "date": "2026-06-03T17:31:00.433+00:00",
+      "details": "ACTION REQUIRED: User New Pharmacy User submitted their verification documents for review in the onboarding queue."
+    },
+    {
+      "id": "efa9de18-c7ef-4657-9a90-e6973d87e4c3",
+      "action": "Identity Verification Submitted",
+      "module": "Personnel Onboarding",
+      "date": "2026-06-03T17:31:00.433+00:00",
+      "details": "User [New Pharmacy User] submitted National ID (ID: 40868336) for secure identity verification. Status set to Under Review."
+    },
+    {
+      "id": "d8cab5cc-cccc-47a7-a7e4-db2a824599b5",
+      "action": "User Login",
+      "module": "Authentication",
+      "date": "2026-06-03T20:57:17.058+00:00",
+      "details": "SaaS Session opened securely via login endpoint with Supabase single source of truth validation."
+    },
+    {
+      "id": "cfa1cb44-6d1e-4ea1-b872-365a3428f9c0",
+      "action": "Verification Request Pending",
+      "module": "Admin Notification",
+      "date": "2026-06-03T20:57:46.508+00:00",
+      "details": "ACTION REQUIRED: User New Pharmacy User submitted their verification documents for review in the onboarding queue."
+    },
+    {
+      "id": "e992f6b7-56d9-4739-b453-3c787fb4eb57",
+      "action": "Identity Verification Submitted",
+      "module": "Personnel Onboarding",
+      "date": "2026-06-03T20:57:46.508+00:00",
+      "details": "User [New Pharmacy User] submitted National ID (ID: 40868336) for secure identity verification. Status set to Under Review."
+    },
+    {
+      "id": "651f2d5e-3788-4c78-88d9-723b36a8cac1",
+      "action": "User Registered",
+      "module": "Authentication",
+      "date": "2026-06-03T21:17:54.569+00:00",
+      "details": "Public workstation account self-registered with default standard permissions: Julian Chebeti"
+    },
+    {
+      "id": "1593ea94-17d6-4eae-93f1-e0d7f947dddb",
+      "action": "Verification Request Pending",
+      "module": "Admin Notification",
+      "date": "2026-06-03T21:43:36.647+00:00",
+      "details": "ACTION REQUIRED: User Julian Chebeti submitted their verification documents for review in the onboarding queue."
+    },
+    {
+      "id": "0c438e0c-3e79-4aea-a8a8-c448fd4e5337",
+      "action": "Identity Verification Submitted",
+      "module": "Personnel Onboarding",
+      "date": "2026-06-03T21:43:36.647+00:00",
+      "details": "User [Julian Chebeti] submitted National ID (ID: 40868336) for secure identity verification. Status set to Under Review."
+    },
+    {
+      "id": "3c1dda01-f52c-487a-8d56-ac2a17ece3a7",
+      "action": "User Login",
+      "module": "Authentication",
+      "date": "2026-06-03T21:52:04.02+00:00",
+      "details": "SaaS Session opened securely via login endpoint with Supabase single source of truth validation."
+    },
+    {
+      "id": "7367c0c0-feb0-4b3d-ac0d-366921fc288a",
+      "action": "Verification Request Pending",
+      "module": "Admin Notification",
+      "date": "2026-06-03T22:21:58.7+00:00",
+      "details": "ACTION REQUIRED: User New Pharmacy User submitted their verification documents for review in the onboarding queue."
+    },
+    {
+      "id": "681b3d4a-4604-46e6-b56f-c370ab34078f",
+      "action": "Identity Verification Submitted",
+      "module": "Personnel Onboarding",
+      "date": "2026-06-03T22:21:58.7+00:00",
+      "details": "User [New Pharmacy User] submitted National ID (ID: 40868336) for secure identity verification. Status set to Under Review."
+    },
+    {
+      "id": "699090ad-5c21-48d1-b934-5be2247488bb",
+      "action": "User Login",
+      "module": "Authentication",
+      "date": "2026-06-03T22:25:37.885+00:00",
+      "details": "SaaS Session opened securely via login endpoint with Supabase single source of truth validation."
+    },
+    {
+      "id": "5ccffb99-9d62-415b-881a-8a1abd98348d",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-03T22:26:27.419+00:00",
+      "details": "Closed cash drawer session. Expected: $69.6, Counted: $69.6, Variance: $0"
+    },
+    {
+      "id": "e9f12a36-aeb8-452e-bdde-e7e8c3b9d05b",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-03T23:16:49.127+00:00",
+      "details": "Closed cash drawer session. Expected: $1069.6, Counted: $1069.6, Variance: $0"
+    },
+    {
+      "id": "6ae9381d-a101-4799-8bfb-9521f38be250",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-03T23:21:54.516+00:00",
+      "details": "Closed cash drawer session. Expected: $1569.6, Counted: $1569.6, Variance: $0"
+    },
+    {
+      "id": "95956474-3492-491b-b479-5427627bd7c5",
+      "action": "Open Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-03T23:30:21.094+00:00",
+      "details": "Opened cash register session with opening balance: $500"
+    },
+    {
+      "id": "7e44787f-9a3a-4de9-a801-2214c5ee7577",
+      "action": "Verification Request Pending",
+      "module": "Admin Notification",
+      "date": "2026-06-04T09:32:21.844+00:00",
+      "details": "ACTION REQUIRED: User New Pharmacy User submitted their verification documents for review in the onboarding queue."
+    },
+    {
+      "id": "2aad4ca2-bc25-4567-a2a5-89fdf285e5a8",
+      "action": "Identity Verification Submitted",
+      "module": "Personnel Onboarding",
+      "date": "2026-06-04T09:32:21.843+00:00",
+      "details": "User [New Pharmacy User] submitted National ID (ID: 40868336) for secure identity verification. Status set to Under Review."
+    },
+    {
+      "id": "cbe2a082-f06d-4b4b-ae5d-cb6c98b5bd75",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-05T07:34:38.824+00:00",
+      "details": "Closed cash drawer session. Expected: $67.6, Counted: $67.6, Variance: $0"
+    },
+    {
+      "id": "bb5fee73-9990-477e-85a1-5dcfc53f1c10",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-05T07:35:01.865+00:00",
+      "details": "Closed cash drawer session. Expected: $67.6, Counted: $67.6, Variance: $0"
+    },
+    {
+      "id": "9eb9b266-3b5e-44e8-b475-6ca7295ec20e",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-05T07:42:23.715+00:00",
+      "details": "Closed cash drawer session. Expected: $67.6, Counted: $67.6, Variance: $0"
+    },
+    {
+      "id": "7ae85b93-5b9d-450e-acfd-eb4e8eaa2583",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-05T08:00:50.292+00:00",
+      "details": "Closed cash drawer session. Expected: $100, Counted: $100, Variance: $0"
+    },
+    {
+      "id": "74c3067f-5a73-4d0d-8cca-3e0123326e32",
+      "action": "Open Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-05T08:01:09.031+00:00",
+      "details": "Opened cash register session with opening balance: $1000"
     }
   ],
   "settings": {
@@ -367,10 +771,7 @@
     },
     "inventory": {
       "low_stock_alert": true,
-      "expiry_alert_days": 90,
-      "expiryAlertSeverity": "high",
-      "preventSaleOfExpiredGoods": true,
-      "notifyOnExpiryNear": true
+      "expiry_alert_days": 90
     },
     "notifications": {
       "email_notifications": true,
@@ -395,12 +796,7 @@
     {
       "role": "super_admin",
       "permissions": {
-        "all": true,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "all": true
       }
     },
     {
@@ -412,12 +808,7 @@
         "reports": true,
         "settings": true,
         "inventory": true,
-        "purchases": true,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "purchases": true
       }
     },
     {
@@ -426,12 +817,7 @@
         "sales": true,
         "customers": true,
         "inventory": true,
-        "prescriptions": true,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "prescriptions": true
       }
     },
     {
@@ -439,12 +825,7 @@
       "permissions": {
         "sales": true,
         "receipts": true,
-        "customers": true,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "customers": true
       }
     },
     {
@@ -452,12 +833,7 @@
       "permissions": {
         "inventory": true,
         "purchases": true,
-        "suppliers": true,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "suppliers": true
       }
     },
     {
@@ -465,241 +841,25 @@
       "permissions": {
         "sales": true,
         "finance": true,
-        "reports": true,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "reports": true
       }
     },
     {
       "role": "user",
       "permissions": {
-        "profile": true,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
-      }
-    },
-    {
-      "role": "Admin",
-      "permissions": {
-        "manageMedicines": true,
-        "deleteSales": true,
-        "viewReports": true,
-        "approvePurchases": true,
-        "manageInventory": true,
-        "modifySettings": true,
-        "addProducts": true,
-        "editProducts": true,
-        "addCategories": true,
-        "editCategories": true,
-        "adjustStock": true
-      }
-    },
-    {
-      "role": "Pharmacist",
-      "permissions": {
-        "manageMedicines": true,
-        "deleteSales": false,
-        "viewReports": true,
-        "approvePurchases": false,
-        "manageInventory": true,
-        "modifySettings": false,
-        "addProducts": true,
-        "editProducts": true,
-        "addCategories": true,
-        "editCategories": true,
-        "adjustStock": true
-      }
-    },
-    {
-      "role": "Cashier",
-      "permissions": {
-        "manageMedicines": true,
-        "deleteSales": false,
-        "viewReports": false,
-        "approvePurchases": false,
-        "manageInventory": true,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
-      }
-    },
-    {
-      "role": "Customer",
-      "permissions": {
-        "manageMedicines": false,
-        "deleteSales": false,
-        "viewReports": false,
-        "approvePurchases": false,
-        "manageInventory": false,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
-      }
-    },
-    {
-      "role": "Supplier",
-      "permissions": {
-        "manageMedicines": false,
-        "deleteSales": false,
-        "viewReports": false,
-        "approvePurchases": false,
-        "manageInventory": false,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
-      }
-    },
-    {
-      "role": "Accountant",
-      "permissions": {
-        "manageMedicines": false,
-        "deleteSales": false,
-        "viewReports": true,
-        "approvePurchases": false,
-        "manageInventory": false,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
-      }
-    },
-    {
-      "role": "Inventory Manager",
-      "permissions": {
-        "manageMedicines": true,
-        "deleteSales": false,
-        "viewReports": true,
-        "approvePurchases": false,
-        "manageInventory": true,
-        "modifySettings": false,
-        "addProducts": true,
-        "editProducts": true,
-        "addCategories": true,
-        "editCategories": true,
-        "adjustStock": true
-      }
-    },
-    {
-      "role": "User",
-      "permissions": {
-        "manageMedicines": false,
-        "deleteSales": false,
-        "viewReports": false,
-        "approvePurchases": false,
-        "manageInventory": false,
-        "modifySettings": false,
-        "addProducts": false,
-        "editProducts": false,
-        "addCategories": false,
-        "editCategories": false,
-        "adjustStock": false
+        "profile": true
       }
     }
   ],
   "backups": [],
   "cashSessions": [
     {
-      "id": "b1bee509-ea7a-4aea-9804-7f4bed714e8d",
-      "status": "Open",
-      "openedAt": "2026-06-01T12:59:26.766+00:00",
-      "openedBy": {
-        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
-        "email": "oundofelix04@gmail.com",
-        "role": "Admin"
-      },
-      "openingBalance": 1500,
-      "closedAt": null,
-      "closedBy": null,
-      "expectedClosingBalance": 1500,
-      "notes": "",
-      "totalSalesAmount": 0,
-      "totalMpesaAmount": 0,
-      "totalCashAmount": 0,
-      "totalDiscounts": 0,
-      "totalRefunds": 0,
-      "totalExpenses": 0,
-      "salesInvoices": [],
-      "mpesaTransactionsAndAmounts": [],
-      "cashTransactions": [],
-      "note": ""
-    },
-    {
-      "id": "995ea9bb-8dc4-4cbe-8ff3-613834d13dc6",
-      "status": "Open",
-      "openedAt": "2026-06-01T13:01:02.557+00:00",
-      "openedBy": {
-        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
-        "email": "oundofelix04@gmail.com",
-        "role": "Admin"
-      },
-      "openingBalance": 1000,
-      "closedAt": null,
-      "closedBy": null,
-      "expectedClosingBalance": 1000,
-      "notes": "",
-      "totalSalesAmount": 0,
-      "totalMpesaAmount": 0,
-      "totalCashAmount": 0,
-      "totalDiscounts": 0,
-      "totalRefunds": 0,
-      "totalExpenses": 0,
-      "salesInvoices": [],
-      "mpesaTransactionsAndAmounts": [],
-      "cashTransactions": [],
-      "note": ""
-    },
-    {
-      "id": "49dc2770-1d27-4194-b3f1-af3387c78c26",
-      "status": "Open",
-      "openedAt": "2026-06-01T13:11:19.837+00:00",
-      "openedBy": {
-        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
-        "email": "oundofelix04@gmail.com",
-        "role": "Admin"
-      },
-      "openingBalance": 1000,
-      "closedAt": null,
-      "closedBy": null,
-      "expectedClosingBalance": 1000,
-      "notes": "",
-      "totalSalesAmount": 0,
-      "totalMpesaAmount": 0,
-      "totalCashAmount": 0,
-      "totalDiscounts": 0,
-      "totalRefunds": 0,
-      "totalExpenses": 0,
-      "salesInvoices": [],
-      "mpesaTransactionsAndAmounts": [],
-      "cashTransactions": [],
-      "note": ""
-    },
-    {
       "id": "ebb4873d-f07a-44be-ac05-7804f1fe2101",
       "status": "Closed",
       "openedAt": "2026-06-01T13:25:23.366+00:00",
       "openedBy": {
         "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
+        "name": "Dr.Felix Ouma",
         "email": "oundofelix04@gmail.com",
         "role": "Admin"
       },
@@ -707,7 +867,7 @@
       "closedAt": "2026-06-01T14:41:38.437+00:00",
       "closedBy": {
         "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
+        "name": "Dr.Felix Ouma",
         "email": "oundofelix04@gmail.com",
         "role": "Admin"
       },
@@ -732,7 +892,7 @@
       "openedAt": "2026-06-03T06:12:24.87+00:00",
       "openedBy": {
         "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
+        "name": "Dr.Felix Ouma",
         "email": "oundofelix04@gmail.com",
         "role": "Admin"
       },
@@ -740,7 +900,7 @@
       "closedAt": "2026-06-03T10:02:32.165+00:00",
       "closedBy": {
         "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
+        "name": "Dr.Felix Ouma",
         "email": "oundofelix04@gmail.com",
         "role": "Admin"
       },
@@ -773,7 +933,7 @@
       "closedAt": "2026-06-03T10:02:32.981+00:00",
       "closedBy": {
         "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
+        "name": "Dr.Felix Ouma",
         "email": "oundofelix04@gmail.com",
         "role": "Admin"
       },
@@ -798,7 +958,7 @@
       "openedAt": "2026-06-01T14:49:36.443+00:00",
       "openedBy": {
         "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
+        "name": "Dr.Felix Ouma",
         "email": "oundofelix04@gmail.com",
         "role": "Admin"
       },
@@ -806,7 +966,7 @@
       "closedAt": "2026-06-03T10:02:57.365+00:00",
       "closedBy": {
         "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
+        "name": "Dr.Felix Ouma",
         "email": "oundofelix04@gmail.com",
         "role": "Admin"
       },
@@ -827,18 +987,216 @@
     },
     {
       "id": "a661a1f5-35f9-436c-bd2c-799b719aefef",
-      "status": "Open",
+      "status": "Closed",
       "openedAt": "2026-06-01T13:15:51.641+00:00",
       "openedBy": {
         "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
-        "name": "New Pharmacy User",
+        "name": "Dr.Felix Ouma",
         "email": "oundofelix04@gmail.com",
         "role": "Admin"
       },
       "openingBalance": 0,
+      "closedAt": "2026-06-03T11:40:20.21+00:00",
+      "closedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "expectedClosingBalance": 0,
+      "actualClosingBalance": 0,
+      "variance": 0,
+      "notes": "",
+      "totalSalesAmount": 0,
+      "totalMpesaAmount": 0,
+      "totalCashAmount": 0,
+      "totalDiscounts": 0,
+      "totalRefunds": 0,
+      "totalExpenses": 0,
+      "salesInvoices": [],
+      "mpesaTransactionsAndAmounts": [],
+      "cashTransactions": [],
+      "note": ""
+    },
+    {
+      "id": "49dc2770-1d27-4194-b3f1-af3387c78c26",
+      "status": "Closed",
+      "openedAt": "2026-06-01T13:11:19.837+00:00",
+      "openedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "openingBalance": 0,
+      "closedAt": "2026-06-03T22:26:27.202+00:00",
+      "closedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "expectedClosingBalance": 69.6,
+      "actualClosingBalance": 69.6,
+      "variance": 0,
+      "notes": "shift concluded ",
+      "totalSalesAmount": 69.6,
+      "totalMpesaAmount": 0,
+      "totalCashAmount": 0,
+      "totalDiscounts": 0,
+      "totalRefunds": 0,
+      "totalExpenses": 0,
+      "salesInvoices": [],
+      "mpesaTransactionsAndAmounts": [],
+      "cashTransactions": [],
+      "note": "shift concluded "
+    },
+    {
+      "id": "995ea9bb-8dc4-4cbe-8ff3-613834d13dc6",
+      "status": "Closed",
+      "openedAt": "2026-06-01T13:01:02.557+00:00",
+      "openedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "openingBalance": 0,
+      "closedAt": "2026-06-03T23:16:49.05+00:00",
+      "closedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "expectedClosingBalance": 1069.6,
+      "actualClosingBalance": 1069.6,
+      "variance": 0,
+      "notes": "shift closed",
+      "totalSalesAmount": 69.6,
+      "totalMpesaAmount": 0,
+      "totalCashAmount": 0,
+      "totalDiscounts": 0,
+      "totalRefunds": 0,
+      "totalExpenses": 0,
+      "salesInvoices": [],
+      "mpesaTransactionsAndAmounts": [],
+      "cashTransactions": [],
+      "note": "shift closed"
+    },
+    {
+      "id": "b1bee509-ea7a-4aea-9804-7f4bed714e8d",
+      "status": "Closed",
+      "openedAt": "2026-06-01T12:59:26.766+00:00",
+      "openedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "openingBalance": 0,
+      "closedAt": "2026-06-03T23:21:54.435+00:00",
+      "closedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "expectedClosingBalance": 1569.6,
+      "actualClosingBalance": 1569.6,
+      "variance": 0,
+      "notes": "close",
+      "totalSalesAmount": 69.6,
+      "totalMpesaAmount": 0,
+      "totalCashAmount": 0,
+      "totalDiscounts": 0,
+      "totalRefunds": 0,
+      "totalExpenses": 0,
+      "salesInvoices": [],
+      "mpesaTransactionsAndAmounts": [],
+      "cashTransactions": [],
+      "note": "close"
+    },
+    {
+      "id": "6a692372-2ac1-49f7-98c8-09ba930786f5",
+      "status": "Closed",
+      "openedAt": "2026-06-03T23:30:20.837+00:00",
+      "openedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "openingBalance": 0,
+      "closedAt": "2026-06-05T07:42:23.638+00:00",
+      "closedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "expectedClosingBalance": 67.6,
+      "actualClosingBalance": 67.6,
+      "variance": 0,
+      "notes": "Shift   Closed",
+      "totalSalesAmount": 67.6,
+      "totalMpesaAmount": 0,
+      "totalCashAmount": 0,
+      "totalDiscounts": 0,
+      "totalRefunds": 0,
+      "totalExpenses": 0,
+      "salesInvoices": [],
+      "mpesaTransactionsAndAmounts": [],
+      "cashTransactions": [],
+      "note": "Shift   Closed"
+    },
+    {
+      "id": "8ebe2b96-7851-4894-bca0-ea48ca647290",
+      "status": "Closed",
+      "openedAt": "2026-06-05T07:54:19.602+00:00",
+      "openedBy": {
+        "id": "f177c66a-d5ec-4586-81b4-afcdf08095b9",
+        "name": "Felix Oundo Ouma",
+        "email": "ooundfelix04@gmail.com",
+        "role": "Admin"
+      },
+      "openingBalance": 100,
+      "closedAt": "2026-06-05T08:00:50.21+00:00",
+      "closedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "expectedClosingBalance": 100,
+      "actualClosingBalance": 100,
+      "variance": 0,
+      "notes": "Afternoon Shift closed successfully",
+      "totalSalesAmount": 0,
+      "totalMpesaAmount": 0,
+      "totalCashAmount": 0,
+      "totalDiscounts": 0,
+      "totalRefunds": 0,
+      "totalExpenses": 0,
+      "salesInvoices": [],
+      "mpesaTransactionsAndAmounts": [],
+      "cashTransactions": [],
+      "note": "Afternoon Shift closed successfully"
+    },
+    {
+      "id": "5e8ee8a1-888d-4396-9fe7-8cedc0a823e6",
+      "status": "Open",
+      "openedAt": "2026-06-05T08:01:08.979+00:00",
+      "openedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "openingBalance": 1000,
       "closedAt": null,
       "closedBy": null,
-      "expectedClosingBalance": 0,
+      "expectedClosingBalance": 1000,
       "notes": "",
       "totalSalesAmount": 0,
       "totalMpesaAmount": 0,
@@ -856,8 +1214,8 @@
     {
       "id": "2026-W23",
       "status": "Active",
-      "startDate": "2026-06-01T00:00:00.000Z",
-      "endDate": "2026-06-07T23:59:59.999Z",
+      "startDate": "2026-05-31T21:00:00.000Z",
+      "endDate": "2026-06-07T20:59:59.999Z",
       "graphReport": {
         "purchases": 0,
         "suppliers": 0,
