@@ -10,7 +10,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
-import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded, pullChangesFromSupabase, mapFromRow, mapToRow, hasServiceRole, getActiveCashSessionFromSupabase, getAllCashSessionsFromSupabase, insertCashSessionToSupabase, updateCashSessionInSupabase, isSupabaseActive } from "./server_db";
+import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded, pullChangesFromSupabase, mapFromRow, mapToRow, hasServiceRole, getActiveCashSessionFromSupabase, getAllCashSessionsFromSupabase, insertCashSessionToSupabase, updateCashSessionInSupabase, isSupabaseActive, getCategoriesFromSupabase, insertCategoryToSupabase, getMedicinesFromSupabase, insertMedicineToSupabase, updateMedicineInSupabase, deleteMedicineFromSupabase } from "./server_db";
 import { UserRole, Medicine, Sale, PurchaseOrder, InventoryLog, Customer, FinanceRecord } from "./src/types";
 
 // Lazy-loaded or conditional Gemini API initializer
@@ -386,7 +386,16 @@ function checkAndRolloverWeeklyCycle(state: any): void {
 // 1. Dashboard Metrics Aggregator
 app.get("/api/dashboard/metrics", async (req, res) => {
   const { weekId } = req.query;
+
+  // Sync cache with live database immediately on request to guarantee 100% current data
+  await pullChangesFromSupabase(true);
   const db = readDB();
+
+  // Load direct real-time data for Products (Medicines) and Categories
+  const [liveCategories, liveMedicines] = await Promise.all([
+    getCategoriesFromSupabase(),
+    getMedicinesFromSupabase()
+  ]);
 
   // Make sure we have the current week initialized and checked
   let finalState = db;
@@ -459,12 +468,12 @@ app.get("/api/dashboard/metrics", async (req, res) => {
     todaysChangePercent = 0;
   }
 
-  // Expired medicines count
+  // Expired medicines count from live Supabase data
   const now = new Date();
-  const expiredCount = finalState.medicines.filter((m: any) => new Date(m.expiryDate) < now).length;
+  const expiredCount = liveMedicines.filter((m: any) => new Date(m.expiryDate) < now).length;
 
-  // Categories count
-  const categoriesCount = finalState.categories.length;
+  // Categories count from live Supabase data
+  const categoriesCount = liveCategories.length;
 
   // System Users Count
   const usersCount = finalState.users.length;
@@ -478,11 +487,11 @@ app.get("/api/dashboard/metrics", async (req, res) => {
     availableCategories: {
       value: categoriesCount,
       placeholderValue: "",
-      changePercent: categoriesCount > 0 ? Number(((finalState.categories.filter((c: any) => finalState.medicines.some((m: any) => m.categoryId === c.id)).length / categoriesCount) * 100).toFixed(1)) : 0
+      changePercent: categoriesCount > 0 ? Number(((liveCategories.filter((c: any) => liveMedicines.some((m: any) => m.categoryId === c.id)).length / categoriesCount) * 100).toFixed(1)) : 0
     },
     expiredMedicines: {
       count: expiredCount,
-      changePercent: finalState.medicines.length > 0 ? Number(((expiredCount / finalState.medicines.length) * 100).toFixed(1)) : 0
+      changePercent: liveMedicines.length > 0 ? Number(((expiredCount / liveMedicines.length) * 100).toFixed(1)) : 0
     },
     systemUsers: {
       count: usersCount,
@@ -892,9 +901,14 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 // 3. Medicines Management API
-app.get("/api/medicines", (req, res) => {
-  const db = readDB();
-  res.json(db.medicines);
+app.get("/api/medicines", async (req, res) => {
+  try {
+    const medicines = await getMedicinesFromSupabase();
+    res.json(medicines);
+  } catch (err: any) {
+    console.error("[API GET Medicines Error]", err);
+    res.status(500).json({ error: "Failed to load medicines" });
+  }
 });
 
 app.post("/api/medicines", async (req, res) => {
@@ -905,7 +919,6 @@ app.post("/api/medicines", async (req, res) => {
 
   try {
     const medicineData = req.body;
-    const db = readDB();
     
     // Validation checks
     if (!medicineData.name || !String(medicineData.name).trim()) {
@@ -918,14 +931,16 @@ app.post("/api/medicines", async (req, res) => {
       return res.status(400).json({ error: "Expiry date is required" });
     }
 
-    // Barcode uniqueness check
+    // Barcode uniqueness check on live Supabase data
+    const medicines = await getMedicinesFromSupabase();
     if (medicineData.barcode) {
-      const isDuplicate = db.medicines.some(m => m.barcode === String(medicineData.barcode).trim());
+      const isDuplicate = medicines.some(m => m.barcode === String(medicineData.barcode).trim());
       if (isDuplicate) {
         return res.status(400).json({ error: `Barcode '${medicineData.barcode}' is already in use` });
       }
     }
 
+    const db = readDB();
     const newMed: Medicine = {
       id: `med-${Date.now()}`,
       name: String(medicineData.name).trim(),
@@ -947,8 +962,15 @@ app.post("/api/medicines", async (req, res) => {
       createdAt: new Date().toISOString()
     };
 
+    // Insert directly to Supabase (synchronous, robust, self-healing)
+    const savedMed = await insertMedicineToSupabase(newMed);
+
+    // Save inventory & audit logs asynchronously
     updateDB(state => {
-      state.medicines.push(newMed);
+      // Keep cache sync'ed with memory insert (only if not already updated by helper)
+      if (!isSupabaseActive()) {
+        state.medicines.push(newMed);
+      }
       state.inventoryLogs.unshift({
         id: `log-${Date.now()}`,
         medicineId: newMed.id,
@@ -969,11 +991,6 @@ app.post("/api/medicines", async (req, res) => {
       });
     });
 
-    // Immediately refetch from Supabase to ensure consistency
-    await pullChangesFromSupabase(true);
-    const updatedDb = readDB();
-    const savedMed = updatedDb.medicines.find(m => m.id === newMed.id);
-    
     res.status(201).json(savedMed || newMed);
   } catch (err: any) {
     console.error("[API Medicines Error]", err);
@@ -992,84 +1009,77 @@ app.put("/api/medicines/:id", async (req, res) => {
   }
 
   try {
-    // 2. Adjust stock check if quantity changes
-    const db = readDB();
+    // Check barcode and existence on live Supabase data
+    const medicines = await getMedicinesFromSupabase();
 
     // Barcode uniqueness check for updates
     if (editData.barcode) {
-      const isDuplicate = db.medicines.some(m => m.barcode === editData.barcode && m.id !== medId);
+      const isDuplicate = medicines.some(m => m.barcode === editData.barcode && m.id !== medId);
       if (isDuplicate) {
         return res.status(400).json({ error: `Barcode '${editData.barcode}' is already in use` });
       }
     }
 
-    const existingMed = db.medicines.find(m => m.id === medId);
+    const existingMed = medicines.find(m => m.id === medId);
     if (!existingMed) {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    if (existingMed.quantity !== Number(editData.quantity)) {
+    const newQty = Number(editData.quantity);
+    if (existingMed.quantity !== newQty) {
       const stockCheck = checkPermission(req, "adjustStock");
       if (!stockCheck.allowed) {
         return res.status(403).json({ error: "Forbidden: You do not have permission to adjust stock quantities" });
       }
     }
 
-    let updatedMed: Medicine | null = null;
+    const updates = {
+      ...editData,
+      buyingPrice: Number(editData.buyingPrice),
+      sellingPrice: Number(editData.sellingPrice),
+      quantity: newQty,
+      minStockLevel: Number(editData.minStockLevel)
+    };
 
+    // Update directly in Supabase (will sync cache and self-heal missing columns)
+    const savedMed = await updateMedicineInSupabase(medId, updates);
+
+    // Save inventory & audit logs asynchronously
+    const oldQty = existingMed.quantity;
     updateDB(state => {
-      const idx = state.medicines.findIndex(m => m.id === medId);
-      if (idx !== -1) {
-        const oldQty = state.medicines[idx].quantity;
-        const newQty = Number(editData.quantity);
-        
-        updatedMed = {
-          ...state.medicines[idx],
-          ...editData,
-          buyingPrice: Number(editData.buyingPrice),
-          sellingPrice: Number(editData.sellingPrice),
-          quantity: newQty,
-          minStockLevel: Number(editData.minStockLevel),
-          id: medId // protect id
-        };
-        
-        state.medicines[idx] = updatedMed;
-
-        // Log inventory diff if quantities count changed
-        if (oldQty !== newQty) {
-          state.inventoryLogs.unshift({
-            id: `log-${Date.now()}`,
-            medicineId: medId,
-            medicineName: updatedMed.name,
-            type: newQty > oldQty ? "restock" : "damaged",
-            quantity: Math.abs(newQty - oldQty),
-            date: new Date().toISOString(),
-            reason: `Quantity manually modified from ${oldQty} to ${newQty}`,
-            userEmail: editCheck.user?.email || getRequesterEmail(req)
-          });
+      // Sync memory cache if fallback active
+      if (!isSupabaseActive()) {
+        const idx = state.medicines.findIndex(m => m.id === medId);
+        if (idx !== -1) {
+          state.medicines[idx] = { ...state.medicines[idx], ...updates };
         }
+      }
 
-        state.auditLogs.unshift({
-          id: `aud-${Date.now()}`,
-          userEmail: editCheck.user?.email || getRequesterEmail(req),
-          action: "Updated Medicine",
-          module: "Inventory",
+      // Log inventory diff if quantities count changed
+      if (oldQty !== newQty) {
+        state.inventoryLogs.unshift({
+          id: `log-${Date.now()}`,
+          medicineId: medId,
+          medicineName: existingMed.name,
+          type: newQty > oldQty ? "restock" : "damaged",
+          quantity: Math.abs(newQty - oldQty),
           date: new Date().toISOString(),
-          details: `Modified specifications for ${updatedMed.name}.`
+          reason: `Quantity manually modified from ${oldQty} to ${newQty}`,
+          userEmail: editCheck.user?.email || getRequesterEmail(req)
         });
       }
+
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: editCheck.user?.email || getRequesterEmail(req),
+        action: "Updated Medicine",
+        module: "Inventory",
+        date: new Date().toISOString(),
+        details: `Modified specifications for ${existingMed.name}.`
+      });
     });
 
-    if (!updatedMed) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-
-    // Immediately refetch from Supabase to ensure consistency
-    await pullChangesFromSupabase(true);
-    const updatedDb = readDB();
-    const savedMed = updatedDb.medicines.find(m => m.id === medId);
-
-    res.json(savedMed || updatedMed);
+    res.json(savedMed || { ...existingMed, ...updates });
   } catch (err: any) {
     console.error("[API Medicines Update Error]", err);
     res.status(500).json({ error: "Failed to update product" });
@@ -1086,30 +1096,32 @@ app.delete("/api/medicines/:id", async (req, res) => {
   }
 
   try {
-    let deletedName = "";
-
-    updateDB(state => {
-      const idx = state.medicines.findIndex(m => m.id === medId);
-      if (idx !== -1) {
-        deletedName = state.medicines[idx].name;
-        state.medicines = state.medicines.filter(m => m.id !== medId);
-        state.auditLogs.unshift({
-          id: `aud-${Date.now()}`,
-          userEmail: user.email,
-          action: "Deleted Medicine",
-          module: "Inventory",
-          date: new Date().toISOString(),
-          details: `Deleted product record ${deletedName} (ID: ${medId}).`
-        });
-      }
-    });
-
-    if (!deletedName) {
+    const medicines = await getMedicinesFromSupabase();
+    const existingMed = medicines.find(m => m.id === medId);
+    if (!existingMed) {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    // Immediately refetch from Supabase to ensure consistency
-    await pullChangesFromSupabase(true);
+    const deletedName = existingMed.name;
+
+    // Delete directly from Supabase
+    await deleteMedicineFromSupabase(medId);
+
+    // Save audit logs asynchronously
+    updateDB(state => {
+      // Sync memory cache if fallback active
+      if (!isSupabaseActive()) {
+        state.medicines = state.medicines.filter(m => m.id !== medId);
+      }
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: user.email,
+        action: "Deleted Medicine",
+        module: "Inventory",
+        date: new Date().toISOString(),
+        details: `Deleted product record ${deletedName} (ID: ${medId}).`
+      });
+    });
 
     res.json({ message: `Successfully deleted product: ${deletedName}` });
   } catch (err: any) {
@@ -1119,9 +1131,14 @@ app.delete("/api/medicines/:id", async (req, res) => {
 });
 
 // 4. Categories API
-app.get("/api/categories", (req, res) => {
-  const db = readDB();
-  res.json(db.categories);
+app.get("/api/categories", async (req, res) => {
+  try {
+    const categories = await getCategoriesFromSupabase();
+    res.json(categories);
+  } catch (err: any) {
+    console.error("[API GET Categories Error]", err);
+    res.status(500).json({ error: "Failed to load categories" });
+  }
 });
 
 app.post("/api/categories", async (req, res) => {
@@ -1136,9 +1153,9 @@ app.post("/api/categories", async (req, res) => {
   }
 
   try {
-    // Check for duplicate category names
-    const db = readDB();
-    const existing = db.categories.find(c => c.name.toLowerCase() === String(name).toLowerCase().trim());
+    // Check for duplicate category names on live Supabase data
+    const categories = await getCategoriesFromSupabase();
+    const existing = categories.find(c => c.name.toLowerCase() === String(name).toLowerCase().trim());
     if (existing) {
       return res.status(400).json({ error: `Category "${name}" already exists` });
     }
@@ -1149,8 +1166,11 @@ app.post("/api/categories", async (req, res) => {
       description: description ? String(description).trim() : ""
     };
 
+    // Insert directly into Supabase (will handle fallbacks safely and keep cache synced)
+    const savedCategory = await insertCategoryToSupabase(newCat);
+
+    // Save audit log asynchronously
     updateDB(state => {
-      state.categories.push(newCat);
       state.auditLogs.unshift({
         id: `aud-${Date.now()}`,
         userEmail: permCheck.user?.email || getRequesterEmail(req),
@@ -1161,11 +1181,6 @@ app.post("/api/categories", async (req, res) => {
       });
     });
 
-    // Immediately refetch from Supabase to ensure consistency
-    await pullChangesFromSupabase(true);
-    const updatedDb = readDB();
-    const savedCategory = updatedDb.categories.find(c => c.id === newCat.id);
-    
     res.status(201).json(savedCategory || newCat);
   } catch (err: any) {
     console.error("[API Categories Error]", err);
@@ -3248,20 +3263,32 @@ function calculateSessionSummary(session: any, db: any) {
 }
 
 app.get("/api/cash-register/sessions", async (req, res) => {
-  const sessions = await getAllCashSessionsFromSupabase();
-  const db = readDB();
-  const sorted = sessions.map(session => calculateSessionSummary(session, db));
-  res.json(sorted);
+  try {
+    await pullChangesFromSupabase(true);
+    const sessions = await getAllCashSessionsFromSupabase();
+    const db = readDB();
+    const sorted = sessions.map(session => calculateSessionSummary(session, db));
+    res.json(sorted);
+  } catch (err: any) {
+    console.error("[API GET Cash Sessions Error]", err);
+    res.status(500).json({ error: "Failed to load cash sessions" });
+  }
 });
 
 app.get("/api/cash-register/active", async (req, res) => {
-  const active = await getActiveCashSessionFromSupabase();
-  if (!active) {
-    return res.json(null);
+  try {
+    await pullChangesFromSupabase(true);
+    const active = await getActiveCashSessionFromSupabase();
+    if (!active) {
+      return res.json(null);
+    }
+    const db = readDB();
+    const summarized = calculateSessionSummary(active, db);
+    res.json(summarized);
+  } catch (err: any) {
+    console.error("[API GET Active Cash Session Error]", err);
+    res.status(500).json({ error: "Failed to load active cash session" });
   }
-  const db = readDB();
-  const summarized = calculateSessionSummary(active, db);
-  res.json(summarized);
 });
 
 app.post("/api/cash-register/open", async (req, res) => {
@@ -3340,6 +3367,7 @@ app.post("/api/cash-register/close", async (req, res) => {
     return res.status(400).json({ error: "No active cash register session found to close." });
   }
 
+  await pullChangesFromSupabase(true);
   const db = readDB();
   const summarized = calculateSessionSummary(active, db);
   const variance = Number(actualClosingBalance) - summarized.expectedClosingBalance;

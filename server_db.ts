@@ -1010,9 +1010,20 @@ let globalStateCache: DBState = initialData;
 let isInitialSyncDone = false;
 let lastPullTimestamp = 0;
 let isPullingInProgress = false;
+let activeSyncPromise: Promise<void> | null = null;
 
 export async function pullChangesFromSupabase(force = false): Promise<void> {
   if (isSupabaseDisabled) return;
+
+  if (activeSyncPromise) {
+    try {
+      console.log("[Supabase Sync Guard] Waiting for active write synchronization to finish before pulling...");
+      await activeSyncPromise;
+    } catch (e) {
+      console.warn("[Supabase Sync Guard] Error while waiting for active sync:", e);
+    }
+  }
+
   const now = Date.now();
   // Limit automatic pulling to once per 5 seconds to manage load and performance
   if (!force && now - lastPullTimestamp < 5000) {
@@ -1957,29 +1968,38 @@ export function readDB(): DBState {
 }
 
 export function writeDB(state: DBState): void {
-  const oldState = { ...globalStateCache };
+  const oldState = JSON.parse(JSON.stringify(globalStateCache));
   globalStateCache = state;
   
-  // Asynchronously write to both local system and Supabase cloud tables
   writeDBToFileSystem(state);
-  syncChangesToSupabase(oldState, state).then(() => {
-    // Force direct cloud fetch after writing changes to maintain absolute database integrity
-    pullChangesFromSupabase(true).catch(e => console.error("[Sync Trigger Fail]", e));
-  });
+  if (!isSupabaseDisabled) {
+    activeSyncPromise = syncChangesToSupabase(oldState, state).then(() => {
+      activeSyncPromise = null;
+      pullChangesFromSupabase(true).catch(e => console.error("[Sync Trigger Fail]", e));
+    }).catch(err => {
+      console.error("[Sync Error]", err);
+      activeSyncPromise = null;
+    });
+  }
 }
 
 export function updateDB(updater: (state: DBState) => void): DBState {
-  const oldState = { ...globalStateCache };
+  const oldState = JSON.parse(JSON.stringify(globalStateCache));
   
   const stateCopy = JSON.parse(JSON.stringify(globalStateCache));
   updater(stateCopy);
   globalStateCache = stateCopy;
   
   writeDBToFileSystem(stateCopy);
-  syncChangesToSupabase(oldState, stateCopy).then(() => {
-    // Force direct cloud fetch after writing changes to maintain absolute database integrity
-    pullChangesFromSupabase(true).catch(e => console.error("[Sync Trigger Fail]", e));
-  });
+  if (!isSupabaseDisabled) {
+    activeSyncPromise = syncChangesToSupabase(oldState, stateCopy).then(() => {
+      activeSyncPromise = null;
+      pullChangesFromSupabase(true).catch(e => console.error("[Sync Trigger Fail]", e));
+    }).catch(err => {
+      console.error("[Sync Error]", err);
+      activeSyncPromise = null;
+    });
+  }
   return stateCopy;
 }
 
@@ -2203,3 +2223,348 @@ export async function updateCashSessionInSupabase(sessionId: string, updates: Pa
   }
   return null;
 }
+
+// --- Direct Supabase CRUD helpers for Categories ---
+export async function getCategoriesFromSupabase(): Promise<Category[]> {
+  if (isSupabaseDisabled) {
+    return globalStateCache?.categories || [];
+  }
+  try {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("[Supabase GET Categories Error] Bypassing to local state:", error.message);
+      return globalStateCache?.categories || [];
+    }
+
+    if (!data) return globalStateCache?.categories || [];
+    return data.map(row => mapFromRow("categories", row));
+  } catch (err) {
+    console.error("[Supabase GET Categories Exception] Bypassing to local state:", err);
+    return globalStateCache?.categories || [];
+  }
+}
+
+export async function insertCategoryToSupabase(category: Category): Promise<Category | null> {
+  if (isSupabaseDisabled) {
+    // Save locally
+    if (!globalStateCache.categories) globalStateCache.categories = [];
+    globalStateCache.categories.push(category);
+    writeDBToFileSystem(globalStateCache);
+    return category;
+  }
+
+  let row = mapToRow("categories", category);
+  let attempts = 0;
+  const maxAttempts = 15;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .insert([row])
+        .select()
+        .single();
+
+      if (!error) {
+        if (!data) return null;
+        const result = mapFromRow("categories", data);
+        
+        // Keep in memory cache synchronized
+        if (!globalStateCache.categories) globalStateCache.categories = [];
+        const idx = globalStateCache.categories.findIndex(c => c.id === result.id);
+        if (idx === -1) {
+          globalStateCache.categories.push(result);
+        } else {
+          globalStateCache.categories[idx] = result;
+        }
+        writeDBToFileSystem(globalStateCache);
+        return result;
+      }
+
+      const errMsg = error.message || "";
+      const errCode = error.code || "";
+      console.warn(`[Self-Healing Category Insert] Attempt ${attempts}: Code ${errCode}, Msg: ${errMsg}`);
+
+      const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
+                          errMsg.match(/column "([^"]+)" of relation/i) ||
+                          errMsg.match(/column "([^"]+)" does not exist/i);
+      if (cacheMatch || errCode === "42703") {
+        let badColumn = cacheMatch ? cacheMatch[1] : null;
+        if (!badColumn) {
+          const colMatch = errMsg.match(/column "([^"]+)"/i) || errMsg.match(/column '([^']+)'/i);
+          if (colMatch) badColumn = colMatch[1];
+        }
+        if (badColumn) {
+          console.warn(`[Self-Healing Category Insert] Auto-pruning missing column [${badColumn}]...`);
+          const { [badColumn]: _, ...rest } = row;
+          row = rest;
+          continue;
+        }
+      }
+      console.error("[Supabase Insert Category Error]", errMsg);
+      break;
+    } catch (err) {
+      console.error("[Supabase Insert Category Exception]", err);
+      break;
+    }
+  }
+
+  // Fallback to local
+  console.warn("[Category Fallback] Saving category locally...");
+  if (!globalStateCache.categories) globalStateCache.categories = [];
+  const idx = globalStateCache.categories.findIndex(c => c.id === category.id);
+  if (idx === -1) {
+    globalStateCache.categories.push(category);
+  }
+  writeDBToFileSystem(globalStateCache);
+  return category;
+}
+
+// --- Direct Supabase CRUD helpers for Medicines / Products ---
+export async function getMedicinesFromSupabase(): Promise<Medicine[]> {
+  if (isSupabaseDisabled) {
+    return globalStateCache?.medicines || [];
+  }
+  try {
+    const { data, error } = await supabase
+      .from("medicines")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.error("[Supabase GET Medicines Error] Bypassing to local state:", error.message);
+      return globalStateCache?.medicines || [];
+    }
+
+    if (!data) return globalStateCache?.medicines || [];
+    return data.map(row => mapFromRow("medicines", row));
+  } catch (err) {
+    console.error("[Supabase GET Medicines Exception] Bypassing to local state:", err);
+    return globalStateCache?.medicines || [];
+  }
+}
+
+export async function insertMedicineToSupabase(medicine: Medicine): Promise<Medicine | null> {
+  if (isSupabaseDisabled) {
+    // Save locally
+    if (!globalStateCache.medicines) globalStateCache.medicines = [];
+    globalStateCache.medicines.push(medicine);
+    writeDBToFileSystem(globalStateCache);
+    return medicine;
+  }
+
+  let row = mapToRow("medicines", medicine);
+  let attempts = 0;
+  const maxAttempts = 15;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const { data, error } = await supabase
+        .from("medicines")
+        .insert([row])
+        .select()
+        .single();
+
+      if (!error) {
+        if (!data) return null;
+        const result = mapFromRow("medicines", data);
+        
+        // Keep in memory cache synchronized
+        if (!globalStateCache.medicines) globalStateCache.medicines = [];
+        const idx = globalStateCache.medicines.findIndex(m => m.id === result.id);
+        if (idx === -1) {
+          globalStateCache.medicines.push(result);
+        } else {
+          globalStateCache.medicines[idx] = result;
+        }
+        writeDBToFileSystem(globalStateCache);
+        return result;
+      }
+
+      const errMsg = error.message || "";
+      const errCode = error.code || "";
+      console.warn(`[Self-Healing Medicine Insert] Attempt ${attempts}: Code ${errCode}, Msg: ${errMsg}`);
+
+      const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
+                          errMsg.match(/column "([^"]+)" of relation/i) ||
+                          errMsg.match(/column "([^"]+)" does not exist/i);
+      if (cacheMatch || errCode === "42703") {
+        let badColumn = cacheMatch ? cacheMatch[1] : null;
+        if (!badColumn) {
+          const colMatch = errMsg.match(/column "([^"]+)"/i) || errMsg.match(/column '([^']+)'/i);
+          if (colMatch) badColumn = colMatch[1];
+        }
+        if (badColumn) {
+          console.warn(`[Self-Healing Medicine Insert] Auto-pruning missing column [${badColumn}]...`);
+          const { [badColumn]: _, ...rest } = row;
+          row = rest;
+          continue;
+        }
+      }
+      
+      // Foreign key fallback self-healing
+      if (errCode === "23503" || errMsg.includes("violates foreign key constraint")) {
+        if (errMsg.includes("category_id")) {
+          console.warn("[Self-Healing Medicine Insert] Category ID foreign key constraint failure. Retrying with NULL category_id...");
+          row.category_id = null;
+          continue;
+        }
+        if (errMsg.includes("supplier_id")) {
+          console.warn("[Self-Healing Medicine Insert] Supplier ID foreign key constraint failure. Retrying with NULL supplier_id...");
+          row.supplier_id = null;
+          continue;
+        }
+      }
+      
+      console.error("[Supabase Insert Medicine Error]", errMsg);
+      break;
+    } catch (err) {
+      console.error("[Supabase Insert Medicine Exception]", err);
+      break;
+    }
+  }
+
+  // Fallback to local
+  console.warn("[Medicine Fallback] Saving medicine locally...");
+  if (!globalStateCache.medicines) globalStateCache.medicines = [];
+  const idx = globalStateCache.medicines.findIndex(m => m.id === medicine.id);
+  if (idx === -1) {
+    globalStateCache.medicines.push(medicine);
+  }
+  writeDBToFileSystem(globalStateCache);
+  return medicine;
+}
+
+export async function updateMedicineInSupabase(id: string, updates: Partial<Medicine>): Promise<Medicine | null> {
+  const targetId = toUUIDIfNeeded(id);
+  if (isSupabaseDisabled) {
+    if (!globalStateCache.medicines) globalStateCache.medicines = [];
+    const idx = globalStateCache.medicines.findIndex(m => m.id === id);
+    if (idx !== -1) {
+      const merged = { ...globalStateCache.medicines[idx], ...updates };
+      globalStateCache.medicines[idx] = merged;
+      writeDBToFileSystem(globalStateCache);
+      return merged;
+    }
+    return null;
+  }
+
+  let row = mapToRow("medicines", updates);
+  delete row.id; // protect id
+
+  let attempts = 0;
+  const maxAttempts = 15;
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const { data, error } = await supabase
+        .from("medicines")
+        .update(row)
+        .eq("id", targetId)
+        .select()
+        .single();
+
+      if (!error) {
+        if (!data) return null;
+        const result = mapFromRow("medicines", data);
+        
+        // Sync local cache
+        if (!globalStateCache.medicines) globalStateCache.medicines = [];
+        const idx = globalStateCache.medicines.findIndex(m => m.id === result.id);
+        if (idx !== -1) {
+          globalStateCache.medicines[idx] = result;
+        }
+        writeDBToFileSystem(globalStateCache);
+        return result;
+      }
+
+      const errMsg = error.message || "";
+      const errCode = error.code || "";
+      console.warn(`[Self-Healing Medicine Update] Attempt ${attempts}: Code ${errCode}, Msg: ${errMsg}`);
+
+      const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
+                          errMsg.match(/column "([^"]+)" of relation/i) ||
+                          errMsg.match(/column "([^"]+)" does not exist/i);
+      if (cacheMatch || errCode === "42703") {
+        let badColumn = cacheMatch ? cacheMatch[1] : null;
+        if (!badColumn) {
+          const colMatch = errMsg.match(/column "([^"]+)"/i) || errMsg.match(/column '([^']+)'/i);
+          if (colMatch) badColumn = colMatch[1];
+        }
+        if (badColumn) {
+          console.warn(`[Self-Healing Medicine Update] Auto-pruning missing column [${badColumn}]...`);
+          const { [badColumn]: _, ...rest } = row;
+          row = rest;
+          continue;
+        }
+      }
+
+      // Foreign key fallback self-healing
+      if (errCode === "23503" || errMsg.includes("violates foreign key constraint")) {
+        if (errMsg.includes("category_id")) {
+          console.warn("[Self-Healing Medicine Update] Category ID foreign key constraint failure. Retrying with NULL category_id...");
+          row.category_id = null;
+          continue;
+        }
+        if (errMsg.includes("supplier_id")) {
+          console.warn("[Self-Healing Medicine Update] Supplier ID foreign key constraint failure. Retrying with NULL supplier_id...");
+          row.supplier_id = null;
+          continue;
+        }
+      }
+
+      console.error("[Supabase Update Medicine Error]", errMsg);
+      break;
+    } catch (err) {
+      console.error("[Supabase Update Medicine Exception]", err);
+      break;
+    }
+  }
+
+  // Fallback to local
+  console.warn("[Medicine Fallback] Saving medicine update locally...");
+  if (!globalStateCache.medicines) globalStateCache.medicines = [];
+  const idx = globalStateCache.medicines.findIndex(m => m.id === id);
+  if (idx !== -1) {
+    const merged = { ...globalStateCache.medicines[idx], ...updates };
+    globalStateCache.medicines[idx] = merged;
+    writeDBToFileSystem(globalStateCache);
+    return merged;
+  }
+  return null;
+}
+
+export async function deleteMedicineFromSupabase(id: string): Promise<boolean> {
+  const targetId = toUUIDIfNeeded(id);
+  if (isSupabaseDisabled) {
+    if (!globalStateCache.medicines) globalStateCache.medicines = [];
+    globalStateCache.medicines = globalStateCache.medicines.filter(m => m.id !== id);
+    writeDBToFileSystem(globalStateCache);
+    return true;
+  }
+  try {
+    const { error } = await supabase
+      .from("medicines")
+      .delete()
+      .eq("id", targetId);
+
+    if (error) {
+      console.error("[Supabase Delete Medicine Error]", error.message);
+      return false;
+    }
+
+    // Direct local cache evict
+    if (!globalStateCache.medicines) globalStateCache.medicines = [];
+    globalStateCache.medicines = globalStateCache.medicines.filter(m => m.id !== id);
+    writeDBToFileSystem(globalStateCache);
+    return true;
+  } catch (err) {
+    console.error("[Supabase Delete Medicine Exception]", err);
+    return false;
+  }
+}
+
