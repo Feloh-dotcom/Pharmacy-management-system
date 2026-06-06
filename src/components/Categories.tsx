@@ -22,17 +22,24 @@ export default function Categories({ user, rolePermissions }: CategoriesProps) {
   const [error, setError] = useState<string | null>(null);
 
   // RBAC Permission Resolution
-  const userPermissions = (rolePermissions || []).find(rp => rp.role === user?.role)?.permissions || {
-    manageMedicines: user?.role === "Admin" || user?.role === "Pharmacist",
-    manageInventory: user?.role === "Admin" || user?.role === "Pharmacist",
-    addProducts: user?.role === "Admin" || user?.role === "Pharmacist",
-    editProducts: user?.role === "Admin" || user?.role === "Pharmacist",
-    addCategories: user?.role === "Admin" || user?.role === "Pharmacist",
-    editCategories: user?.role === "Admin" || user?.role === "Pharmacist",
-    adjustStock: user?.role === "Admin" || user?.role === "Pharmacist"
+  const userRoleStr = (user?.role || "").trim().toLowerCase();
+  const isAdminOrPharmacist = userRoleStr === "admin" || userRoleStr === "pharmacist";
+
+  const targetRolePerm = (rolePermissions || []).find(
+    rp => (rp.role || "").trim().toLowerCase() === userRoleStr
+  );
+
+  const userPermissions = targetRolePerm?.permissions || {
+    manageMedicines: isAdminOrPharmacist,
+    manageInventory: isAdminOrPharmacist,
+    addProducts: isAdminOrPharmacist,
+    editProducts: isAdminOrPharmacist,
+    addCategories: isAdminOrPharmacist,
+    editCategories: isAdminOrPharmacist,
+    adjustStock: isAdminOrPharmacist
   };
 
-  const canAddCategory = !!userPermissions.addCategories;
+  const canAddCategory = isAdminOrPharmacist || !!userPermissions.addCategories;
 
   const fetchCategories = async () => {
     try {

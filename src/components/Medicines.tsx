@@ -29,20 +29,27 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
   const [medicines, setMedicines] = useState<Medicine[]>([]);
 
   // RBAC Permission Resolution
-  const userPermissions = (rolePermissions || []).find(rp => rp.role === user?.role)?.permissions || {
-    manageMedicines: user?.role === "Admin" || user?.role === "Pharmacist",
-    manageInventory: user?.role === "Admin" || user?.role === "Pharmacist",
-    addProducts: user?.role === "Admin" || user?.role === "Pharmacist",
-    editProducts: user?.role === "Admin" || user?.role === "Pharmacist",
-    addCategories: user?.role === "Admin" || user?.role === "Pharmacist",
-    editCategories: user?.role === "Admin" || user?.role === "Pharmacist",
-    adjustStock: user?.role === "Admin" || user?.role === "Pharmacist"
+  const userRoleStr = (user?.role || "").trim().toLowerCase();
+  const isAdminOrPharmacist = userRoleStr === "admin" || userRoleStr === "pharmacist";
+
+  const targetRolePerm = (rolePermissions || []).find(
+    rp => (rp.role || "").trim().toLowerCase() === userRoleStr
+  );
+
+  const userPermissions = targetRolePerm?.permissions || {
+    manageMedicines: isAdminOrPharmacist,
+    manageInventory: isAdminOrPharmacist,
+    addProducts: isAdminOrPharmacist,
+    editProducts: isAdminOrPharmacist,
+    addCategories: isAdminOrPharmacist,
+    editCategories: isAdminOrPharmacist,
+    adjustStock: isAdminOrPharmacist
   };
 
-  const canAddProduct = !!userPermissions.addProducts;
-  const canEditProduct = !!userPermissions.editProducts;
-  const canAdjustStock = !!userPermissions.adjustStock;
-  const canDeleteProduct = user?.role === "Admin" || user?.role === "Pharmacist";
+  const canAddProduct = isAdminOrPharmacist || !!userPermissions.addProducts;
+  const canEditProduct = isAdminOrPharmacist || !!userPermissions.editProducts;
+  const canAdjustStock = isAdminOrPharmacist || !!userPermissions.adjustStock;
+  const canDeleteProduct = isAdminOrPharmacist;
   const [categories, setCategories] = useState<Category[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);

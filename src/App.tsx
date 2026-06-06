@@ -42,6 +42,22 @@ interface SessionUser {
 
 export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
+
+  const setSessionUser = (u: SessionUser | null) => {
+    if (u) {
+      const roleStr = String((u as any).role || "");
+      const lower = roleStr.toLowerCase().trim();
+      if (lower === "admin" || lower === "super admin") u.role = UserRole.ADMIN;
+      else if (lower === "pharmacist") u.role = UserRole.PHARMACIST;
+      else if (lower === "cashier") u.role = UserRole.CASHIER;
+      else if (lower === "inventory manager" || lower === "inventory_manager") u.role = UserRole.INVENTORY_MANAGER;
+      else if (lower === "supplier") u.role = UserRole.SUPPLIER;
+      else if (lower === "customer") u.role = UserRole.CUSTOMER;
+      else if (lower === "accountant") u.role = UserRole.ACCOUNTANT;
+      else if (lower === "user") u.role = UserRole.USER;
+    }
+    setUser(u);
+  };
   const [profileLoading, setProfileLoading] = useState<boolean>(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [currentTab, setCurrentTab] = useState<string>("dashboard");
@@ -199,7 +215,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         if (data.user) {
-          setUser(data.user);
+          setSessionUser(data.user);
           localStorage.setItem("halomedical_session_user", JSON.stringify(data.user));
           
           // Re-evaluate current tab if they completed onboarding
@@ -233,7 +249,7 @@ export default function App() {
         const parsed = JSON.parse(storedUser);
         if (parsed && parsed.email && parsed.role) {
           // Fallback option: load from local cache instantly to maintain smooth UI load
-          setUser(parsed);
+          setSessionUser(parsed);
           const completion = calculateProfileCompletion(parsed);
           if (completion.percent < 100) {
             setCurrentTab("profile");
@@ -249,7 +265,7 @@ export default function App() {
   }, []);
 
   const handleLoginSuccess = async (sessionUser: SessionUser) => {
-    setUser(sessionUser);
+    setSessionUser(sessionUser);
     localStorage.setItem("halomedical_session_user", JSON.stringify(sessionUser));
     const completion = calculateProfileCompletion(sessionUser);
     if (completion.percent < 100) {
@@ -274,13 +290,13 @@ export default function App() {
   const handleRoleChange = (newRole: UserRole) => {
     if (user) {
       const updatedUser = { ...user, role: newRole };
-      setUser(updatedUser);
+      setSessionUser(updatedUser);
       localStorage.setItem("halomedical_session_user", JSON.stringify(updatedUser));
     }
   };
 
   const handleLogout = () => {
-    setUser(null);
+    setSessionUser(null);
     localStorage.removeItem("halomedical_session_user");
   };
 
@@ -438,7 +454,7 @@ export default function App() {
           <Profile 
             user={user} 
             onProfileUpdated={(updatedUser) => {
-              setUser(updatedUser);
+              setSessionUser(updatedUser);
               localStorage.setItem("halomedical_session_user", JSON.stringify(updatedUser));
             }} 
           />
