@@ -10,7 +10,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
-import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded, pullChangesFromSupabase, mapFromRow, mapToRow, hasServiceRole, getActiveCashSessionFromSupabase, getAllCashSessionsFromSupabase, insertCashSessionToSupabase, updateCashSessionInSupabase, isSupabaseActive, getCategoriesFromSupabase, insertCategoryToSupabase, getMedicinesFromSupabase, insertMedicineToSupabase, updateMedicineInSupabase, deleteMedicineFromSupabase } from "./server_db";
+import { readDB, updateDB, hashPassword, initSupabaseSync, uploadBase64ToStorage, supabase, toUUIDIfNeeded, pullChangesFromSupabase, mapFromRow, mapToRow, hasServiceRole, getActiveCashSessionFromSupabase, getAllCashSessionsFromSupabase, insertCashSessionToSupabase, updateCashSessionInSupabase, isSupabaseActive, getCategoriesFromSupabase, insertCategoryToSupabase, getMedicinesFromSupabase, insertMedicineToSupabase, updateMedicineInSupabase, deleteMedicineFromSupabase, getSuppliersFromSupabase, resolveOrCreateSupplier } from "./server_db";
 import { UserRole, Medicine, Sale, PurchaseOrder, InventoryLog, Customer, FinanceRecord } from "./src/types";
 
 // Lazy-loaded or conditional Gemini API initializer
@@ -186,7 +186,49 @@ async function ensureUserInLocalCache(email: string): Promise<any> {
   return newUser;
 }
 
+let startupError: any = null;
+
 const app = express();
+
+app.use((req, res, next) => {
+  if (startupError) {
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Database Configuration Required</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 2rem; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+          .card { background: #1e293b; border: 1px dashed #ef4444; border-radius: 12px; padding: 2.5rem; max-width: 600px; width: 100%; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+          h1 { color: #f87171; font-size: 1.5rem; margin-top: 0; display: flex; align-items: center; gap: 0.5rem; }
+          p { color: #cbd5e1; line-height: 1.6; font-size: 0.95rem; }
+          .error-box { background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.2); padding: 1.25rem; border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85rem; color: #f43f5e; white-space: pre-wrap; word-break: break-all; margin: 1.5rem 0; }
+          .tip { color: #94a3b8; font-size: 0.85rem; margin-top: 1.5rem; border-top: 1px solid #334155; padding-top: 1.25rem; }
+          .btn { display: inline-block; background: #3b82f6; color: white; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 500; font-size: 0.9rem; margin-top: 1rem; transition: background 0.2s; }
+          .btn:hover { background: #2563eb; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>⚠️ CRITICAL: Database Connection & Schema Error</h1>
+          <p>The application is configured to run with Supabase as the <strong>mandatory single source of truth</strong>, but the initialization check failed. Local fallback buffers are completely disabled to prevent data fragmentation.</p>
+          <div class="error-box">${startupError.message || startupError}</div>
+          <div class="tip">
+            <strong>How to resolve:</strong><br/>
+            1. Open the <strong>Settings</strong> button in AI Studio (or configure your shell environment variables).<br/>
+            2. Supply a valid <code>SUPABASE_URL</code> and <code>SUPABASE_SERVICE_ROLE_KEY</code>.<br/>
+            3. Ensure your target database has the required schema tables (e.g., categories, medicines, sales, cash_sessions, system_settings) by running your migrations/seeder sql script.
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+    return;
+  }
+  next();
+});
+
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -953,7 +995,7 @@ app.post("/api/medicines", async (req, res) => {
       quantity: Number(medicineData.quantity) || 0,
       minStockLevel: Number(medicineData.minStockLevel) || 10,
       manufacturer: medicineData.manufacturer ? String(medicineData.manufacturer).trim() : "",
-      supplierId: medicineData.supplierId || (db.suppliers[0]?.id || ""),
+      supplierId: (medicineData.supplierId === undefined || medicineData.supplierId === null || String(medicineData.supplierId).trim() === "" || String(medicineData.supplierId).toLowerCase() === "null" || String(medicineData.supplierId).toLowerCase() === "none") ? null : String(medicineData.supplierId).trim(),
       categoryId: medicineData.categoryId || (db.categories[0]?.id || ""),
       barcode: medicineData.barcode ? String(medicineData.barcode).trim() : `890${Math.floor(1000000000 + Math.random() * 9000000000)}`,
       taxVat: Number(medicineData.taxVat) || 16,
@@ -1038,7 +1080,8 @@ app.put("/api/medicines/:id", async (req, res) => {
       buyingPrice: Number(editData.buyingPrice),
       sellingPrice: Number(editData.sellingPrice),
       quantity: newQty,
-      minStockLevel: Number(editData.minStockLevel)
+      minStockLevel: Number(editData.minStockLevel),
+      supplierId: (editData.supplierId === undefined || editData.supplierId === null || String(editData.supplierId).trim() === "" || String(editData.supplierId).toLowerCase() === "null" || String(editData.supplierId).toLowerCase() === "none") ? null : String(editData.supplierId).trim()
     };
 
     // Update directly in Supabase (will sync cache and self-heal missing columns)
@@ -1189,9 +1232,15 @@ app.post("/api/categories", async (req, res) => {
 });
 
 // 5. Suppliers API
-app.get("/api/suppliers", (req, res) => {
-  const db = readDB();
-  res.json(db.suppliers);
+app.get("/api/suppliers", async (req, res) => {
+  try {
+    const suppliers = await getSuppliersFromSupabase();
+    res.json(suppliers);
+  } catch (err: any) {
+    console.error("[API GET Suppliers Error]", err);
+    const db = readDB();
+    res.json(db.suppliers || []);
+  }
 });
 
 app.post("/api/suppliers", (req, res) => {
@@ -1528,10 +1577,33 @@ app.post("/api/sales/checkout", async (req, res) => {
     });
   });
 
-  // Update cash session in Supabase with new sales invoice (if active session exists)
+  // Update cash session in Supabase with new sales invoice and updated totals (if active session exists)
   if (activeSession) {
+    const prevInvoices = Array.isArray(activeSession.salesInvoices) ? activeSession.salesInvoices : [];
+    if (!prevInvoices.includes(invoiceNumber)) {
+      prevInvoices.push(invoiceNumber);
+    }
+
+    const totalSalesAmount = Number((Number(activeSession.totalSalesAmount || 0) + totalPrice).toFixed(2));
+    let totalCashAmount = Number(activeSession.totalCashAmount || 0);
+    let totalMpesaAmount = Number(activeSession.totalMpesaAmount || 0);
+    const totalDiscounts = Number((Number(activeSession.totalDiscounts || 0) + discount).toFixed(2));
+
+    if (paymentMethod === "Cash") {
+      totalCashAmount = Number((totalCashAmount + totalPrice).toFixed(2));
+    } else if (paymentMethod === "M-Pesa") {
+      totalMpesaAmount = Number((totalMpesaAmount + totalPrice).toFixed(2));
+    } else if (paymentMethod === "Split") {
+      totalCashAmount = Number((totalCashAmount + (cashPaid || 0)).toFixed(2));
+      totalMpesaAmount = Number((totalMpesaAmount + (mpesaPaid || 0)).toFixed(2));
+    }
+
     await updateCashSessionInSupabase(activeSession.id, {
-      salesInvoices: activeSession.salesInvoices as any
+      salesInvoices: prevInvoices as any,
+      totalSalesAmount,
+      totalCashAmount,
+      totalMpesaAmount,
+      totalDiscounts
     });
   }
 
@@ -3356,59 +3428,64 @@ app.post("/api/cash-register/open", async (req, res) => {
 });
 
 app.post("/api/cash-register/close", async (req, res) => {
-  const { actualClosingBalance, note, closedBy } = req.body;
-  if (actualClosingBalance === undefined || !closedBy) {
-    return res.status(400).json({ error: "Actual Counted Cash and Cashier details are required" });
-  }
+  try {
+    const { actualClosingBalance, note, closedBy } = req.body;
+    if (actualClosingBalance === undefined || !closedBy) {
+      return res.status(400).json({ error: "Actual Counted Cash and Cashier details are required" });
+    }
 
-  // Query Supabase for active session
-  const active = await getActiveCashSessionFromSupabase();
-  if (!active) {
-    return res.status(400).json({ error: "No active cash register session found to close." });
-  }
+    // Query Supabase for active session
+    const active = await getActiveCashSessionFromSupabase();
+    if (!active) {
+      return res.status(400).json({ error: "No active cash register session found to close." });
+    }
 
-  await pullChangesFromSupabase(true);
-  const db = readDB();
-  const summarized = calculateSessionSummary(active, db);
-  const variance = Number(actualClosingBalance) - summarized.expectedClosingBalance;
+    await pullChangesFromSupabase(true);
+    const db = readDB();
+    const summarized = calculateSessionSummary(active, db);
+    const variance = Number(actualClosingBalance) - summarized.expectedClosingBalance;
 
-  // Update directly in Supabase
-  const updatedSession = await updateCashSessionInSupabase(active.id, {
-    status: "closed" as any,
-    closedBy,
-    closedAt: new Date().toISOString(),
-    actualClosingBalance: Number(actualClosingBalance),
-    variance: Number(variance.toFixed(2)),
-    note: note || "",
-    totalSalesAmount: summarized.totalSalesAmount,
-    totalInvoicesCount: summarized.totalInvoicesCount,
-    cashPayments: summarized.cashPayments,
-    mobileMoneyPayments: summarized.mobileMoneyPayments,
-    cardPayments: summarized.cardPayments,
-    discounts: summarized.discounts,
-    refunds: summarized.refunds,
-    expenses: summarized.expenses,
-    expectedClosingBalance: summarized.expectedClosingBalance,
-    transactions: summarized.transactions
-  });
-
-  // Log audit
-  updateDB(state => {
-    state.auditLogs.unshift({
-      id: `aud-${Date.now()}`,
-      userEmail: closedBy.email,
-      action: "Close Cash Session",
-      module: "Cash Register",
-      date: new Date().toISOString(),
-      details: `Closed cash drawer session. Expected: $${summarized.expectedClosingBalance}, Counted: $${actualClosingBalance}, Variance: $${variance}`
+    // Update directly in Supabase
+    const updatedSession = await updateCashSessionInSupabase(active.id, {
+      status: "closed" as any,
+      closedBy,
+      closedAt: new Date().toISOString(),
+      actualClosingBalance: Number(actualClosingBalance),
+      variance: Number(variance.toFixed(2)),
+      note: note || "",
+      totalSalesAmount: summarized.totalSalesAmount,
+      totalInvoicesCount: summarized.totalInvoicesCount,
+      cashPayments: summarized.cashPayments,
+      mobileMoneyPayments: summarized.mobileMoneyPayments,
+      cardPayments: summarized.cardPayments,
+      discounts: summarized.discounts,
+      refunds: summarized.refunds,
+      expenses: summarized.expenses,
+      expectedClosingBalance: summarized.expectedClosingBalance,
+      transactions: summarized.transactions
     });
-  });
 
-  if (!updatedSession) {
-    return res.status(500).json({ error: "Failed to update cash session in database" });
+    if (!updatedSession) {
+      return res.status(500).json({ error: "Failed to update cash session in database" });
+    }
+
+    // Log audit
+    updateDB(state => {
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: closedBy.email,
+        action: "Close Cash Session",
+        module: "Cash Register",
+        date: new Date().toISOString(),
+        details: `Closed cash drawer session. Expected: $${summarized.expectedClosingBalance}, Counted: $${actualClosingBalance}, Variance: $${variance}`
+      });
+    });
+
+    res.json(updatedSession);
+  } catch (error: any) {
+    console.error("[Cash Register API] Exception in /api/cash-register/close:", error);
+    res.status(500).json({ error: error.message || "Internal server error" });
   }
-
-  res.json(updatedSession);
 });
 
 app.post("/validation", (req, res) => {
@@ -3440,7 +3517,9 @@ async function startServer() {
   try {
     await initSupabaseSync();
   } catch (err) {
-    console.error("Supabase sync initialization failed at boot:", err);
+    console.error("❌ CRITICAL ERROR: Supabase sync initialization failed at boot!");
+    console.error(err);
+    startupError = err;
   }
 
   // Serve static files + router fallbacks in Production

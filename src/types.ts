@@ -61,7 +61,7 @@ export interface Medicine {
   quantity: number;
   minStockLevel: number;
   manufacturer: string;
-  supplierId: string;
+  supplierId?: string | null;
   categoryId: string;
   barcode: string;
   taxVat: number; // percentage (e.g. 16 for 16%)
@@ -405,6 +405,12 @@ export interface CashSession {
   expenses: number;
   transactions: CashTransaction[];
   note?: string;
+  notes?: string;
+  totalMpesaAmount?: number;
+  totalCashAmount?: number;
+  totalDiscounts?: number;
+  totalRefunds?: number;
+  totalExpenses?: number;
 }
 
 

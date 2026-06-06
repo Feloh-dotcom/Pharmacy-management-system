@@ -264,8 +264,8 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
     keyMap: {
       id: "id",
       status: "status",
-      startDate: "start_date",
-      endDate: "end_date",
+      startDate: "cycle_start",
+      endDate: "cycle_end",
       graphReport: "graph_report",
       weeklyRevenue: "weekly_revenue",
       totalSalesOverview: "total_sales_overview"
@@ -319,6 +319,29 @@ function mapToRow(configName: string, item: any): any {
   }
   if (configName === "inventoryLogs" && !row.actor_id) {
     row.actor_id = item.userEmail ? toUUIDIfNeeded(item.userEmail) : toUUIDIfNeeded("system@halomedical.com");
+  }
+  if (configName === "inventoryLogs") {
+    row.action = item.type || row.type || "sale";
+  }
+  if (configName === "financeRecords") {
+    if (row.payment_method) {
+      const lower = String(row.payment_method).toLowerCase().trim();
+      if (lower.includes("mpesa") || lower.includes("m-pesa")) {
+        row.payment_method = "mpesa";
+      } else if (lower.includes("cash")) {
+        row.payment_method = "cash";
+      } else if (lower.includes("card")) {
+        row.payment_method = "card";
+      } else if (lower.includes("bank")) {
+        row.payment_method = "bank";
+      } else if (lower.includes("split")) {
+        row.payment_method = "split";
+      } else {
+        row.payment_method = "cash";
+      }
+    } else {
+      row.payment_method = "cash";
+    }
   }
   if (configName === "cashSessions") {
     // Backwards compatibility layer for both schema definitions:

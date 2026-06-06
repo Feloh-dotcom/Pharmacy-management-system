@@ -111,6 +111,11 @@
       "id": "25ad8ef5-5e87-4a2b-930b-2d8a93ebfecb",
       "name": "Baba Bwoy",
       "description": "protection tools"
+    },
+    {
+      "id": "10e61f0d-24d7-43a9-8fc4-9c99b1dba74e",
+      "name": "Antimalarials",
+      "description": ""
     }
   ],
   "medicines": [
@@ -143,7 +148,7 @@
       "expiryDate": "2027-10-10",
       "buyingPrice": 10,
       "sellingPrice": 15,
-      "quantity": 70,
+      "quantity": 43,
       "minStockLevel": 5,
       "manufacturer": null,
       "supplierId": null,
@@ -153,6 +158,46 @@
       "prescriptionRequired": false,
       "imageUrl": null,
       "createdAt": "2026-06-02T16:06:03.062766+00:00"
+    },
+    {
+      "id": "b9028ea5-1398-4456-9740-a3c7d866c1f6",
+      "name": "Artemether-Lumefantrine",
+      "genericName": "Artemether-Lumefantrine",
+      "SKU": "MED-3NKZ",
+      "batchNumber": "BCH-86165",
+      "expiryDate": "2029-11-06",
+      "buyingPrice": 120,
+      "sellingPrice": 150,
+      "quantity": 198,
+      "minStockLevel": 10,
+      "manufacturer": "Pfizer",
+      "supplierId": null,
+      "categoryId": "10e61f0d-24d7-43a9-8fc4-9c99b1dba74e",
+      "barcode": "8905909784595",
+      "taxVat": 12,
+      "prescriptionRequired": false,
+      "imageUrl": "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
+      "createdAt": "2026-06-06T09:52:17.107+00:00"
+    },
+    {
+      "id": "4595e266-55d2-45cb-b377-e189c4cd6c8c",
+      "name": "Amoxil",
+      "genericName": "Amoxil Tiryaxal",
+      "SKU": "MED-RY2U",
+      "batchNumber": "BCH-91755",
+      "expiryDate": "2029-10-06",
+      "buyingPrice": 50,
+      "sellingPrice": 120,
+      "quantity": 197,
+      "minStockLevel": 10,
+      "manufacturer": "Pfizer",
+      "supplierId": null,
+      "categoryId": "10a10b01-3f1f-4966-b1e2-cf3ff11b48bb",
+      "barcode": "8903085065693",
+      "taxVat": 4,
+      "prescriptionRequired": false,
+      "imageUrl": "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
+      "createdAt": "2026-06-06T08:41:20.644+00:00"
     }
   ],
   "suppliers": [],
@@ -161,33 +206,48 @@
     {
       "id": "f2052ff6-ab2c-42b4-bf9d-d007e5c05149",
       "customerId": null,
+      "customerName": null,
+      "customerEmail": null,
       "invoiceNumber": "INV-302280",
+      "items": [],
       "totalPrice": 0,
       "discount": 0,
       "taxAmount": 2.4,
       "paymentMethod": "Cash",
       "paymentStatus": "Paid",
       "cashierEmail": null,
-      "date": "2026-06-03T06:15:02.612812+00:00",
-      "items": []
+      "date": "2026-06-03T06:15:02.612812+00:00"
     },
     {
       "id": "4663e319-fec2-4dd6-aeb0-be7c2ded28e7",
       "customerId": null,
+      "customerName": null,
+      "customerEmail": null,
       "invoiceNumber": "INV-461936",
+      "items": [],
       "totalPrice": 0,
       "discount": 0,
       "taxAmount": 4.8,
       "paymentMethod": "Cash",
       "paymentStatus": "Paid",
       "cashierEmail": null,
-      "date": "2026-06-03T06:17:42.228603+00:00",
-      "items": []
+      "date": "2026-06-03T06:17:42.228603+00:00"
     },
     {
       "id": "a8893051-0e68-4861-80d7-0369be27390b",
       "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
       "invoiceNumber": "INV-855399",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 1,
+          "price": 15,
+          "tax": 2.4
+        }
+      ],
       "totalPrice": 17.4,
       "discount": 0,
       "taxAmount": 2.4,
@@ -195,6 +255,17 @@
       "paymentStatus": "Paid",
       "cashierEmail": null,
       "date": "2026-06-03T11:40:55.399+00:00",
+      "cashPaid": 17.4,
+      "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "6a7fe78a-5330-4b12-93e6-f6167a8d9c2d",
+      "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-986306",
       "items": [
         {
           "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
@@ -204,17 +275,6 @@
           "tax": 2.4
         }
       ],
-      "cashPaid": 17.4,
-      "mpesaPaid": 0,
-      "customerName": "Walk-in Cash Customer",
-      "customerEmail": "walkin@pharmacy.com",
-      "notes": "",
-      "note": ""
-    },
-    {
-      "id": "6a7fe78a-5330-4b12-93e6-f6167a8d9c2d",
-      "customerId": null,
-      "invoiceNumber": "INV-986306",
       "totalPrice": 17.4,
       "discount": 0,
       "taxAmount": 2.4,
@@ -222,33 +282,17 @@
       "paymentStatus": "Paid",
       "cashierEmail": null,
       "date": "2026-06-03T11:43:06.306+00:00",
-      "items": [
-        {
-          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
-          "medicineName": "Diagnostic Product",
-          "quantity": 1,
-          "price": 15,
-          "tax": 2.4
-        }
-      ],
       "cashPaid": 17.4,
       "mpesaPaid": 0,
-      "customerName": "Walk-in Cash Customer",
-      "customerEmail": "walkin@pharmacy.com",
       "notes": "",
       "note": ""
     },
     {
       "id": "94bc86f4-1383-4ff3-b790-f3f6f6454464",
       "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
       "invoiceNumber": "INV-187603",
-      "totalPrice": 34.8,
-      "discount": 0,
-      "taxAmount": 4.8,
-      "paymentMethod": "Cash",
-      "paymentStatus": "Paid",
-      "cashierEmail": null,
-      "date": "2026-06-03T17:36:27.603+00:00",
       "items": [
         {
           "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
@@ -258,17 +302,33 @@
           "tax": 4.8
         }
       ],
+      "totalPrice": 34.8,
+      "discount": 0,
+      "taxAmount": 4.8,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-03T17:36:27.603+00:00",
       "cashPaid": 34.8,
       "mpesaPaid": 0,
-      "customerName": "Walk-in Cash Customer",
-      "customerEmail": "walkin@pharmacy.com",
       "notes": "",
       "note": ""
     },
     {
       "id": "1d73116f-b263-4e76-8491-3b16544ec89d",
       "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
       "invoiceNumber": "INV-875911",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 1,
+          "price": 15,
+          "tax": 2.4
+        }
+      ],
       "totalPrice": 17.4,
       "discount": 0,
       "taxAmount": 2.4,
@@ -276,6 +336,17 @@
       "paymentStatus": "Paid",
       "cashierEmail": null,
       "date": "2026-06-04T08:31:15.911+00:00",
+      "cashPaid": 17.4,
+      "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "d1aee451-a416-414b-bdfa-a665cd52a75d",
+      "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-328513",
       "items": [
         {
           "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
@@ -285,17 +356,6 @@
           "tax": 2.4
         }
       ],
-      "cashPaid": 17.4,
-      "mpesaPaid": 0,
-      "customerName": "Walk-in Cash Customer",
-      "customerEmail": "walkin@pharmacy.com",
-      "notes": "",
-      "note": ""
-    },
-    {
-      "id": "d1aee451-a416-414b-bdfa-a665cd52a75d",
-      "customerId": null,
-      "invoiceNumber": "INV-328513",
       "totalPrice": 15.4,
       "discount": 2,
       "taxAmount": 2.4,
@@ -303,6 +363,17 @@
       "paymentStatus": "Paid",
       "cashierEmail": null,
       "date": "2026-06-04T08:38:48.513+00:00",
+      "cashPaid": 15.399999999999999,
+      "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "1b7d25fb-bac7-4c51-8e97-fe4b1a46dbc5",
+      "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-845235",
       "items": [
         {
           "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
@@ -312,17 +383,6 @@
           "tax": 2.4
         }
       ],
-      "cashPaid": 15.399999999999999,
-      "mpesaPaid": 0,
-      "customerName": "Walk-in Cash Customer",
-      "customerEmail": "walkin@pharmacy.com",
-      "notes": "",
-      "note": ""
-    },
-    {
-      "id": "1b7d25fb-bac7-4c51-8e97-fe4b1a46dbc5",
-      "customerId": null,
-      "invoiceNumber": "INV-845235",
       "totalPrice": 17.4,
       "discount": 0,
       "taxAmount": 2.4,
@@ -330,6 +390,17 @@
       "paymentStatus": "Paid",
       "cashierEmail": null,
       "date": "2026-06-04T09:37:25.235+00:00",
+      "cashPaid": 17.4,
+      "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "3ee38a54-8931-46b9-9d7d-a6a2a800b78e",
+      "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-212477",
       "items": [
         {
           "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
@@ -339,17 +410,6 @@
           "tax": 2.4
         }
       ],
-      "cashPaid": 17.4,
-      "mpesaPaid": 0,
-      "customerName": "Walk-in Cash Customer",
-      "customerEmail": "walkin@pharmacy.com",
-      "notes": "",
-      "note": ""
-    },
-    {
-      "id": "3ee38a54-8931-46b9-9d7d-a6a2a800b78e",
-      "customerId": null,
-      "invoiceNumber": "INV-212477",
       "totalPrice": 17.4,
       "discount": 0,
       "taxAmount": 2.4,
@@ -357,33 +417,17 @@
       "paymentStatus": "Paid",
       "cashierEmail": null,
       "date": "2026-06-04T11:40:12.478+00:00",
-      "items": [
-        {
-          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
-          "medicineName": "Diagnostic Product",
-          "quantity": 1,
-          "price": 15,
-          "tax": 2.4
-        }
-      ],
       "cashPaid": 17.4,
       "mpesaPaid": 0,
-      "customerName": "Walk-in Cash Customer",
-      "customerEmail": "walkin@pharmacy.com",
       "notes": "",
       "note": ""
     },
     {
       "id": "11ce0b69-0dc3-4530-8228-021bd69ec27c",
       "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
       "invoiceNumber": "INV-525317",
-      "totalPrice": 104.4,
-      "discount": 0,
-      "taxAmount": 14.4,
-      "paymentMethod": "Cash",
-      "paymentStatus": "Paid",
-      "cashierEmail": null,
-      "date": "2026-06-05T08:02:05.317+00:00",
       "items": [
         {
           "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
@@ -393,24 +437,24 @@
           "tax": 14.4
         }
       ],
+      "totalPrice": 104.4,
+      "discount": 0,
+      "taxAmount": 14.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-05T08:02:05.317+00:00",
       "cashPaid": 104.4,
       "mpesaPaid": 0,
-      "customerName": "Walk-in Cash Customer",
-      "customerEmail": "walkin@pharmacy.com",
       "notes": "",
       "note": ""
     },
     {
       "id": "1612cbcb-6e51-4d84-a249-2454df8eb050",
       "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
       "invoiceNumber": "INV-162197",
-      "totalPrice": 17.4,
-      "discount": 0,
-      "taxAmount": 2.4,
-      "paymentMethod": "Cash",
-      "paymentStatus": "Paid",
-      "cashierEmail": null,
-      "date": "2026-06-05T17:56:02.197+00:00",
       "items": [
         {
           "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
@@ -420,24 +464,24 @@
           "tax": 2.4
         }
       ],
+      "totalPrice": 17.4,
+      "discount": 0,
+      "taxAmount": 2.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-05T17:56:02.197+00:00",
       "cashPaid": 17.4,
       "mpesaPaid": 0,
-      "customerName": "Walk-in Cash Customer",
-      "customerEmail": "walkin@pharmacy.com",
       "notes": "",
       "note": ""
     },
     {
       "id": "691560e3-35a3-447a-b924-230e5285a1a4",
       "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
       "invoiceNumber": "INV-239168",
-      "totalPrice": 139.2,
-      "discount": 0,
-      "taxAmount": 19.2,
-      "paymentMethod": "Cash",
-      "paymentStatus": "Paid",
-      "cashierEmail": null,
-      "date": "2026-06-05T17:57:19.168+00:00",
       "items": [
         {
           "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
@@ -447,38 +491,308 @@
           "tax": 19.2
         }
       ],
+      "totalPrice": 139.2,
+      "discount": 0,
+      "taxAmount": 19.2,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-05T17:57:19.168+00:00",
       "cashPaid": 139.2,
       "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "3ccd7445-be2f-4adb-a4a1-50a16c4aed85",
+      "customerId": null,
       "customerName": "Walk-in Cash Customer",
       "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-623789",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 10,
+          "price": 15,
+          "tax": 24
+        }
+      ],
+      "totalPrice": 174,
+      "discount": 0,
+      "taxAmount": 24,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": null,
+      "date": "2026-06-05T20:33:43.789+00:00",
+      "cashPaid": 174,
+      "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "220721a2-62a9-4156-be16-1cf8599c2993",
+      "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-024901",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 11,
+          "price": 15,
+          "tax": 26.4
+        }
+      ],
+      "totalPrice": 191.4,
+      "discount": 0,
+      "taxAmount": 26.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": "system@halomedical.com",
+      "date": "2026-06-06T08:20:24.901+00:00",
+      "cashPaid": 191.4,
+      "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "07fe4f55-cbae-4b96-9723-9827e38067c6",
+      "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-081468",
+      "items": [
+        {
+          "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
+          "medicineName": "Diagnostic Product",
+          "quantity": 6,
+          "price": 15,
+          "tax": 14.4
+        }
+      ],
+      "totalPrice": 104.4,
+      "discount": 0,
+      "taxAmount": 14.4,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": "system@halomedical.com",
+      "date": "2026-06-06T08:38:01.468+00:00",
+      "cashPaid": 104.4,
+      "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "a5b0493f-d709-40cf-88e2-809d3de15ee7",
+      "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-309625",
+      "items": [
+        {
+          "medicineId": "4595e266-55d2-45cb-b377-e189c4cd6c8c",
+          "medicineName": "Amoxil",
+          "quantity": 2,
+          "price": 120,
+          "tax": 9.6
+        }
+      ],
+      "totalPrice": 249.6,
+      "discount": 0,
+      "taxAmount": 9.6,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": "system@halomedical.com",
+      "date": "2026-06-06T08:41:49.625+00:00",
+      "cashPaid": 249.6,
+      "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "73805a2c-2851-4a38-97d2-fd812ceec140",
+      "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-629219",
+      "items": [
+        {
+          "medicineId": "b9028ea5-1398-4456-9740-a3c7d866c1f6",
+          "medicineName": "Artemether-Lumefantrine",
+          "quantity": 2,
+          "price": 150,
+          "tax": 36
+        }
+      ],
+      "totalPrice": 336,
+      "discount": 0,
+      "taxAmount": 36,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": "system@halomedical.com",
+      "date": "2026-06-06T09:53:49.219+00:00",
+      "cashPaid": 336,
+      "mpesaPaid": 0,
+      "notes": "",
+      "note": ""
+    },
+    {
+      "id": "85b902f6-219a-4fb8-be8f-ff1ec9ab575b",
+      "customerId": null,
+      "customerName": "Walk-in Cash Customer",
+      "customerEmail": "walkin@pharmacy.com",
+      "invoiceNumber": "INV-285707",
+      "items": [
+        {
+          "medicineId": "4595e266-55d2-45cb-b377-e189c4cd6c8c",
+          "medicineName": "Amoxil",
+          "quantity": 1,
+          "price": 120,
+          "tax": 4.8
+        }
+      ],
+      "totalPrice": 124.8,
+      "discount": 0,
+      "taxAmount": 4.8,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Paid",
+      "cashierEmail": "system@halomedical.com",
+      "date": "2026-06-06T10:04:45.707+00:00",
+      "cashPaid": 124.8,
+      "mpesaPaid": 0,
       "notes": "",
       "note": ""
     }
   ],
   "inventoryLogs": [
     {
-      "id": "log-1780682239168-ac3e6b32-27e1-4f37-b4c8-632739596616",
+      "id": "338d7b05-8779-4f71-be93-25eb2bde37a4",
       "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
       "medicineName": "Diagnostic Product",
       "type": "sale",
-      "quantity": 8,
-      "date": "2026-06-05T17:57:19.168Z",
+      "quantity": 11,
+      "date": "2026-06-06T08:20:24.9+00:00",
       "reason": "POS Immediate Checklist Sale",
-      "userEmail": "oundofelix04@gmail.com, oundofelix04@gmail.com"
+      "userEmail": "oundofelix04@gmail.com, oundofelix04@gmail.com",
+      "action": "sale"
     },
     {
-      "id": "log-1780682162196-ac3e6b32-27e1-4f37-b4c8-632739596616",
+      "id": "ed162c46-aa5c-4f72-b5c2-40317df43f9a",
       "medicineId": "ac3e6b32-27e1-4f37-b4c8-632739596616",
       "medicineName": "Diagnostic Product",
       "type": "sale",
-      "quantity": 1,
-      "date": "2026-06-05T17:56:02.196Z",
+      "quantity": 6,
+      "date": "2026-06-06T08:38:01.468+00:00",
       "reason": "POS Immediate Checklist Sale",
-      "userEmail": "oundofelix04@gmail.com, oundofelix04@gmail.com"
+      "userEmail": "oundofelix04@gmail.com, oundofelix04@gmail.com",
+      "action": "sale"
+    },
+    {
+      "id": "ba9cb14d-26b9-43bc-baed-16a72f4eebe2",
+      "medicineId": "4595e266-55d2-45cb-b377-e189c4cd6c8c",
+      "medicineName": "Amoxil",
+      "type": "restock",
+      "quantity": 200,
+      "date": "2026-06-06T08:41:21.072+00:00",
+      "reason": "Initial Product Creation",
+      "userEmail": "oundofelix04@gmail.com",
+      "action": "restock"
+    },
+    {
+      "id": "c741788c-3374-45bc-8012-1212d912635c",
+      "medicineId": "4595e266-55d2-45cb-b377-e189c4cd6c8c",
+      "medicineName": "Amoxil",
+      "type": "sale",
+      "quantity": 2,
+      "date": "2026-06-06T08:41:49.625+00:00",
+      "reason": "POS Immediate Checklist Sale",
+      "userEmail": "oundofelix04@gmail.com, oundofelix04@gmail.com",
+      "action": "sale"
+    },
+    {
+      "id": "3239f015-205b-4227-879e-0255ddb6b913",
+      "medicineId": "b9028ea5-1398-4456-9740-a3c7d866c1f6",
+      "medicineName": "Artemether-Lumefantrine",
+      "type": "restock",
+      "quantity": 200,
+      "date": "2026-06-06T09:52:17.377+00:00",
+      "reason": "Initial Product Creation",
+      "userEmail": "oundofelix04@gmail.com",
+      "action": "restock"
+    },
+    {
+      "id": "381f121f-bdf4-4ed1-9e70-cad6846c6930",
+      "medicineId": "b9028ea5-1398-4456-9740-a3c7d866c1f6",
+      "medicineName": "Artemether-Lumefantrine",
+      "type": "sale",
+      "quantity": 2,
+      "date": "2026-06-06T09:53:49.218+00:00",
+      "reason": "POS Immediate Checklist Sale",
+      "userEmail": "oundofelix04@gmail.com, oundofelix04@gmail.com",
+      "action": "sale"
+    },
+    {
+      "id": "62b1ae39-acae-4571-ac7d-2cb041caf2b1",
+      "medicineId": "4595e266-55d2-45cb-b377-e189c4cd6c8c",
+      "medicineName": "Amoxil",
+      "type": "sale",
+      "quantity": 1,
+      "date": "2026-06-06T10:04:45.706+00:00",
+      "reason": "POS Immediate Checklist Sale",
+      "userEmail": "oundofelix04@gmail.com, oundofelix04@gmail.com",
+      "action": "sale"
     }
   ],
   "purchaseOrders": [],
-  "financeRecords": [],
+  "financeRecords": [
+    {
+      "id": "88bc14be-70a4-475e-abda-9aaa71bd562c",
+      "type": "income",
+      "category": "POS Prescription Sales",
+      "amount": 191.4,
+      "description": "Sales checkout receipt: INV-024901",
+      "paymentMethod": "cash",
+      "date": "2026-06-06T08:20:24.902+00:00"
+    },
+    {
+      "id": "cd6291c5-6f23-4711-bf7a-ee488f7a57a1",
+      "type": "income",
+      "category": "POS Prescription Sales",
+      "amount": 104.4,
+      "description": "Sales checkout receipt: INV-081468",
+      "paymentMethod": "cash",
+      "date": "2026-06-06T08:38:01.469+00:00"
+    },
+    {
+      "id": "65e520dc-a817-4753-92e3-4fccc8614db1",
+      "type": "income",
+      "category": "POS Prescription Sales",
+      "amount": 249.6,
+      "description": "Sales checkout receipt: INV-309625",
+      "paymentMethod": "cash",
+      "date": "2026-06-06T08:41:49.627+00:00"
+    },
+    {
+      "id": "6a3dc122-0d3d-40f2-92d2-d2a5a7389b59",
+      "type": "income",
+      "category": "POS Prescription Sales",
+      "amount": 336,
+      "description": "Sales checkout receipt: INV-629219",
+      "paymentMethod": "cash",
+      "date": "2026-06-06T09:53:49.221+00:00"
+    },
+    {
+      "id": "974bdab7-ddd5-4f5f-af47-20bb63d6901d",
+      "type": "income",
+      "category": "POS Prescription Sales",
+      "amount": 124.8,
+      "description": "Sales checkout receipt: INV-285707",
+      "paymentMethod": "cash",
+      "date": "2026-06-06T10:04:45.709+00:00"
+    }
+  ],
   "auditLogs": [
     {
       "id": "38848457-f234-46ac-959d-d4c8321eca14",
@@ -857,6 +1171,97 @@
       "module": "Cash Register",
       "date": "2026-06-05T17:44:25.046+00:00",
       "details": "Opened cash register session with opening balance: $2000"
+    },
+    {
+      "id": "9f0fc868-c054-4d13-9d22-0a55e5fd3469",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-06T08:19:08.922+00:00",
+      "details": "Closed cash drawer session. Expected: $2330.6, Counted: $2330.6, Variance: $0"
+    },
+    {
+      "id": "4784246b-670c-42fe-929f-e47ee0d8b34b",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-06T08:19:09.156+00:00",
+      "details": "Closed cash drawer session. Expected: $2330.6, Counted: $2330.6, Variance: $0"
+    },
+    {
+      "id": "bab3fb73-bc07-409d-b524-08a58ea2fcd5",
+      "action": "Open Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-06T08:19:33.513+00:00",
+      "details": "Opened cash register session with opening balance: $1200"
+    },
+    {
+      "id": "ba5799f2-5efd-40ba-99c1-e88b6f9794c6",
+      "action": "POS Checkout Completeness",
+      "module": "POS System",
+      "date": "2026-06-06T08:20:24.902+00:00",
+      "details": "Completed sale barcode checkout for INV-024901, amount: Ksh. 191.4 via Cash"
+    },
+    {
+      "id": "2ec2201c-46ab-4b26-a6e8-3d5e6fc5e038",
+      "action": "POS Checkout Completeness",
+      "module": "POS System",
+      "date": "2026-06-06T08:38:01.469+00:00",
+      "details": "Completed sale barcode checkout for INV-081468, amount: Ksh. 104.4 via Cash"
+    },
+    {
+      "id": "269a294e-9de3-4dc2-b203-2c87bf9d362c",
+      "action": "Created Medicine",
+      "module": "Inventory",
+      "date": "2026-06-06T08:41:21.072+00:00",
+      "details": "Added product Amoxil (SKU: MED-RY2U)"
+    },
+    {
+      "id": "a8c27c18-2379-4005-8397-1157ce0dfb54",
+      "action": "POS Checkout Completeness",
+      "module": "POS System",
+      "date": "2026-06-06T08:41:49.628+00:00",
+      "details": "Completed sale barcode checkout for INV-309625, amount: Ksh. 249.6 via Cash"
+    },
+    {
+      "id": "29ced1ca-4655-497d-8022-1942e8215464",
+      "action": "Created Category",
+      "module": "Inventory",
+      "date": "2026-06-06T09:47:53.067+00:00",
+      "details": "Added medical category: Antimalarials"
+    },
+    {
+      "id": "ab8816ed-a130-426e-961b-87f0f2d17af8",
+      "action": "Created Medicine",
+      "module": "Inventory",
+      "date": "2026-06-06T09:52:17.377+00:00",
+      "details": "Added product Artemether-Lumefantrine (SKU: MED-3NKZ)"
+    },
+    {
+      "id": "497078d0-8aaa-49b4-a548-fa45615f751b",
+      "action": "POS Checkout Completeness",
+      "module": "POS System",
+      "date": "2026-06-06T09:53:49.221+00:00",
+      "details": "Completed sale barcode checkout for INV-629219, amount: Ksh. 336 via Cash"
+    },
+    {
+      "id": "8a480c1c-e4c2-4a91-8063-efc663dcb816",
+      "action": "Close Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-06T10:00:36.34+00:00",
+      "details": "Closed cash drawer session. Expected: $2081.4, Counted: $2081.4, Variance: $0"
+    },
+    {
+      "id": "1e80e79f-d9db-482a-b073-82fc0282ec8d",
+      "action": "Open Cash Session",
+      "module": "Cash Register",
+      "date": "2026-06-06T10:01:03.862+00:00",
+      "details": "Opened cash register session with opening balance: $100"
+    },
+    {
+      "id": "b1162767-9cb2-470d-8d6a-ef4539dbcf94",
+      "action": "POS Checkout Completeness",
+      "module": "POS System",
+      "date": "2026-06-06T10:04:45.709+00:00",
+      "details": "Completed sale barcode checkout for INV-285707, amount: Ksh. 124.8 via Cash"
     }
   ],
   "settings": {
@@ -981,6 +1386,65 @@
       "totalSalesAmount": 0,
       "totalMpesaAmount": 0,
       "totalCashAmount": 0,
+      "totalDiscounts": 0,
+      "totalRefunds": 0,
+      "totalExpenses": 0,
+      "salesInvoices": [],
+      "mpesaTransactionsAndAmounts": [],
+      "cashTransactions": [],
+      "note": ""
+    },
+    {
+      "id": "ea246166-3730-4c06-b35a-1ae145f1bcd2",
+      "status": "Closed",
+      "openedAt": "2026-06-06T08:19:33.329+00:00",
+      "openedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "openingBalance": 1200,
+      "closedAt": "2026-06-06T10:00:36.144+00:00",
+      "closedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "expectedClosingBalance": 2081.4,
+      "actualClosingBalance": 2081.4,
+      "variance": 0,
+      "notes": "Shift Closed Undefinedly",
+      "totalSalesAmount": 881.4,
+      "totalMpesaAmount": 0,
+      "totalCashAmount": 881.4,
+      "totalDiscounts": 0,
+      "totalRefunds": 0,
+      "totalExpenses": 0,
+      "salesInvoices": [],
+      "mpesaTransactionsAndAmounts": [],
+      "cashTransactions": [],
+      "note": "Shift Closed Undefinedly"
+    },
+    {
+      "id": "d9b67362-297a-4f74-a0bf-b3ee12917bf4",
+      "status": "Open",
+      "openedAt": "2026-06-06T10:01:03.699+00:00",
+      "openedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "openingBalance": 100,
+      "closedAt": null,
+      "closedBy": null,
+      "expectedClosingBalance": 100,
+      "notes": "",
+      "totalSalesAmount": 124.8,
+      "totalMpesaAmount": 0,
+      "totalCashAmount": 124.8,
       "totalDiscounts": 0,
       "totalRefunds": 0,
       "totalExpenses": 0,
@@ -1321,7 +1785,7 @@
     },
     {
       "id": "ed08022c-dc0f-4bb9-8d09-3f436be489ac",
-      "status": "Open",
+      "status": "Closed",
       "openedAt": "2026-06-05T17:44:24.967+00:00",
       "openedBy": {
         "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
@@ -1330,11 +1794,18 @@
         "role": "Admin"
       },
       "openingBalance": 2000,
-      "closedAt": null,
-      "closedBy": null,
-      "expectedClosingBalance": 2000,
-      "notes": "",
-      "totalSalesAmount": 0,
+      "closedAt": "2026-06-06T08:19:08.984+00:00",
+      "closedBy": {
+        "id": "cd581ce7-af15-4db1-9bdd-c861432f3375",
+        "name": "Dr.Felix Ouma",
+        "email": "oundofelix04@gmail.com",
+        "role": "Admin"
+      },
+      "expectedClosingBalance": 2330.6,
+      "actualClosingBalance": 2330.6,
+      "variance": 0,
+      "notes": "Shift Conluded Late Hours",
+      "totalSalesAmount": 330.6,
       "totalMpesaAmount": 0,
       "totalCashAmount": 0,
       "totalDiscounts": 0,
@@ -1343,9 +1814,60 @@
       "salesInvoices": [],
       "mpesaTransactionsAndAmounts": [],
       "cashTransactions": [],
-      "note": ""
+      "note": "Shift Conluded Late Hours"
     }
   ],
-  "weeklyCycles": [],
+  "weeklyCycles": [
+    {
+      "id": "2c470f76-b078-4e2e-8128-997501ed0a0c",
+      "status": "Active",
+      "startDate": "2026-05-31",
+      "endDate": "2026-06-07",
+      "graphReport": {
+        "sales": 0,
+        "noSales": 7,
+        "purchases": 0,
+        "suppliers": 0
+      },
+      "weeklyRevenue": 0,
+      "totalSalesOverview": [
+        {
+          "day": "Mon",
+          "color": "#f97316",
+          "value": 0
+        },
+        {
+          "day": "Tue",
+          "color": "#ec4899",
+          "value": 0
+        },
+        {
+          "day": "Wed",
+          "color": "#22c55e",
+          "value": 0
+        },
+        {
+          "day": "Thu",
+          "color": "#14b8a6",
+          "value": 0
+        },
+        {
+          "day": "Fri",
+          "color": "#ef4444",
+          "value": 0
+        },
+        {
+          "day": "Sat",
+          "color": "#a855f7",
+          "value": 0
+        },
+        {
+          "day": "Sun",
+          "color": "#f59e0b",
+          "value": 0
+        }
+      ]
+    }
+  ],
   "mpesaTransactions": []
 }

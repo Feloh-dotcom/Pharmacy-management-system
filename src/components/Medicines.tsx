@@ -160,7 +160,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
     setMinStockLevel("10");
     setManufacturer("");
     setCategoryId(categories[0]?.id || "");
-    setSupplierId(suppliers[0]?.id || "");
+    setSupplierId("");
     setPrescriptionRequired(false);
     setBarcode(`890${Math.floor(1000000000 + Math.random() * 9000000000)}`);
     setTaxVat("16");
@@ -187,6 +187,13 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
     if (!categoryId) {
       setToastMessage("Category is required");
       return;
+    }
+    if (supplierId) {
+      const exists = suppliers.some(s => s.id === supplierId);
+      if (!exists) {
+        setToastMessage("Selected Supplier is invalid. Please select an existing supplier.");
+        return;
+      }
     }
     
     const payload = {
@@ -740,9 +747,10 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
                 {/* Primary Supplier Map */}
                 <Select
                   label="Contract supplier Linkage"
-                  value={supplierId}
+                  value={supplierId || ""}
                   onChange={(e) => setSupplierId(e.target.value)}
                 >
+                  <option value="">No Supplier Selected</option>
                   {suppliers.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}

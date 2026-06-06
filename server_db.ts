@@ -19,7 +19,7 @@ import {
 } from "./src/types";
 
 // Dynamic Supabase client configuration
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "https://ofwkndpzjlkumowdeaol.supabase.co";
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "";
 
 const keysToCheck = [
   process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -29,13 +29,9 @@ const keysToCheck = [
 ];
 
 const validKey = keysToCheck.find(k => k && k.trim() !== "" && k.trim() !== "placeholder_not_configured");
-const supabaseKey = (validKey || "placeholder_not_configured").trim();
+const supabaseKey = (validKey || "").trim();
 
-if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-  console.log("ℹ️ Info: SUPABASE_SERVICE_ROLE_KEY is unconfigured in development. Using local backing store with active Supabase client.");
-}
-
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl || "https://placeholder.supabase.co", supabaseKey || "placeholder");
 
 export function hasServiceRole(): boolean {
   const realKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -52,12 +48,11 @@ export function hasServiceRole(): boolean {
   }
 }
 
-export const isRealKeyConfigured = !!validKey;
-
-export let isSupabaseDisabled = !isRealKeyConfigured;
+export const isRealKeyConfigured = true;
+export const isSupabaseDisabled = false;
 
 export function isSupabaseActive(): boolean {
-  return !isSupabaseDisabled;
+  return true;
 }
 
 export function hashPassword(password: string, salt?: string) {
@@ -440,7 +435,8 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
       quantity: "quantity",
       date: "created_at",
       reason: "reason",
-      userEmail: "user_email"
+      userEmail: "user_email",
+      action: "action"
     }
   },
   purchaseOrders: {
@@ -546,8 +542,8 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
     keyMap: {
       id: "id",
       status: "status",
-      startDate: "start_date",
-      endDate: "end_date",
+      startDate: "cycle_start",
+      endDate: "cycle_end",
       graphReport: "graph_report",
       weeklyRevenue: "weekly_revenue",
       totalSalesOverview: "total_sales_overview"
@@ -658,6 +654,26 @@ export function mapToRow(configName: string, item: any): any {
           val = "pending";
         }
       }
+      if (configName === "financeRecords" && snakeKey === "payment_method") {
+        if (val) {
+          const lower = String(val).toLowerCase().trim();
+          if (lower.includes("mpesa") || lower.includes("m-pesa")) {
+            val = "mpesa";
+          } else if (lower.includes("cash")) {
+            val = "cash";
+          } else if (lower.includes("card")) {
+            val = "card";
+          } else if (lower.includes("bank")) {
+            val = "bank";
+          } else if (lower.includes("split")) {
+            val = "split";
+          } else {
+            val = "cash";
+          }
+        } else {
+          val = "cash";
+        }
+      }
       row[snakeKey] = val;
     }
   }
@@ -707,6 +723,9 @@ export function mapToRow(configName: string, item: any): any {
         row.actor_id = null;
       }
     }
+    
+    // Ensure row.action is always supplied!
+    row.action = item.type || row.type || "sale";
   }
 
   // 3. Extra logic for cashSessions
@@ -779,6 +798,30 @@ export function mapToRow(configName: string, item: any): any {
   }
 
   if (configName === "sales") {
+    // Resolve cashierEmail to profile UUID
+    const users = (globalStateCache && globalStateCache.users) || [];
+    if (item.cashierEmail) {
+      const matchedUser = users.find(u => u.email.toLowerCase() === String(item.cashierEmail).toLowerCase());
+      if (matchedUser) {
+        row.cashier_id = toUUIDIfNeeded(matchedUser.id);
+      } else {
+        row.cashier_id = toUUIDIfNeeded(item.cashierEmail);
+      }
+    }
+
+    // Resolve customerId to customer ID/UUID or set to null
+    if (item.customerId && item.customerId !== "cust-cash") {
+      const customers = (globalStateCache && globalStateCache.customers) || [];
+      const matchedCustomer = customers.find(c => c.id === item.customerId);
+      if (matchedCustomer) {
+        row.customer_id = toUUIDIfNeeded(matchedCustomer.id);
+      } else {
+        row.customer_id = toUUIDIfNeeded(item.customerId);
+      }
+    } else {
+      row.customer_id = null;
+    }
+
     const total = Number(item.totalPrice || 0);
     const discount = Number(item.discount || 0);
     const tax = Number(item.taxAmount || 0);
@@ -1012,6 +1055,17 @@ let lastPullTimestamp = 0;
 let isPullingInProgress = false;
 let activeSyncPromise: Promise<void> | null = null;
 
+function deduplicateById<T extends { id?: string }>(arr: T[]): T[] {
+  if (!Array.isArray(arr)) return arr;
+  const seen = new Set<string>();
+  return arr.filter(item => {
+    if (!item || !item.id) return true;
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
 export async function pullChangesFromSupabase(force = false): Promise<void> {
   if (isSupabaseDisabled) return;
 
@@ -1056,7 +1110,7 @@ export async function pullChangesFromSupabase(force = false): Promise<void> {
       }
 
       if (!error && data) {
-        const mappedData = data.map(row => mapFromRow(key, row));
+        let mappedData = data.map(row => mapFromRow(key, row));
         if (key === "users") {
           const localUsers = (globalStateCache as any)[key] || [];
           const mergedUsers: any[] = [];
@@ -1090,7 +1144,7 @@ export async function pullChangesFromSupabase(force = false): Promise<void> {
           }
           (globalStateCache as any)[key] = mergedUsers;
         } else {
-          (globalStateCache as any)[key] = mappedData;
+          (globalStateCache as any)[key] = deduplicateById(mappedData);
         }
       }
     }
@@ -1255,6 +1309,49 @@ function readDBFromFileSystem(): DBState {
         });
       });
     }
+    // Generic robust deduplication of array tables
+    const tablesToDeduplicate: (keyof DBState)[] = [
+      "users",
+      "categories",
+      "medicines",
+      "suppliers",
+      "customers",
+      "sales",
+      "inventoryLogs",
+      "purchaseOrders",
+      "financeRecords",
+      "auditLogs",
+      "branches",
+      "apiKeys",
+      "backups",
+      "cashSessions",
+      "weeklyCycles",
+      "mpesaTransactions"
+    ];
+
+    tablesToDeduplicate.forEach(key => {
+      const arr = data[key];
+      if (Array.isArray(arr)) {
+        const seen = new Set<string>();
+        const originalLength = arr.length;
+        // Keep elements with non-empty string IDs or unique IDs
+        const deduplicated = arr.filter((item: any) => {
+          if (!item || item.id === undefined) return true;
+          const idStr = String(item.id);
+          if (seen.has(idStr)) {
+            return false;
+          }
+          seen.add(idStr);
+          return true;
+        });
+        if (deduplicated.length !== originalLength) {
+          data[key] = deduplicated as any;
+          changed = true;
+          console.log(`[Database Self-Healing] Deduplicated ${key} table from ${originalLength} to ${deduplicated.length} items.`);
+        }
+      }
+    });
+
     if (changed) {
       fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
     }
@@ -1273,26 +1370,64 @@ function writeDBToFileSystem(state: DBState): void {
   }
 }
 
+export async function validateSupabaseConnectionAndSchema(): Promise<void> {
+  console.log("🔍 Checking environment variables...");
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  if (!url || url.trim() === "" || url.includes("placeholder")) {
+    throw new Error("Startup Failed: SUPABASE_URL environment variable is missing or a placeholder.");
+  }
+
+  const keys = [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_KEY,
+    process.env.SUPABASE_ANON_KEY,
+    process.env.VITE_SUPABASE_ANON_KEY
+  ].filter(k => k && k.trim() !== "" && !k.toLowerCase().includes("placeholder"));
+
+  if (keys.length === 0) {
+    throw new Error("Startup Failed: No valid Supabase API configuration key found.");
+  }
+
+  console.log("🔍 Validating Supabase connection and tables...");
+
+  // Connection check
+  const { data: testQuery, error: connError } = await supabase
+    .from("profiles")
+    .select("id")
+    .limit(1);
+
+  if (connError) {
+    console.error("❌ Supabase connection test failed:", connError.message || connError);
+    throw new Error(`Startup Failed: Unable to establish connection to Supabase instance. Error details: ${connError.message}`);
+  }
+
+  const criticalTables = ["categories", "medicines", "sales", "cash_sessions", "system_settings"];
+  for (const table of criticalTables) {
+    const { error: tblError } = await supabase
+      .from(table)
+      .select("*")
+      .limit(1);
+
+    if (tblError) {
+      if (tblError.message?.includes("Could not find the table") || tblError.message?.includes("relation") || tblError.message?.includes("does not exist") || tblError.code === "42P01") {
+        throw new Error(`Startup Failed: Required database table '${table}' does not exist in your Supabase schema.`);
+      }
+      console.warn(`🔍 Warning while checking table ${table}:`, tblError.message);
+    }
+  }
+
+  console.log("✅ Supabase startup validations succeeded! Single source of truth is active.");
+}
+
 // --- Supabase Cloud database pulling, mapping and auto-seeding logic ---
 export async function initSupabaseSync(): Promise<void> {
+  console.log("[Supabase Sync] Running startup verification...");
+  await validateSupabaseConnectionAndSchema();
+
   console.log("[Supabase Sync] Pulling clinical data from Supabase...");
   
-  // Seed memory cache initially from disk so we have a fully operational local baseline
-  const localData = readDBFromFileSystem();
-  globalStateCache = localData;
-
-  if (isSupabaseDisabled) {
-    console.log("[Supabase Sync Standby] Service Role Key is not configured or is placeholder. Utilizing high-availability local store cache.");
-    const tableKeys = [
-      "rolePermissions", "users", "categories", "suppliers", "medicines", "customers", 
-      "sales", "inventoryLogs", "purchaseOrders", "financeRecords", "auditLogs", "branches", 
-      "apiKeys", "backups", "cashSessions", "weeklyCycles", "mpesaTransactions", "system_settings"
-    ];
-    tableKeys.forEach(t => disabledTables.add(t));
-    disabledTables.add("system_settings");
-    isInitialSyncDone = true;
-    return;
-  }
+  // Initialize memory cache using initialData template
+  globalStateCache = JSON.parse(JSON.stringify(initialData));
 
   try {
     // 1. Fetch tables from Supabase in sequence to resolve foreign dependencies correctly
@@ -1303,34 +1438,19 @@ export async function initSupabaseSync(): Promise<void> {
     ];
 
     for (const key of tableKeys) {
-      if (isSupabaseDisabled || disabledTables.has(key)) continue;
-
       const mapping = tableMappings[key];
       if (!mapping) continue;
 
-      const primaryKeyName = key === "rolePermissions" ? "role" : "id";
-      
       const { data, error } = await supabase
         .from(mapping.table)
         .select("*");
         
       if (error) {
-        if (error.message?.includes("API key") || error.message?.includes("invalid_api_key") || error.code === "PGRST301" || (error as any).status === 401) {
-          console.log(`[Supabase Sync Standby] Standby mode activated for table ${mapping.table} (Supabase API key unconfigured or invalid).`);
-          continue;
-        }
-        if (error.message?.includes("Could not find the table") || error.message?.includes("relation") || error.message?.includes("does not exist")) {
-          console.log(`[Supabase Sync Standby] Table ${mapping.table} does not exist in the active schema cache. Local storage backup will be active.`);
-          if (!isRealKeyConfigured) {
-            disabledTables.add(key);
-          }
-          continue;
-        }
-        console.log(`[Supabase Sync Standby] Query on ${mapping.table} failed. Seeder will auto-create: ${error.message}`);
-        await seedTableToSupabase(key, (localData as any)[key] || []);
+        console.error(`❌ Supabase Fetch Error on table [${mapping.table}]:`, error.message);
+        throw new Error(`Startup Failed: Querying table [${mapping.table}] failed with error: ${error.message}`);
       } else if (!data || data.length === 0) {
         console.log(`[Supabase Sync] Table ${mapping.table} is empty. Auto-seeding metadata...`);
-        await seedTableToSupabase(key, (localData as any)[key] || []);
+        await seedTableToSupabase(key, (initialData as any)[key] || []);
       } else {
         const mappedData = data.map(row => mapFromRow(key, row));
         if (key === "users") {
@@ -1373,41 +1493,29 @@ export async function initSupabaseSync(): Promise<void> {
     }
 
     // 2. Clear / seed system settings
-    if (!disabledTables.has("system_settings")) {
-      const { data: allSettings, error: settingsError } = await supabase
+    const { data: allSettings, error: settingsError } = await supabase
+      .from("system_settings")
+      .select("*")
+      .limit(1);
+      
+    if (settingsError) {
+      console.error("[Supabase Settings] Query failed:", settingsError.message);
+      throw new Error(`Startup Failed: Query on system_settings failed: ${settingsError.message}`);
+    } else if (!allSettings || allSettings.length === 0) {
+      console.log("[Supabase Settings] Record empty. Seeding system_settings to database...");
+      let settingsRow: any = mapSettingsToRow(initialData.settings);
+      let { error: seedErr } = await supabase
         .from("system_settings")
-        .select("*")
-        .limit(1);
+        .upsert(settingsRow);
         
-      if (settingsError || !allSettings || allSettings.length === 0) {
-        if (settingsError && (settingsError.message?.includes("API key") || settingsError.message?.includes("invalid_api_key") || settingsError.code === "PGRST301" || (settingsError as any).status === 401)) {
-          console.log("[Supabase Settings] Standby mode: Supabase is unconfigured or key is invalid.");
-        } else if (settingsError && (settingsError.message?.includes("Could not find the table") || settingsError.message?.includes("relation") || settingsError.message?.includes("does not exist"))) {
-          console.log("[Supabase Settings] system_settings table does not exist in schema cache. Local settings fallback active.");
-          if (!isRealKeyConfigured) {
-            disabledTables.add("system_settings");
-          }
-        } else {
-          console.log("[Supabase Settings] Record empty. Seeding system_settings to database...");
-          let settingsRow: any = mapSettingsToRow(localData.settings);
-          let { error: seedErr } = await supabase
-            .from("system_settings")
-            .upsert(settingsRow);
-            
-          if (seedErr) {
-            if (seedErr.message?.includes("API key") || seedErr.message?.includes("invalid_api_key") || seedErr.code === "PGRST301" || (seedErr as any).status === 401) {
-              console.log("[Supabase Settings Seed Info] Key standby during system settings seed.");
-            } else {
-              console.log("[Supabase Settings Seed] Sync notes: ", seedErr.message);
-            }
-          } else {
-            console.log("[Supabase Settings Seed] Successfully seeded system_settings!");
-          }
-        }
+      if (seedErr) {
+        throw new Error(`Startup Failed: Seeding system_settings failed: ${seedErr.message}`);
       } else {
-        globalStateCache.settings = mapSettingsFromRow(allSettings[0]);
-        console.log("[Supabase Settings] Loaded settings successfully.");
+        console.log("[Supabase Settings Seed] Successfully seeded system_settings!");
       }
+    } else {
+      globalStateCache.settings = mapSettingsFromRow(allSettings[0]);
+      console.log("[Supabase Settings] Loaded settings successfully.");
     }
 
     isInitialSyncDone = true;
@@ -1416,8 +1524,8 @@ export async function initSupabaseSync(): Promise<void> {
     // Save updated cloud-sourced state locally
     writeDBToFileSystem(globalStateCache);
   } catch (err) {
-    console.error("[Supabase Init Sync Error] Fell back entirely to local file-system state:", err);
-    isInitialSyncDone = true;
+    console.error("[Supabase Init Sync Error] Fatal error in startup sync:", err);
+    throw err;
   }
 }
 
@@ -1469,6 +1577,86 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
   }
   attemptRows = dedupedRows;
 
+  // Fail-fast validation checks for weekly_cycles
+  if (tableName === "weekly_cycles") {
+    for (const r of attemptRows) {
+      if (!r.id) {
+        throw new Error("Missing required field 'id' for weekly_cycles write.");
+      }
+      if (!r.status) {
+        throw new Error("Missing required field 'status' for weekly_cycles write.");
+      }
+      if (r.cycle_start === undefined && r.start_date === undefined) {
+        throw new Error("Missing required field 'cycle_start' or 'start_date' for weekly_cycles write.");
+      }
+      if (r.cycle_end === undefined && r.end_date === undefined) {
+        throw new Error("Missing required field 'cycle_end' or 'end_date' for weekly_cycles write.");
+      }
+    }
+  }
+
+  // Fail-fast validations for transactions to ensure integrity
+  if (tableName === "sales") {
+    for (const r of attemptRows) {
+      if (!r.id) {
+        throw new Error("Validation Failed: Sale record is missing required field 'id'");
+      }
+      if (!r.invoice_number) {
+        throw new Error("Validation Failed: Sale record is missing required field 'invoice_number'");
+      }
+      if (!r.items || (Array.isArray(r.items) && r.items.length === 0)) {
+        throw new Error("Validation Failed: Sale record is missing required field 'items' or cart is empty");
+      }
+    }
+  }
+
+  if (tableName === "receipts") {
+    for (const r of attemptRows) {
+      if (!r.id) {
+        throw new Error("Validation Failed: Receipt is missing required field 'id'");
+      }
+      if (!r.sale_id) {
+        throw new Error("Validation Failed: Receipt is missing required field 'sale_id'");
+      }
+      if (!r.receipt_number) {
+        throw new Error("Validation Failed: Receipt is missing required field 'receipt_number'");
+      }
+      if (r.total_amount === undefined || r.total_amount === null) {
+        throw new Error("Validation Failed: Receipt is missing required field 'total_amount'");
+      }
+    }
+  }
+
+  if (tableName === "inventory_logs") {
+    for (const r of attemptRows) {
+      if (!r.id) {
+        throw new Error("Validation Failed: Inventory Log is missing required field 'id'");
+      }
+      if (!r.medicine_id) {
+        throw new Error("Validation Failed: Inventory Log is missing required field 'medicine_id'");
+      }
+      if (!r.quantity) {
+        throw new Error("Validation Failed: Inventory Log is missing required field 'quantity'");
+      }
+      if (!r.action) {
+        throw new Error("Validation Failed: Inventory Log is missing required field 'action' (type value)");
+      }
+    }
+  }
+
+  if (tableName === "finance_records") {
+    const allowedPaymentMethods = ["cash", "mpesa", "card", "bank", "split"];
+    for (const r of attemptRows) {
+      if (r.payment_method === undefined || r.payment_method === null) {
+        throw new Error("Validation Failed: Finance Record is missing required field 'payment_method'");
+      }
+      const pm = String(r.payment_method);
+      if (!allowedPaymentMethods.includes(pm)) {
+        throw new Error(`Validation Failed: Finance Record has invalid or non-normalized payment_method '${r.payment_method}'. Expected lowercase: ${allowedPaymentMethods.join(", ")}`);
+      }
+    }
+  }
+
   // --- High Resilience Dynamic Field Sanitizers ---
   if (tableName === "profiles") {
     attemptRows = attemptRows.map((r: any) => {
@@ -1514,7 +1702,7 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
   }
 
   let attempts = 0;
-  const maxAttempts = 50;
+  const maxAttempts = 3;
 
   if (tableName === "profiles") {
     for (const r of attemptRows) {
@@ -1542,6 +1730,11 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
 
     if (!error) {
       return { error: null };
+    }
+
+    if (tableName === "weekly_cycles") {
+      console.error(`[Weekly Cycles Write Error] Failed to write weekly_cycles: ${error.message} (Code: ${error.code})`);
+      return { error };
     }
 
     const errMsg = error.message;
@@ -1780,6 +1973,7 @@ async function syncChildRecords(key: string, rows: any[]) {
           id: toUUIDIfNeeded(`${saleObj.id}-receipt`),
           sale_id: saleObj.id,
           invoice_number: saleObj.invoice_number || saleObj.invoiceNumber || `INV-${Date.now()}`,
+          receipt_number: saleObj.receipt_number || saleObj.receiptNumber || `REC-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
           total_amount: saleObj.total_amount !== undefined ? saleObj.total_amount : (saleObj.total_price !== undefined ? saleObj.total_price : (saleObj.totalPrice !== undefined ? saleObj.totalPrice : 0)),
           payment_method: saleObj.payment_method || saleObj.paymentMethod || "Cash",
           issued_at: saleObj.sold_at || saleObj.date || saleObj.issued_at || new Date().toISOString()
@@ -1877,12 +2071,8 @@ async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
           const chunkCopyForChildren = JSON.parse(JSON.stringify(chunk));
           const { error } = await upsertWithSelfHealing(mapping.table, chunk);
           if (error) {
-            const isRLS = error.message.includes("row-level security") || error.code === "42501";
-            if (isRLS) {
-              console.log(`[Supabase Sync] Note: ${mapping.table} sync updated locally, cloud sync bypassed due to RLS.`);
-            } else {
-              console.error(`[Supabase Sync Error] Upserting to ${mapping.table} failed:`, error.message);
-            }
+            console.error(`[Supabase Sync Error] Upserting to ${mapping.table} failed:`, error.message);
+            throw new Error(`Supabase write to ${mapping.table} failed: ${error.message}`);
           } else {
             if (key === "sales" || key === "purchaseOrders") {
               await syncChildRecords(key, chunkCopyForChildren);
@@ -1908,6 +2098,7 @@ async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
           .in(primaryKeyName === "role" ? "role" : "id", deletes);
         if (error) {
           console.error(`[Supabase Sync Error] Deleting from ${mapping.table} failed:`, error.message);
+          throw new Error(`Supabase deletion from ${mapping.table} failed: ${error.message}`);
         }
       }
     }
@@ -1920,10 +2111,12 @@ async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
         .upsert(settingsRow);
       if (error) {
         console.error("[Supabase Sync Error] Upserting system_settings failed:", error.message);
+        throw new Error(`Supabase write to system_settings failed: ${error.message}`);
       }
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error("[Supabase Sync Delta] Execution exceptional error:", err);
+    throw err;
   }
 }
 
@@ -1967,48 +2160,26 @@ export function readDB(): DBState {
   return globalStateCache;
 }
 
-export function writeDB(state: DBState): void {
+export async function writeDB(state: DBState): Promise<void> {
   const oldState = JSON.parse(JSON.stringify(globalStateCache));
+  await syncChangesToSupabase(oldState, state);
   globalStateCache = state;
-  
   writeDBToFileSystem(state);
-  if (!isSupabaseDisabled) {
-    activeSyncPromise = syncChangesToSupabase(oldState, state).then(() => {
-      activeSyncPromise = null;
-      pullChangesFromSupabase(true).catch(e => console.error("[Sync Trigger Fail]", e));
-    }).catch(err => {
-      console.error("[Sync Error]", err);
-      activeSyncPromise = null;
-    });
-  }
 }
 
-export function updateDB(updater: (state: DBState) => void): DBState {
+export async function updateDB(updater: (state: DBState) => void): Promise<DBState> {
   const oldState = JSON.parse(JSON.stringify(globalStateCache));
-  
   const stateCopy = JSON.parse(JSON.stringify(globalStateCache));
   updater(stateCopy);
-  globalStateCache = stateCopy;
   
+  await syncChangesToSupabase(oldState, stateCopy);
+  globalStateCache = stateCopy;
   writeDBToFileSystem(stateCopy);
-  if (!isSupabaseDisabled) {
-    activeSyncPromise = syncChangesToSupabase(oldState, stateCopy).then(() => {
-      activeSyncPromise = null;
-      pullChangesFromSupabase(true).catch(e => console.error("[Sync Trigger Fail]", e));
-    }).catch(err => {
-      console.error("[Sync Error]", err);
-      activeSyncPromise = null;
-    });
-  }
   return stateCopy;
 }
 
 // --- Direct Supabase queries for cash sessions (source of truth) ---
 export async function getActiveCashSessionFromSupabase(): Promise<CashSession | null> {
-  if (isSupabaseDisabled) {
-    const session = (globalStateCache?.cashSessions || []).find(s => s.status === "Open");
-    return session || null;
-  }
   try {
     const { data, error } = await supabase
       .from("cash_sessions")
@@ -2020,30 +2191,20 @@ export async function getActiveCashSessionFromSupabase(): Promise<CashSession | 
 
     if (error) {
       if (error.code === "PGRST116") {
-        // No rows found
         return null;
       }
-      console.error("[Supabase Query Error] Failed to get active cash session. Falling back to local state:", error.message);
-      const session = (globalStateCache?.cashSessions || []).find(s => s.status === "Open");
-      return session || null;
+      throw error;
     }
 
-    if (!data) {
-      const session = (globalStateCache?.cashSessions || []).find(s => s.status === "Open");
-      return session || null;
-    }
+    if (!data) return null;
     return mapFromRow("cashSessions", data);
-  } catch (err) {
-    console.error("[Supabase Exception] getActiveCashSessionFromSupabase. Falling back to local state:", err);
-    const session = (globalStateCache?.cashSessions || []).find(s => s.status === "Open");
-    return session || null;
+  } catch (err: any) {
+    console.error("[Supabase Exception] getActiveCashSessionFromSupabase failed:", err.message || err);
+    throw new Error(`Failed to query active cash session: ${err.message || err}`);
   }
 }
 
 export async function getAllCashSessionsFromSupabase(): Promise<CashSession[]> {
-  if (isSupabaseDisabled) {
-    return globalStateCache?.cashSessions || [];
-  }
   try {
     const { data, error } = await supabase
       .from("cash_sessions")
@@ -2051,15 +2212,14 @@ export async function getAllCashSessionsFromSupabase(): Promise<CashSession[]> {
       .order("opened_at", { ascending: false });
 
     if (error) {
-      console.error("[Supabase Query Error] Failed to get cash sessions. Falling back to local state:", error.message);
-      return globalStateCache?.cashSessions || [];
+      throw error;
     }
 
-    if (!data || !Array.isArray(data)) return globalStateCache?.cashSessions || [];
+    if (!data || !Array.isArray(data)) return [];
     return data.map(row => mapFromRow("cashSessions", row));
-  } catch (err) {
-    console.error("[Supabase Exception] getAllCashSessionsFromSupabase. Falling back to local state:", err);
-    return globalStateCache?.cashSessions || [];
+  } catch (err: any) {
+    console.error("[Supabase Exception] getAllCashSessionsFromSupabase failed:", err.message || err);
+    throw new Error(`Failed to query all cash sessions: ${err.message || err}`);
   }
 }
 
@@ -2074,6 +2234,7 @@ export async function insertCashSessionToSupabase(session: CashSession): Promise
   let row = mapToRow("cashSessions", session);
   let attempts = 0;
   const maxAttempts = 15;
+  let lastError: any = null;
   while (attempts < maxAttempts) {
     attempts++;
     try {
@@ -2100,6 +2261,7 @@ export async function insertCashSessionToSupabase(session: CashSession): Promise
       const errMsg = error.message || "";
       const errCode = error.code || "";
       console.warn(`[Self-Healing Cash Session Insert] Attempt ${attempts} failed: Code ${errCode}, Msg: ${errMsg}`);
+      lastError = error;
 
       const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
                           errMsg.match(/column "([^"]+)" of relation/i) ||
@@ -2123,34 +2285,15 @@ export async function insertCashSessionToSupabase(session: CashSession): Promise
       break;
     } catch (err: any) {
       console.error("[Supabase Exception] insertCashSessionToSupabase exception:", err);
+      lastError = err;
       break;
     }
   }
 
-  // --- OFFLINE-FIRST FALLBACK ---
-  console.warn("[Supabase Fallback] Saving the cash session to local workstation cache instead of cloud database...");
-  if (!globalStateCache.cashSessions) globalStateCache.cashSessions = [];
-  const existingIdx = globalStateCache.cashSessions.findIndex(s => s.id === session.id);
-  if (existingIdx === -1) {
-    globalStateCache.cashSessions.unshift(session);
-  } else {
-    globalStateCache.cashSessions[existingIdx] = session;
-  }
-  writeDBToFileSystem(globalStateCache);
-  return session;
+  throw new Error(`Failed to save cash session to cloud database: ${lastError?.message || lastError || "Unknown error"}`);
 }
 
 export async function updateCashSessionInSupabase(sessionId: string, updates: Partial<CashSession>): Promise<CashSession | null> {
-  if (isSupabaseDisabled) {
-    const idx = (globalStateCache?.cashSessions || []).findIndex(s => s.id === sessionId);
-    if (idx !== -1) {
-      const resultObj = { ...globalStateCache.cashSessions[idx], ...updates };
-      globalStateCache.cashSessions[idx] = resultObj;
-      writeDBToFileSystem(globalStateCache);
-      return resultObj;
-    }
-    return null;
-  }
   
   let row = mapToRow("cashSessions", updates);
   // Ensure we don't try to sync id as update payload
@@ -2158,6 +2301,7 @@ export async function updateCashSessionInSupabase(sessionId: string, updates: Pa
 
   let attempts = 0;
   const maxAttempts = 15;
+  let lastError: any = null;
   while (attempts < maxAttempts) {
     attempts++;
     try {
@@ -2185,6 +2329,7 @@ export async function updateCashSessionInSupabase(sessionId: string, updates: Pa
       const errMsg = error.message || "";
       const errCode = error.code || "";
       console.warn(`[Self-Healing Cash Session Update] Attempt ${attempts} failed: Code ${errCode}, Msg: ${errMsg}`);
+      lastError = error;
 
       const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
                           errMsg.match(/column "([^"]+)" of relation/i) ||
@@ -2208,27 +2353,16 @@ export async function updateCashSessionInSupabase(sessionId: string, updates: Pa
       break;
     } catch (err: any) {
       console.error("[Supabase Exception] updateCashSessionInSupabase exception:", err);
+      lastError = err;
       break;
     }
   }
 
-  // --- OFFLINE-FIRST FALLBACK ---
-  console.warn("[Supabase Fallback] Saving the cash session updates to local workstation cache instead of cloud database...");
-  const idx = (globalStateCache?.cashSessions || []).findIndex(s => s.id === sessionId);
-  if (idx !== -1) {
-    const resultObj = { ...globalStateCache.cashSessions[idx], ...updates };
-    globalStateCache.cashSessions[idx] = resultObj;
-    writeDBToFileSystem(globalStateCache);
-    return resultObj;
-  }
-  return null;
+  throw new Error(`Failed to update cash session in cloud database: ${lastError?.message || lastError || "Unknown error"}`);
 }
 
 // --- Direct Supabase CRUD helpers for Categories ---
 export async function getCategoriesFromSupabase(): Promise<Category[]> {
-  if (isSupabaseDisabled) {
-    return globalStateCache?.categories || [];
-  }
   try {
     const { data, error } = await supabase
       .from("categories")
@@ -2236,30 +2370,22 @@ export async function getCategoriesFromSupabase(): Promise<Category[]> {
       .order("name", { ascending: true });
 
     if (error) {
-      console.error("[Supabase GET Categories Error] Bypassing to local state:", error.message);
-      return globalStateCache?.categories || [];
+      throw error;
     }
 
-    if (!data) return globalStateCache?.categories || [];
+    if (!data) return [];
     return data.map(row => mapFromRow("categories", row));
-  } catch (err) {
-    console.error("[Supabase GET Categories Exception] Bypassing to local state:", err);
-    return globalStateCache?.categories || [];
+  } catch (err: any) {
+    console.error("[Supabase GET Categories Exception] Failure:", err.message || err);
+    throw new Error(`Failed to query categories: ${err.message || err}`);
   }
 }
 
 export async function insertCategoryToSupabase(category: Category): Promise<Category | null> {
-  if (isSupabaseDisabled) {
-    // Save locally
-    if (!globalStateCache.categories) globalStateCache.categories = [];
-    globalStateCache.categories.push(category);
-    writeDBToFileSystem(globalStateCache);
-    return category;
-  }
-
   let row = mapToRow("categories", category);
   let attempts = 0;
   const maxAttempts = 15;
+  let lastError: any = null;
   while (attempts < maxAttempts) {
     attempts++;
     try {
@@ -2288,6 +2414,7 @@ export async function insertCategoryToSupabase(category: Category): Promise<Cate
       const errMsg = error.message || "";
       const errCode = error.code || "";
       console.warn(`[Self-Healing Category Insert] Attempt ${attempts}: Code ${errCode}, Msg: ${errMsg}`);
+      lastError = error;
 
       const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
                           errMsg.match(/column "([^"]+)" of relation/i) ||
@@ -2309,26 +2436,166 @@ export async function insertCategoryToSupabase(category: Category): Promise<Cate
       break;
     } catch (err) {
       console.error("[Supabase Insert Category Exception]", err);
+      lastError = err;
       break;
     }
   }
 
-  // Fallback to local
-  console.warn("[Category Fallback] Saving category locally...");
-  if (!globalStateCache.categories) globalStateCache.categories = [];
-  const idx = globalStateCache.categories.findIndex(c => c.id === category.id);
-  if (idx === -1) {
-    globalStateCache.categories.push(category);
+  throw new Error(`Failed to insert category into cloud database: ${lastError?.message || lastError || "Unknown error"}`);
+}
+
+// --- Direct Supabase CRUD helpers for Suppliers ---
+export async function getSuppliersFromSupabase(): Promise<Supplier[]> {
+  try {
+    const { data, error } = await supabase
+      .from("suppliers")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data) return [];
+    return deduplicateById(data.map(row => mapFromRow("suppliers", row)));
+  } catch (err: any) {
+    console.error("[Supabase GET Suppliers Exception] Failure:", err.message || err);
+    throw new Error(`Failed to query suppliers: ${err.message || err}`);
   }
-  writeDBToFileSystem(globalStateCache);
-  return category;
+}
+
+export async function resolveOrCreateSupplier(supplierInput: any): Promise<string | null> {
+  if (!supplierInput) return null;
+  const inputStr = String(supplierInput).trim();
+  if (
+    !inputStr ||
+    inputStr.toLowerCase() === "null" ||
+    inputStr.toLowerCase() === "undefined" ||
+    inputStr.toLowerCase() === "none" ||
+    inputStr === ""
+  ) {
+    return null;
+  }
+
+  if (isSupabaseDisabled) {
+    // Local fallback: search globalStateCache.suppliers
+    const match = (globalStateCache.suppliers || []).find(
+      s => s.id === inputStr || s.name.toLowerCase() === inputStr.toLowerCase() || (s.companyName && s.companyName.toLowerCase() === inputStr.toLowerCase())
+    );
+    if (match) return match.id;
+    
+    // Create new locally if name-like
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isUuid = uuidRegex.test(inputStr) || (inputStr.startsWith("sup-") && uuidRegex.test(toUUIDIfNeeded(inputStr)));
+    if (isUuid) {
+      throw new Error(`Validation Failed: Selected supplier with ID '${inputStr}' does not exist.`);
+    }
+
+    const newId = `sup-${Date.now()}`;
+    const newSup = {
+      id: newId,
+      name: inputStr,
+      companyName: inputStr,
+      email: "",
+      phone: "",
+      address: ""
+    };
+    if (!globalStateCache.suppliers) globalStateCache.suppliers = [];
+    globalStateCache.suppliers.push(newSup);
+    writeDBToFileSystem(globalStateCache);
+    return newId;
+  }
+
+  // 1. Try to find by UUID directly
+  const targetUuid = toUUIDIfNeeded(inputStr);
+  const { data: matchingById, error: idErr } = await supabase
+    .from("suppliers")
+    .select("id")
+    .eq("id", targetUuid)
+    .limit(1);
+
+  if (matchingById && matchingById.length > 0) {
+    return matchingById[0].id;
+  }
+
+  // 2. Try to find by exact name
+  const { data: matchingByName, error: nameErr } = await supabase
+    .from("suppliers")
+    .select("id")
+    .eq("name", inputStr)
+    .limit(1);
+
+  if (matchingByName && matchingByName.length > 0) {
+    return matchingByName[0].id;
+  }
+
+  // 3. Try to find by case-insensitive name
+  const { data: matchingByNameIlike, error: nameIlikeErr } = await supabase
+    .from("suppliers")
+    .select("id")
+    .ilike("name", inputStr)
+    .limit(1);
+
+  if (matchingByNameIlike && matchingByNameIlike.length > 0) {
+    return matchingByNameIlike[0].id;
+  }
+
+  // 4. Try to find by company_name case-insensitive
+  const { data: matchingByCompany, error: companyErr } = await supabase
+    .from("suppliers")
+    .select("id")
+    .ilike("company_name", inputStr)
+    .limit(1);
+
+  if (matchingByCompany && matchingByCompany.length > 0) {
+    return matchingByCompany[0].id;
+  }
+
+  // If we reach here, no existing supplier was found.
+  // Is it a candidate for auto-creation? (We check if it's not a raw UUID or a potential UUID of a non-existing record)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isUuid = uuidRegex.test(inputStr) || (inputStr.startsWith("sup-") && uuidRegex.test(targetUuid));
+
+  if (isUuid) {
+    throw new Error(`Validation Failed: Selected supplier with ID '${inputStr}' does not exist.`);
+  }
+
+  // Otherwise, it represents a Supplier Name we can auto-create.
+  console.log(`[Supplier Auto-Creation] Creating new supplier named "${inputStr}"...`);
+  const newSupId = toUUIDIfNeeded(`sup-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
+  const newSup = {
+    id: newSupId,
+    name: inputStr,
+    company_name: inputStr,
+    email: "",
+    phone: "",
+    address: ""
+  };
+
+  const { data: createdSup, error: createError } = await supabase
+    .from("suppliers")
+    .insert([newSup])
+    .select()
+    .single();
+
+  if (createError) {
+    console.error("[Supplier Auto-Creation Failed]", createError.message);
+    throw new Error(`Validation Failed: Failed to create/resolve supplier '${inputStr}': ${createError.message}`);
+  }
+
+  // Update globalStateCache supplier lists to keep local cache in sync immediately:
+  if (createdSup) {
+    const mapped = mapFromRow("suppliers", createdSup);
+    if (!globalStateCache.suppliers) globalStateCache.suppliers = [];
+    globalStateCache.suppliers.push(mapped);
+    writeDBToFileSystem(globalStateCache);
+  }
+
+  return newSupId;
 }
 
 // --- Direct Supabase CRUD helpers for Medicines / Products ---
 export async function getMedicinesFromSupabase(): Promise<Medicine[]> {
-  if (isSupabaseDisabled) {
-    return globalStateCache?.medicines || [];
-  }
   try {
     const { data, error } = await supabase
       .from("medicines")
@@ -2336,30 +2603,28 @@ export async function getMedicinesFromSupabase(): Promise<Medicine[]> {
       .order("name", { ascending: true });
 
     if (error) {
-      console.error("[Supabase GET Medicines Error] Bypassing to local state:", error.message);
-      return globalStateCache?.medicines || [];
+      throw error;
     }
 
-    if (!data) return globalStateCache?.medicines || [];
-    return data.map(row => mapFromRow("medicines", row));
-  } catch (err) {
-    console.error("[Supabase GET Medicines Exception] Bypassing to local state:", err);
-    return globalStateCache?.medicines || [];
+    if (!data) return [];
+    return deduplicateById(data.map(row => mapFromRow("medicines", row)));
+  } catch (err: any) {
+    console.error("[Supabase GET Medicines Exception] Failure:", err.message || err);
+    throw new Error(`Failed to query medicines: ${err.message || err}`);
   }
 }
 
 export async function insertMedicineToSupabase(medicine: Medicine): Promise<Medicine | null> {
-  if (isSupabaseDisabled) {
-    // Save locally
-    if (!globalStateCache.medicines) globalStateCache.medicines = [];
-    globalStateCache.medicines.push(medicine);
-    writeDBToFileSystem(globalStateCache);
-    return medicine;
-  }
+  // Resolve or create supplier first!
+  const resolvedSupplierId = await resolveOrCreateSupplier(medicine.supplierId);
+  medicine.supplierId = resolvedSupplierId || ""; // Sync input object
 
   let row = mapToRow("medicines", medicine);
+  row.supplier_id = resolvedSupplierId; // Use resolved supplier ID or null
+
   let attempts = 0;
   const maxAttempts = 15;
+  let lastError: any = null;
   while (attempts < maxAttempts) {
     attempts++;
     try {
@@ -2388,6 +2653,7 @@ export async function insertMedicineToSupabase(medicine: Medicine): Promise<Medi
       const errMsg = error.message || "";
       const errCode = error.code || "";
       console.warn(`[Self-Healing Medicine Insert] Attempt ${attempts}: Code ${errCode}, Msg: ${errMsg}`);
+      lastError = error;
 
       const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
                           errMsg.match(/column "([^"]+)" of relation/i) ||
@@ -2414,9 +2680,8 @@ export async function insertMedicineToSupabase(medicine: Medicine): Promise<Medi
           continue;
         }
         if (errMsg.includes("supplier_id")) {
-          console.warn("[Self-Healing Medicine Insert] Supplier ID foreign key constraint failure. Retrying with NULL supplier_id...");
-          row.supplier_id = null;
-          continue;
+          // Task 5: Do not rely on self-healing retries to remove invalid supplier_id. Fail fast!
+          throw new Error(`Validation Failed: Selected supplier ID '${row.supplier_id}' violates foreign key constraint medicines_supplier_id_fkey.`);
         }
       }
       
@@ -2424,40 +2689,33 @@ export async function insertMedicineToSupabase(medicine: Medicine): Promise<Medi
       break;
     } catch (err) {
       console.error("[Supabase Insert Medicine Exception]", err);
+      lastError = err;
       break;
     }
   }
 
-  // Fallback to local
-  console.warn("[Medicine Fallback] Saving medicine locally...");
-  if (!globalStateCache.medicines) globalStateCache.medicines = [];
-  const idx = globalStateCache.medicines.findIndex(m => m.id === medicine.id);
-  if (idx === -1) {
-    globalStateCache.medicines.push(medicine);
-  }
-  writeDBToFileSystem(globalStateCache);
-  return medicine;
+  throw new Error(`Failed to insert medicine into cloud database: ${lastError?.message || lastError || "Unknown error"}`);
 }
 
 export async function updateMedicineInSupabase(id: string, updates: Partial<Medicine>): Promise<Medicine | null> {
   const targetId = toUUIDIfNeeded(id);
-  if (isSupabaseDisabled) {
-    if (!globalStateCache.medicines) globalStateCache.medicines = [];
-    const idx = globalStateCache.medicines.findIndex(m => m.id === id);
-    if (idx !== -1) {
-      const merged = { ...globalStateCache.medicines[idx], ...updates };
-      globalStateCache.medicines[idx] = merged;
-      writeDBToFileSystem(globalStateCache);
-      return merged;
-    }
-    return null;
+
+  // Resolve or create supplier first if supplierId is provided in updates!
+  if (updates.supplierId !== undefined) {
+    const resolvedSupplierId = await resolveOrCreateSupplier(updates.supplierId);
+    updates.supplierId = resolvedSupplierId || "";
   }
 
   let row = mapToRow("medicines", updates);
   delete row.id; // protect id
 
+  if (updates.supplierId !== undefined) {
+    row.supplier_id = updates.supplierId || null;
+  }
+
   let attempts = 0;
   const maxAttempts = 15;
+  let lastError: any = null;
   while (attempts < maxAttempts) {
     attempts++;
     try {
@@ -2485,6 +2743,7 @@ export async function updateMedicineInSupabase(id: string, updates: Partial<Medi
       const errMsg = error.message || "";
       const errCode = error.code || "";
       console.warn(`[Self-Healing Medicine Update] Attempt ${attempts}: Code ${errCode}, Msg: ${errMsg}`);
+      lastError = error;
 
       const cacheMatch = errMsg.match(/Could not find the '([^']+)' column/i) ||
                           errMsg.match(/column "([^"]+)" of relation/i) ||
@@ -2511,9 +2770,8 @@ export async function updateMedicineInSupabase(id: string, updates: Partial<Medi
           continue;
         }
         if (errMsg.includes("supplier_id")) {
-          console.warn("[Self-Healing Medicine Update] Supplier ID foreign key constraint failure. Retrying with NULL supplier_id...");
-          row.supplier_id = null;
-          continue;
+          // Task 5: Do not rely on self-healing retries to remove invalid supplier_id. Fail fast!
+          throw new Error(`Validation Failed: Selected supplier ID '${row.supplier_id}' violates foreign key constraint medicines_supplier_id_fkey.`);
         }
       }
 
@@ -2521,31 +2779,16 @@ export async function updateMedicineInSupabase(id: string, updates: Partial<Medi
       break;
     } catch (err) {
       console.error("[Supabase Update Medicine Exception]", err);
+      lastError = err;
       break;
     }
   }
 
-  // Fallback to local
-  console.warn("[Medicine Fallback] Saving medicine update locally...");
-  if (!globalStateCache.medicines) globalStateCache.medicines = [];
-  const idx = globalStateCache.medicines.findIndex(m => m.id === id);
-  if (idx !== -1) {
-    const merged = { ...globalStateCache.medicines[idx], ...updates };
-    globalStateCache.medicines[idx] = merged;
-    writeDBToFileSystem(globalStateCache);
-    return merged;
-  }
-  return null;
+  throw new Error(`Failed to update medicine in cloud database: ${lastError?.message || lastError || "Unknown error"}`);
 }
 
 export async function deleteMedicineFromSupabase(id: string): Promise<boolean> {
   const targetId = toUUIDIfNeeded(id);
-  if (isSupabaseDisabled) {
-    if (!globalStateCache.medicines) globalStateCache.medicines = [];
-    globalStateCache.medicines = globalStateCache.medicines.filter(m => m.id !== id);
-    writeDBToFileSystem(globalStateCache);
-    return true;
-  }
   try {
     const { error } = await supabase
       .from("medicines")
@@ -2554,7 +2797,7 @@ export async function deleteMedicineFromSupabase(id: string): Promise<boolean> {
 
     if (error) {
       console.error("[Supabase Delete Medicine Error]", error.message);
-      return false;
+      throw error;
     }
 
     // Direct local cache evict
@@ -2562,9 +2805,9 @@ export async function deleteMedicineFromSupabase(id: string): Promise<boolean> {
     globalStateCache.medicines = globalStateCache.medicines.filter(m => m.id !== id);
     writeDBToFileSystem(globalStateCache);
     return true;
-  } catch (err) {
-    console.error("[Supabase Delete Medicine Exception]", err);
-    return false;
+  } catch (err: any) {
+    console.error("[Supabase Delete Medicine Exception]", err.message || err);
+    throw new Error(`Failed to delete medicine from cloud database: ${err.message || err}`);
   }
 }
 

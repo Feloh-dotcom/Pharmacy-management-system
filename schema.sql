@@ -83,25 +83,29 @@ CREATE TABLE IF NOT EXISTS sales (
   customer_email TEXT,
   invoice_number TEXT UNIQUE,
   items JSONB NOT NULL DEFAULT '[]'::jsonb, -- array of objects: { medicineId, medicineName, quantity, price, tax }
-  total_price NUMERIC(15,2) NOT NULL DEFAULT 0.00,
-  discount NUMERIC(15,2) DEFAULT 0.00,
-  tax_amount NUMERIC(15,2) DEFAULT 0.00,
+  total_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+  discount_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+  tax_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
   payment_method TEXT,
   payment_status TEXT,
-  cashier_email TEXT NOT NULL,
-  date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  sale_status TEXT DEFAULT 'completed',
+  notes TEXT,
+  cashier_id TEXT,
+  sold_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 7. Inventory Logs
 CREATE TABLE IF NOT EXISTS inventory_logs (
   id TEXT PRIMARY KEY,
-  medicine_id TEXT NOT NULL REFERENCES medicines(id) ON DELETE CASCADE,
+  medicine_id TEXT NOT NULL,
   medicine_name TEXT,
   type TEXT NOT NULL, -- 'restock', 'sale', 'adjustment', 'expiry', etc.
   quantity INT NOT NULL,
-  date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   reason TEXT,
-  user_email TEXT
+  user_email TEXT,
+  actor_id TEXT,
+  action TEXT NOT NULL
 );
 
 -- 8. Purchase Orders table
@@ -217,8 +221,8 @@ CREATE TABLE IF NOT EXISTS cash_sessions (
 CREATE TABLE IF NOT EXISTS weekly_cycles (
   id TEXT PRIMARY KEY,
   status TEXT NOT NULL, -- 'Active', 'Archived'
-  start_date TIMESTAMP WITH TIME ZONE NOT NULL,
-  end_date TIMESTAMP WITH TIME ZONE NOT NULL,
+  cycle_start TIMESTAMP WITH TIME ZONE NOT NULL,
+  cycle_end TIMESTAMP WITH TIME ZONE NOT NULL,
   graph_report JSONB NOT NULL,
   weekly_revenue NUMERIC(15,2) DEFAULT 0.00,
   total_sales_overview JSONB NOT NULL
@@ -513,6 +517,8 @@ ALTER TABLE public.cash_sessions ADD COLUMN IF NOT EXISTS total_expenses NUMERIC
 
 -- Weekly Cycles table
 ALTER TABLE public.weekly_cycles ADD COLUMN IF NOT EXISTS status TEXT;
+ALTER TABLE public.weekly_cycles ADD COLUMN IF NOT EXISTS cycle_start TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.weekly_cycles ADD COLUMN IF NOT EXISTS cycle_end TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.weekly_cycles ADD COLUMN IF NOT EXISTS start_date TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.weekly_cycles ADD COLUMN IF NOT EXISTS end_date TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.weekly_cycles ADD COLUMN IF NOT EXISTS graph_report JSONB;
@@ -658,8 +664,9 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
 -- 3A. Receipts metadata table
 CREATE TABLE IF NOT EXISTS receipts (
   id TEXT PRIMARY KEY,
-  sale_id TEXT NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+  sale_id TEXT NOT NULL,
   invoice_number TEXT NOT NULL,
+  receipt_number TEXT NOT NULL UNIQUE,
   total_amount NUMERIC(15,2) NOT NULL,
   payment_method TEXT,
   issued_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
