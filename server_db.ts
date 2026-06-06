@@ -48,6 +48,13 @@ export function hasServiceRole(): boolean {
   }
 }
 
+export function verifyServiceRoleRequirement(actionName: string) {
+  const isRender = !!(process.env.RENDER || process.env.RENDER_SERVICE_ID || process.env.NODE_ENV === "production");
+  if (isRender && !hasServiceRole()) {
+    throw new Error(`CRITICAL CONFIGURATION ERROR: Backend write for [${actionName}] requested, but Supabase Service Role Key (SUPABASE_SERVICE_ROLE_KEY) is missing or invalid in Render production environment. All backend writes require service role privileges to bypass Row Level Security (RLS).`);
+  }
+}
+
 export const isRealKeyConfigured = true;
 export const isSupabaseDisabled = false;
 
@@ -332,14 +339,37 @@ export function toUUIDIfNeeded(val: any): any {
   return `${part1}-${part2}-${part3}-${part4}-${part5}`.toLowerCase();
 }
 
+export function normalizeRole(role: string): string {
+  if (!role || typeof role !== "string") return "user";
+  const normalized = role.trim().toLowerCase();
+  if (normalized === "admin" || normalized === "super admin") {
+    return "admin";
+  } else if (normalized === "pharmacist") {
+    return "pharmacist";
+  } else if (normalized === "cashier") {
+    return "cashier";
+  } else if (normalized === "customer") {
+    return "customer";
+  } else if (normalized === "supplier") {
+    return "supplier";
+  } else if (normalized === "accountant") {
+    return "accountant";
+  } else if (normalized === "inventory manager" || normalized === "inventory_manager") {
+    return "inventory_manager";
+  } else if (normalized === "user") {
+    return "user";
+  }
+  return "user";
+}
+
 // --- Mappings Configurations ---
 export const tableMappings: Record<string, { table: string; keyMap: Record<string, string> }> = {
   users: {
     table: "profiles",
     keyMap: {
       id: "id",
-      name: "full_name",
-      fullName: "full_name",
+      name: "name",
+      fullName: "name",
       email: "email",
       role: "role",
       avatarUrl: "avatar_url",
@@ -635,14 +665,7 @@ export function mapToRow(configName: string, item: any): any {
         }
       }
       if ((configName === "users" || configName === "rolePermissions") && snakeKey === "role" && typeof val === "string") {
-        const normalized = val.trim().toLowerCase();
-        if (normalized === "super admin") {
-          val = "admin";
-        } else if (normalized === "inventory manager") {
-          val = "inventory_manager";
-        } else {
-          val = normalized;
-        }
+        val = normalizeRole(val);
       }
       if (configName === "users" && snakeKey === "verification_status" && typeof val === "string") {
         const normalized = val.trim().toLowerCase();
@@ -684,6 +707,8 @@ export function mapToRow(configName: string, item: any): any {
     row.full_name = item.name || item.fullName || "System User";
     if (!row.role) {
       row.role = "pharmacist";
+    } else {
+      row.role = normalizeRole(row.role);
     }
     if (!row.verification_status) {
       row.verification_status = "approved";
@@ -1558,6 +1583,7 @@ async function getGuaranteedProfileId(): Promise<string> {
 }
 
 async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ error: any | null }> {
+  verifyServiceRoleRequirement(tableName);
   let attemptRows = JSON.parse(JSON.stringify(rows));
   
   // Deduplicate rows by their key (role or id) to avoid "ON CONFLICT DO UPDATE command cannot affect row a second time"
@@ -1663,7 +1689,20 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
       const copy = { ...r };
       copy.name = copy.name || copy.full_name || "System User";
       copy.full_name = copy.name;
+      if (copy.role) {
+        copy.role = normalizeRole(copy.role);
+      }
       copy.verification_status = copy.verification_status || "approved";
+      return copy;
+    });
+  }
+
+  if (tableName === "role_permissions") {
+    attemptRows = attemptRows.map((r: any) => {
+      const copy = { ...r };
+      if (copy.role) {
+        copy.role = normalizeRole(copy.role);
+      }
       return copy;
     });
   }
@@ -1822,6 +1861,10 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
            // If enum name is not direct key name, try match by substring
            let cleaned = { ...rest };
            for (const key of Object.keys(cleaned)) {
+             if (key === "role" || key === "user_role" || key === "permissions" || key === "id" || key === "status") {
+               // NEVER prune highly essential columns like role, user_role, permissions, id, or status
+               continue;
+             }
              if (key.toLowerCase().includes(enumName.toLowerCase()) || enumName.toLowerCase().includes(key.toLowerCase())) {
                delete (cleaned as any)[key];
              }
@@ -2224,6 +2267,7 @@ export async function getAllCashSessionsFromSupabase(): Promise<CashSession[]> {
 }
 
 export async function insertCashSessionToSupabase(session: CashSession): Promise<CashSession | null> {
+  verifyServiceRoleRequirement("cash_sessions");
   if (isSupabaseDisabled) {
     if (!globalStateCache.cashSessions) globalStateCache.cashSessions = [];
     globalStateCache.cashSessions.unshift(session);
@@ -2294,7 +2338,7 @@ export async function insertCashSessionToSupabase(session: CashSession): Promise
 }
 
 export async function updateCashSessionInSupabase(sessionId: string, updates: Partial<CashSession>): Promise<CashSession | null> {
-  
+  verifyServiceRoleRequirement("cash_sessions");
   let row = mapToRow("cashSessions", updates);
   // Ensure we don't try to sync id as update payload
   delete row.id;
