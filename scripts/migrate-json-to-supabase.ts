@@ -314,6 +314,16 @@ function mapToRow(configName: string, item: any): any {
           val = toUUIDIfNeeded(val);
         }
       }
+      if ((configName === "users" || configName === "rolePermissions") && snakeKey === "role" && typeof val === "string") {
+        const normalized = val.trim().toLowerCase();
+        if (normalized === "super admin") {
+          val = "admin";
+        } else if (normalized === "inventory manager") {
+          val = "inventory_manager";
+        } else {
+          val = normalized;
+        }
+      }
       row[snakeKey] = val;
     }
   }

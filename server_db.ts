@@ -634,7 +634,7 @@ export function mapToRow(configName: string, item: any): any {
           val = toUUIDIfNeeded(val);
         }
       }
-      if (configName === "users" && snakeKey === "role" && typeof val === "string") {
+      if ((configName === "users" || configName === "rolePermissions") && snakeKey === "role" && typeof val === "string") {
         const normalized = val.trim().toLowerCase();
         if (normalized === "super admin") {
           val = "admin";
@@ -899,7 +899,7 @@ export function mapFromRow(configName: string, row: any): any {
   for (const [camelKey, snakeKey] of Object.entries(config.keyMap)) {
     if (row[snakeKey] !== undefined) {
       let val = row[snakeKey];
-      if (configName === "users" && snakeKey === "role" && typeof val === "string") {
+      if ((configName === "users" || configName === "rolePermissions") && snakeKey === "role" && typeof val === "string") {
         const lowerVal = val.toLowerCase().trim();
         if (lowerVal === "admin") val = "Admin";
         else if (lowerVal === "pharmacist") val = "Pharmacist";
