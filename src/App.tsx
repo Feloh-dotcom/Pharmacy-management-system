@@ -20,6 +20,7 @@ import Settings from "./components/Settings";
 import AICopilot from "./components/AICopilot";
 import CashRegister from "./components/CashRegister";
 import Profile from "./components/Profile";
+import ResetPassword from "./components/ResetPassword";
 import { UserRole, Medicine, SystemSettings, RolePermissions } from "./types";
 import { calculateProfileCompletion } from "./utils";
 import { useLanguage } from "./LanguageContext";
@@ -467,6 +468,17 @@ export default function App() {
         );
     }
   };
+
+  const isResetPath = typeof window !== "undefined" && (
+    window.location.pathname === "/reset-password" || 
+    window.location.hash.includes("/reset-password") || 
+    window.location.hash.includes("type=recovery") ||
+    window.location.search.includes("type=recovery")
+  );
+
+  if (isResetPath) {
+    return <ResetPassword />;
+  }
 
   if (!user) {
     return <Auth onLoginSuccess={handleLoginSuccess} settings={settings} />;

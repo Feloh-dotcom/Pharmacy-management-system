@@ -604,6 +604,70 @@ app.get("/api/auth/me", async (req, res) => {
   });
 });
 
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email parameter is required." });
+  }
+
+  const trimmedEmail = email.toLowerCase().trim();
+
+  try {
+    const db = readDB();
+    const isLocalUser = db.users && db.users.some(u => u.email && u.email.toLowerCase() === trimmedEmail);
+    let userExists = isLocalUser;
+
+    if (!userExists) {
+      // Direct query fallback to cloud profiles database table
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("email", trimmedEmail)
+          .maybeSingle();
+        
+        if (data) {
+          userExists = true;
+        }
+      } catch (dbErr) {
+        console.warn("[Forgot-Password Profile Fallback Warning]", dbErr);
+      }
+    }
+
+    if (!userExists) {
+      return res.status(404).json({ error: "Email not found" });
+    }
+
+    // Determine request dynamic origin for redirect target mapping
+    const referer = req.get("referer") || req.get("origin") || "https://ais-dev-acnd7qv76etvnbzywjdsfi-192377221854.europe-west2.run.app";
+    let origin = "https://ais-dev-acnd7qv76etvnbzywjdsfi-192377221854.europe-west2.run.app";
+    try {
+      const urlObj = new URL(referer);
+      origin = urlObj.origin;
+    } catch (_) {
+      origin = referer;
+    }
+
+    // Direct redirection mapping inside the container to avoid frame bypasses
+    const redirectTo = `${origin}/reset-password`;
+    console.log(`[Supabase Reset Initiator] Sending code request for: ${trimmedEmail}, redirect to: ${redirectTo}`);
+
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+      redirectTo: redirectTo,
+    });
+
+    if (resetErr) {
+      console.error("[Supabase Reset Password Error]", resetErr);
+      return res.status(500).json({ error: "Unable to send reset email" });
+    }
+
+    return res.json({ message: "Password reset link sent to your email" });
+  } catch (err: any) {
+    console.error("[Forgot-Password Exception Link Block]", err);
+    return res.status(500).json({ error: "Unable to send reset email" });
+  }
+});
+
 app.post("/api/auth/register", async (req, res) => {
   const { id, name, email, password, phone, nationalId } = req.body;
   if (!name || !email || !password || !phone || !nationalId) {
@@ -774,171 +838,173 @@ app.post("/api/auth/register", async (req, res) => {
   });
 });
 
+function calculateProfileCompletionBackend(user: any) {
+  if (!user) {
+    return {
+      percent: 0,
+      criteria: {},
+      missing: ["Session unrecognized"]
+    };
+  }
+  const hasName = !!user.name && String(user.name).trim().length > 1;
+  const hasEmail = !!user.email && String(user.email).trim().length > 3;
+  const hasPhone = !!user.phone && String(user.phone).trim().length >= 7;
+  const hasNationalId = !!user.nationalId && String(user.nationalId).trim().length >= 4;
+  const hasAddress = !!user.address && String(user.address).trim().length >= 5;
+  const hasPassword = !!user.passwordSetupCompleted || !!(user.passwordHash && user.salt) || true;
+  const hasRole = !!user.role;
+
+  const steps = [
+    { key: "name", label: "Full Corporate Name", val: hasName },
+    { key: "email", label: "Verified Email Address", val: hasEmail },
+    { key: "phone", label: "Direct Phone Number", val: hasPhone },
+    { key: "nationalId", label: "National ID / Passport No.", val: hasNationalId },
+    { key: "address", label: "Residence/Operational Address", val: hasAddress },
+    { key: "password", label: "Master Cryptographic Password", val: hasPassword },
+    { key: "role", label: "Assigned Structural Role", val: hasRole }
+  ];
+
+  const doneCount = steps.filter(s => s.val).length;
+  const percent = Math.round((doneCount / steps.length) * 100);
+  const criteria = steps.reduce((acc, current) => {
+    acc[current.key] = current.val;
+    return acc;
+  }, {} as any);
+  const missing = steps.filter(s => !s.val).map(s => s.label);
+
+  return {
+    percent,
+    criteria,
+    missing
+  };
+}
+
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required" });
   }
 
-  // 1. Try to validate credentials with Supabase Auth as the single source of truth
+  // 1. Authenticate with Supabase Auth as the source of truth (Task 4 & 7)
   let authUser: any = null;
   let authError: any = null;
+  let authSession: any = null;
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.toLowerCase(),
+      email: email.toLowerCase().trim(),
       password: password
     });
     if (error) {
       authError = error;
     } else if (data?.user) {
       authUser = data.user;
+      authSession = data.session;
     }
   } catch (err: any) {
-    console.warn("[Supabase Auth Login Error fallback]", err.message);
+    console.warn("[Supabase Auth Login Error]", err.message);
+    authError = err;
   }
 
-  // 2. Load DB and match user
-  let db = readDB();
-  let user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-
-  // If successfully authenticated via Supabase but not yet found in the cloud profile caches, force direct synchronized pull
-  if (authUser && (!user || user.id !== authUser.id)) {
-    console.log("[Supabase Login Sync] Authenticated via cloud but profile not in cache. Pulling updates...");
-    try {
-      await pullChangesFromSupabase(true);
-      db = readDB();
-      user = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    } catch (pullErr: any) {
-      console.error("[Supabase Login Pull Sync Error]", pullErr.message);
-    }
-  }
-
-  // If still not inside local cached memory, create profile automatically from authenticated session meta
-  if (authUser && !user) {
-    console.log("[Supabase Login Sync] Auto-creating missing cache profile for validated user session...");
-    const nameOnMeta = authUser.user_metadata?.full_name || authUser.user_metadata?.name || "New Pharmacy User";
-    const roleOnMeta = authUser.user_metadata?.role || "User";
-    const { salt, hash } = hashPassword(password);
-    user = {
-      id: authUser.id,
-      name: nameOnMeta,
-      fullName: nameOnMeta,
-      email: email.toLowerCase(),
-      role: roleOnMeta as any,
-      isActive: true,
-      createdAt: authUser.created_at || new Date().toISOString(),
-      passwordHash: hash,
-      salt,
-      failedLoginAttempts: 0,
-      verificationStatus: "Verified" as any,
-      phone: "",
-      bio: "",
-      nationalId: "",
-      address: "",
-      passwordSetupCompleted: true
-    };
-    updateDB(state => {
-      state.users.push(user!);
-    });
-    db = readDB();
-  }
-
-  // 3. Perform fallback local authentication ONLY if Supabase Auth check didn't initialize/run (e.g. offline fallback or missing cloud)
+  // Task 7 & 9: Supabase auth check / error handling
   if (!authUser) {
-    if (!user) {
-      const errMsg = authError ? authError.message : "Invalid credentials";
-      return res.status(401).json({ error: errMsg });
-    }
-
-    // Lockout check
-    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
-      const lockedMinLeft = Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / (1000 * 60));
-      return res.status(423).json({ 
-        error: `Account is temporarily locked due to consecutive failed login attempts. Try again in ${lockedMinLeft} minutes.` 
-      });
-    }
-
-    // Cryptographic hash validation (Anti-Bypass)
-    let isPasswordCorrect = false;
-    if (user.passwordHash && user.salt) {
-      const { hash } = hashPassword(password, user.salt);
-      isPasswordCorrect = (hash === user.passwordHash);
-    }
-
-    if (!isPasswordCorrect) {
-      const failedAttemptsCount = (user.failedLoginAttempts || 0) + 1;
-      let lockedTimeStr: string | undefined = undefined;
-      const maxRetries = db.settings?.security?.accountLockoutAttempts || 5;
-
-      if (failedAttemptsCount >= maxRetries) {
-        lockedTimeStr = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // Lock for 15 minutes
+    let errMsg = "Invalid credentials";
+    let status = 401;
+    if (authError) {
+      errMsg = authError.message || errMsg;
+      const lowerErr = errMsg.toLowerCase();
+      if (lowerErr.includes("confirm") || lowerErr.includes("verify") || lowerErr.includes("activated") || lowerErr.includes("not confirmed") || lowerErr.includes("email not confirmed")) {
+        status = 403;
+        errMsg = "Email is not verified or confirmed. Please verify your email first.";
+      } else if (lowerErr.includes("invalid") || lowerErr.includes("credentials") || lowerErr.includes("grant")) {
+        status = 401;
+        errMsg = "Invalid login credentials. Please specify correct clinic credentials.";
+      } else if (authError.status) {
+        status = authError.status;
       }
-
-      updateDB(state => {
-        const idx = state.users.findIndex(u => u.id === user!.id);
-        if (idx > -1) {
-          state.users[idx].failedLoginAttempts = failedAttemptsCount;
-           if (lockedTimeStr) {
-             state.users[idx].lockedUntil = lockedTimeStr;
-           }
-        }
-        state.auditLogs.unshift({
-          id: `aud-${Date.now()}`,
-          userEmail: email,
-          action: "Failed Login Attempt",
-          module: "Authentication",
-          date: new Date().toISOString(),
-          details: `Failed credentials handshake. Attempt ${failedAttemptsCount} of ${maxRetries}.`
-        });
-      });
-
-      const errorMsg = lockedTimeStr 
-        ? `Too many failed attempts. This account is locked for 15 minutes to guarantee security.`
-        : `Invalid credentials. Attempt ${failedAttemptsCount} of ${maxRetries}`;
-
-      return res.status(401).json({ error: errorMsg });
     }
+    return res.status(status).json({ error: errMsg });
   }
 
-  if (!user.isActive) {
+  // Task 5: Fetch user profile directly from 'profiles' table (and bypass local-only hacks)
+  let profile: any = null;
+  let profileErr: any = null;
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", authUser.id)
+      .maybeSingle();
+    profile = data;
+    profileErr = error;
+  } catch (err: any) {
+    console.error("[Login Profile Fetch Exception]", err.message);
+    profileErr = err;
+  }
+
+  // Task 9: Proper error for missing profile
+  if (profileErr || !profile) {
+    return res.status(404).json({
+      error: `Authentication succeeded, but no matching personnel profile was found in the database (profiles) for ID: ${authUser.id}. Please contact system administrators.`
+    });
+  }
+
+  // Map database row using project-specific casing
+  const mappedUser = mapFromRow("users", profile);
+
+  // Fallbacks for profile name fields
+  mappedUser.name = mappedUser.name || mappedUser.fullName || authUser.user_metadata?.name || authUser.user_metadata?.full_name || "Pharmacy Personnel";
+  mappedUser.fullName = mappedUser.name;
+
+  // Deactivated user check
+  if (mappedUser.isActive === false) {
     return res.status(403).json({ error: "Your account is currently deactivated. Please contact an Administrator." });
   }
 
-  // 4. Update memory reset failed login attempts & commit access audit log logs
-  updateDB(state => {
-    const idx = state.users.findIndex(u => u.id === user!.id);
-    if (idx > -1) {
-      state.users[idx].failedLoginAttempts = 0;
-      state.users[idx].lockedUntil = undefined;
-    }
-    state.auditLogs.unshift({
-      id: `aud-${Date.now()}`,
-      userEmail: user!.email,
-      action: "User Login",
-      module: "Authentication",
-      date: new Date().toISOString(),
-      details: "SaaS Session opened securely via login endpoint with Supabase single source of truth validation."
+  // Align local database cache users state
+  try {
+    updateDB(state => {
+      const idx = state.users.findIndex(u => u.id === mappedUser.id);
+      if (idx > -1) {
+        state.users[idx] = { ...state.users[idx], ...mappedUser };
+      } else {
+        state.users.push(mappedUser);
+      }
+      state.auditLogs.unshift({
+        id: `aud-${Date.now()}`,
+        userEmail: mappedUser.email,
+        action: "User Login",
+        module: "Authentication",
+        date: new Date().toISOString(),
+        details: `Personnel workstation session opened successfully via credentials with Supabase.`
+      });
     });
-  });
+  } catch (syncEx: any) {
+    console.warn("[Login Local Sync Warning]", syncEx.message);
+  }
 
-  res.json({
-    token: `sess_jwt_${user.id}_${Date.now()}`,
-    user: {
-      id: user.id,
-      name: user.name,
-      fullName: user.name,
-      email: user.email,
-      role: user.role,
-      avatarUrl: user.avatarUrl,
-      phone: (user as any).phone || "",
-      bio: (user as any).bio || "",
-      nationalId: (user as any).nationalId || "",
-      address: (user as any).address || "",
-      passwordSetupCompleted: (user as any).passwordSetupCompleted,
-      verificationStatus: (user as any).verificationStatus || "Pending",
-      verificationSubmittedAt: (user as any).verificationSubmittedAt,
-      verificationDetails: (user as any).verificationDetails
-    }
+  // Task 6: Return role, profile completion, permissions, access token & session details
+  const profileCompletion = calculateProfileCompletionBackend(mappedUser);
+
+  const db = readDB();
+  const permissionsList = db.rolePermissions || [];
+  const matchingRolePerm = permissionsList.find(rp => rp.role.toLowerCase() === mappedUser.role.toLowerCase());
+  const permissions = matchingRolePerm ? matchingRolePerm.permissions : {
+    manageMedicines: false,
+    manageInventory: false,
+    addProducts: false,
+    editProducts: false,
+    addCategories: false,
+    editCategories: false,
+    adjustStock: false
+  };
+
+  return res.json({
+    user: mappedUser,
+    session: authSession,
+    access_token: authSession?.access_token || `sess_token_${mappedUser.id}`,
+    role: mappedUser.role,
+    profile_completion: profileCompletion,
+    permissions: permissions
   });
 });
 
