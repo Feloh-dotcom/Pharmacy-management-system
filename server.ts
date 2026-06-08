@@ -605,20 +605,24 @@ app.get("/api/auth/me", async (req, res) => {
 });
 
 app.post("/api/auth/forgot-password", async (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: "Email parameter is required." });
-  }
-
-  const trimmedEmail = email.toLowerCase().trim();
-
   try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Email address is required."
+      });
+    }
+
+    const trimmedEmail = email.toLowerCase().trim();
+
+    // Check if user exists in the local DB or the cloud Profiles table
     const db = readDB();
     const isLocalUser = db.users && db.users.some(u => u.email && u.email.toLowerCase() === trimmedEmail);
     let userExists = isLocalUser;
 
     if (!userExists) {
-      // Direct query fallback to cloud profiles database table
       try {
         const { data, error } = await supabase
           .from("profiles")
@@ -635,36 +639,42 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     }
 
     if (!userExists) {
-      return res.status(404).json({ error: "Email not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Email not found"
+      });
     }
 
-    // Determine request dynamic origin for redirect target mapping
-    const referer = req.get("referer") || req.get("origin") || "https://ais-dev-acnd7qv76etvnbzywjdsfi-192377221854.europe-west2.run.app";
-    let origin = "https://ais-dev-acnd7qv76etvnbzywjdsfi-192377221854.europe-west2.run.app";
-    try {
-      const urlObj = new URL(referer);
-      origin = urlObj.origin;
-    } catch (_) {
-      origin = referer;
-    }
+    // Dynamic redirection targets for development vs production
+    const redirectTo =
+      process.env.NODE_ENV === "production"
+        ? "https://pharmacy-management-system-0qet.onrender.com/reset-password"
+        : "http://localhost:3000/reset-password";
 
-    // Direct redirection mapping inside the container to avoid frame bypasses
-    const redirectTo = `${origin}/reset-password`;
     console.log(`[Supabase Reset Initiator] Sending code request for: ${trimmedEmail}, redirect to: ${redirectTo}`);
 
     const { error: resetErr } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-      redirectTo: redirectTo,
+      redirectTo
     });
 
     if (resetErr) {
       console.error("[Supabase Reset Password Error]", resetErr);
-      return res.status(500).json({ error: "Unable to send reset email" });
+      return res.status(400).json({
+        success: false,
+        message: "Unable to send reset email"
+      });
     }
 
-    return res.json({ message: "Password reset link sent to your email" });
-  } catch (err: any) {
-    console.error("[Forgot-Password Exception Link Block]", err);
-    return res.status(500).json({ error: "Unable to send reset email" });
+    return res.json({
+      success: true,
+      message: "Password reset link sent to your email"
+    });
+  } catch (error) {
+    console.error("[Forgot Password Error]", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to send reset email"
+    });
   }
 });
 

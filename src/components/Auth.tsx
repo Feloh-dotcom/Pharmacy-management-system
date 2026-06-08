@@ -81,21 +81,6 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
         setLoading(false);
         return;
       }
-      if (password !== confirmPassword) {
-        setError(
-          lang === "en"
-            ? "Validation Rejected: The passwords provided do not match."
-            : "Sera ya Usalama: Nenosiri na uthibitisho wa nenosiri hazilingani."
-        );
-        setLoading(false);
-        return;
-      }
-
-      // Store the requested password temporarily in localStorage so that when they click the reset link, 
-      // they don't have to re-type it on /reset-password, though they can if they want.
-      if (password) {
-        localStorage.setItem("halomedical_pending_reset_pass", password);
-      }
 
       try {
         const response = await fetch("/api/auth/forgot-password", {
@@ -111,12 +96,12 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
         
         if (response.ok) {
           setInfo(
-            lang === "en" 
+            data.message || (lang === "en" 
               ? "Password reset link sent to your email" 
-              : "Kiungo cha kuweka upya nenosiri kimetumwa kwenye barua pepe yako"
+              : "Kiungo cha kuweka upya nenosiri kimetumwa kwenye barua pepe yako")
           );
         } else {
-          setError(data.error || (lang === "en" ? "Unable to send reset email" : "Imeshindikana kutuma barua pepe ya kuweka upya"));
+          setError(data.message || data.error || (lang === "en" ? "Unable to send reset email" : "Imeshindikana kutuma barua pepe ya kuweka upya"));
         }
       } catch (err: any) {
         console.error("[Forgot password request error]", err);
@@ -481,10 +466,10 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
             )}
 
             {/* Password input */}
-            {(true) && (
+            {!isForgot && (
               <div className="space-y-1.5">
                 <label className="text-xs font-bold tracking-wide text-[#0F172A] block px-0.5">
-                  {isForgot ? (lang === "en" ? "New Password" : "Nenosiri Jipya") : activeTrans.passLabel} <span className="text-rose-500">*</span>
+                  {activeTrans.passLabel} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
@@ -509,8 +494,8 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
                   </button>
                 </div>
 
-                {/* Password strength progress indicators during registration/forgot */}
-                {(isRegister || isForgot) && password.length > 0 && (
+                {/* Password strength progress indicators during registration */}
+                {isRegister && password.length > 0 && (
                   <div className="mt-2 space-y-1 pb-1 animate-in fade-in duration-200">
                     <div className="flex items-center justify-between text-[10px] font-bold">
                       <span className="text-slate-400 uppercase tracking-wider">Passcode Security Strength</span>
@@ -527,11 +512,11 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
               </div>
             )}
 
-            {/* Password confirmation for registering / forgot */}
-            {(isRegister || isForgot) && (
+            {/* Password confirmation for registering */}
+            {isRegister && (
               <div className="space-y-1.5 animate-in fade-in duration-200">
                 <label className="text-xs font-bold tracking-wide text-[#0F172A] block px-0.5">
-                  {isForgot ? (lang === "en" ? "Confirm Password" : "Thibitisha Nenosiri") : activeTrans.confirmPassLabel} <span className="text-rose-500">*</span>
+                  {activeTrans.confirmPassLabel} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">

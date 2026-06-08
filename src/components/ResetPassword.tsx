@@ -16,6 +16,28 @@ export default function ResetPassword() {
       setPassword(pendingPass);
       setConfirmPassword(pendingPass);
     }
+
+    // Check if there is an access code or token in the URL to exchange for user session
+    const handleUrlParams = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      if (code) {
+        setLoading(true);
+        try {
+          const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeErr) {
+            console.warn("[ResetPassword] Could not exchange code for session:", exchangeErr.message);
+          } else {
+            console.log("[ResetPassword] Successfully exchanged code for session!");
+          }
+        } catch (err) {
+          console.error("[ResetPassword] Error exchanging code:", err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    handleUrlParams();
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
