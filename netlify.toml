@@ -2,14 +2,12 @@
   command = "npm run build"
   publish = "dist"
 
-# Proxy API requests directly to the Render Express backend to prevent CORS issues
 [[redirects]]
   from = "/api/*"
   to = "https://pharmacy-management-system-0qet.onrender.com/api/:splat"
   status = 200
   force = true
 
-# Fallback all other routes to index.html for React SPA Routing support
 [[redirects]]
   from = "/*"
   to = "/index.html"
