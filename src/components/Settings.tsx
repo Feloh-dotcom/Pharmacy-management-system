@@ -189,6 +189,41 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
     }
   };
 
+  // User deletion handles both Auth client and Profiles cascades automatically (Task 1-9)
+  const handleDeleteUser = async (targetUserId: string, targetEmail: string) => {
+    if (user?.email.toLowerCase() === targetEmail.toLowerCase()) {
+      triggerToast("You cannot delete your own active administrator account.", "error");
+      return;
+    }
+    if (!window.confirm(`Are you absolutely sure you want to completely and permanently delete workforce account "${targetEmail}"? This action is irreversible.`)) {
+      return;
+    }
+    try {
+      setSubmitLoading(true);
+      const res = await fetch("/api/settings/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminEmail: user?.email,
+          userId: targetUserId,
+          email: targetEmail,
+          action: "delete"
+        })
+      });
+      if (res.ok) {
+        triggerToast("The user account was successfully deleted.", "success");
+        await loadAllSettings(); // Task 5 & 6: Freshly refetch and invalidate/refresh state in the UI
+      } else {
+        const err = await res.json();
+        triggerToast(err.error || "Failed to delete user account.", "error");
+      }
+    } catch (e: any) {
+      triggerToast("An error occurred during account deletion.", "error");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   // User RBAC updates
   const handleUserRoleOrActiveToggle = async (userId: string, activeState?: boolean, userRole?: string) => {
     try {
@@ -1098,10 +1133,17 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                                       setShowResetPassword(usr.id);
                                       setResetPasswordValue("");
                                     }}
-                                    className="px-3 py-1.5 bg-slate-50 hover:bg-slate-105 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-wide rounded-xl flex items-center space-x-1 transition shadow-sm"
+                                    className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-wide rounded-xl flex items-center space-x-1 transition shadow-sm"
                                   >
                                     <KeyRound className="w-3 h-3" />
                                     <span>Reset Password</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteUser(usr.id, usr.email)}
+                                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-[10px] uppercase tracking-wide rounded-xl flex items-center space-x-1 transition shadow-sm"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Delete</span>
                                   </button>
                                 </div>
                               </td>

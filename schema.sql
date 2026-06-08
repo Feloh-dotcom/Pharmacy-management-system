@@ -637,6 +637,25 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Automatically delete the user profile from public.profiles when they are deleted from auth.users
+CREATE OR REPLACE FUNCTION public.handle_deleted_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  BEGIN
+    DELETE FROM public.profiles WHERE id::text = old.id::text;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'handle_deleted_user error ignored: %', SQLERRM;
+  END;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Bind the deletion trigger
+DROP TRIGGER IF EXISTS on_auth_user_deleted ON auth.users;
+CREATE TRIGGER on_auth_user_deleted
+  AFTER DELETE ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_deleted_user();
+
 -- ==========================================================
 -- ADD SPECIAL CHILD AND REPORTING TABLES FOR FULL COMPATIBILITY
 -- ==========================================================

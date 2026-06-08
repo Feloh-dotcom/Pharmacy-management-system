@@ -38,3 +38,21 @@ ALTER TABLE public.inventory_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP 
 -- 5. RUN AUTOMATED FILL AND RECONCILIATION DATA INSERTS
 UPDATE public.inventory_logs SET action = type WHERE action IS NULL;
 ALTER TABLE public.inventory_logs ALTER COLUMN action SET NOT NULL;
+
+-- 6. AUTOMATE USER DELETION CASCADE FROM AUTH.USERS TO PUBLIC.PROFILES
+CREATE OR REPLACE FUNCTION public.handle_deleted_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  BEGIN
+    DELETE FROM public.profiles WHERE id::text = old.id::text;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'handle_deleted_user error ignored: %', SQLERRM;
+  END;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_deleted ON auth.users;
+CREATE TRIGGER on_auth_user_deleted
+  AFTER DELETE ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_deleted_user();

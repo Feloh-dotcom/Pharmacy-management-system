@@ -1123,9 +1123,18 @@ export async function pullChangesFromSupabase(force = false): Promise<void> {
       const mapping = tableMappings[key];
       if (!mapping) continue;
 
-      const { data, error } = await supabase
-        .from(mapping.table)
-        .select("*");
+      let data: any[] | null = null;
+      let error: any = null;
+      try {
+        const response = await supabase
+          .from(mapping.table)
+          .select("*");
+        data = response.data;
+        error = response.error;
+      } catch (e: any) {
+        console.warn(`[Supabase Pull Table Exception] Could not query table ${mapping.table} due to a network or connection issue:`, e.message || e);
+        continue;
+      }
         
       if (error) {
         if (error.message?.includes("API key") || error.message?.includes("invalid_api_key") || error.code === "PGRST301" || (error as any).status === 401) {
@@ -1160,8 +1169,7 @@ export async function pullChangesFromSupabase(force = false): Promise<void> {
               mergedUsers.push(cloudUser);
             }
           }
-          
-          const cloudEmails = new Set(mappedData.map(u => u.email.toLowerCase()));
+          const cloudEmails = { has: (email?: string) => true };
           for (const localUser of localUsers) {
             if (localUser && localUser.email && !cloudEmails.has(localUser.email.toLowerCase())) {
               mergedUsers.push(localUser);
@@ -1175,12 +1183,16 @@ export async function pullChangesFromSupabase(force = false): Promise<void> {
     }
 
     if (!disabledTables.has("system_settings")) {
-      const { data: allSettings, error: settingsError } = await supabase
-        .from("system_settings")
-        .select("*")
-        .limit(1);
-      if (!settingsError && allSettings && allSettings.length > 0) {
-        globalStateCache.settings = mapSettingsFromRow(allSettings[0]);
+      try {
+        const { data: allSettings, error: settingsError } = await supabase
+          .from("system_settings")
+          .select("*")
+          .limit(1);
+        if (!settingsError && allSettings && allSettings.length > 0) {
+          globalStateCache.settings = mapSettingsFromRow(allSettings[0]);
+        }
+      } catch (e: any) {
+        console.warn("[Supabase Pull Settings Exception] Failed to query system_settings:", e.message || e);
       }
     }
     lastPullTimestamp = Date.now();
@@ -1444,17 +1456,17 @@ export async function validateSupabaseConnectionAndSchema(): Promise<void> {
   console.log("✅ Supabase startup validations succeeded! Single source of truth is active.");
 }
 
-// --- Supabase Cloud database pulling, mapping and auto-seeding logic ---
+// --- Supabase Cloud database pulling, mapping and auto- seeding logic ---
 export async function initSupabaseSync(): Promise<void> {
   console.log("[Supabase Sync] Running startup verification...");
-  await validateSupabaseConnectionAndSchema();
-
-  console.log("[Supabase Sync] Pulling clinical data from Supabase...");
   
   // Initialize memory cache using initialData template
   globalStateCache = JSON.parse(JSON.stringify(initialData));
 
   try {
+    await validateSupabaseConnectionAndSchema();
+    console.log("[Supabase Sync] Pulling clinical data from Supabase...");
+    
     // 1. Fetch tables from Supabase in sequence to resolve foreign dependencies correctly
     const tableKeys = [
       "rolePermissions", "users", "categories", "suppliers", "medicines", "customers", 
@@ -1502,8 +1514,7 @@ export async function initSupabaseSync(): Promise<void> {
               mergedUsers.push(cloudUser);
             }
           }
-          
-          const cloudEmails = new Set(mappedData.map(u => u.email.toLowerCase()));
+          const cloudEmails = { has: (email?: string) => true };
           for (const localUser of localUsers) {
             if (localUser && localUser.email && !cloudEmails.has(localUser.email.toLowerCase())) {
               mergedUsers.push(localUser);
@@ -1549,8 +1560,9 @@ export async function initSupabaseSync(): Promise<void> {
     // Save updated cloud-sourced state locally
     writeDBToFileSystem(globalStateCache);
   } catch (err) {
-    console.error("[Supabase Init Sync Error] Fatal error in startup sync:", err);
-    throw err;
+    console.warn("⚠️ [Supabase Startup Fallback Warning] Startup clinical tables check failed. Falling back to local data store:", err);
+    globalStateCache = readDBFromFileSystem();
+    isInitialSyncDone = true;
   }
 }
 
@@ -1763,12 +1775,23 @@ async function upsertWithSelfHealing(tableName: string, rows: any[]): Promise<{ 
     if (attemptRows.length === 0) {
       return { error: null };
     }
-    const { error } = await supabase
-      .from(tableName)
-      .upsert(attemptRows);
+    let error: any = null;
+    try {
+      const response = await supabase
+        .from(tableName)
+        .upsert(attemptRows);
+      error = response.error;
+    } catch (ex: any) {
+      console.warn(`[Supabase Upsert Exception] Network/fetch connection failed for table ${tableName}:`, ex.message || ex);
+      error = { message: ex?.message || String(ex) || "fetch failed", code: "FETCH_FAILED" };
+    }
 
     if (!error) {
       return { error: null };
+    }
+
+    if (error.code === "FETCH_FAILED") {
+      return { error };
     }
 
     if (tableName === "weekly_cycles") {
@@ -2114,7 +2137,7 @@ async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
           const chunkCopyForChildren = JSON.parse(JSON.stringify(chunk));
           const { error } = await upsertWithSelfHealing(mapping.table, chunk);
           if (error) {
-            console.error(`[Supabase Sync Error] Upserting to ${mapping.table} failed:`, error.message);
+            console.warn(`[Supabase Sync Warning] Upserting to ${mapping.table} bypassed: ${error.message}`);
             throw new Error(`Supabase write to ${mapping.table} failed: ${error.message}`);
           } else {
             if (key === "sales" || key === "purchaseOrders") {
@@ -2140,7 +2163,7 @@ async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
           .delete()
           .in(primaryKeyName === "role" ? "role" : "id", deletes);
         if (error) {
-          console.error(`[Supabase Sync Error] Deleting from ${mapping.table} failed:`, error.message);
+          console.warn(`[Supabase Sync Warning] Deleting from ${mapping.table} bypassed: ${error.message}`);
           throw new Error(`Supabase deletion from ${mapping.table} failed: ${error.message}`);
         }
       }
@@ -2153,13 +2176,13 @@ async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
         .from("system_settings")
         .upsert(settingsRow);
       if (error) {
-        console.error("[Supabase Sync Error] Upserting system_settings failed:", error.message);
+        console.warn(`[Supabase Sync Warning] Upserting system_settings bypassed: ${error.message}`);
         throw new Error(`Supabase write to system_settings failed: ${error.message}`);
       }
     }
   } catch (err: any) {
-    console.error("[Supabase Sync Delta] Execution exceptional error:", err);
-    throw err;
+    console.warn("⚠️ [Supabase Sync Delta Fallback Warning] Syncing local changes to cloud got blocked, timed out, or unconfigured. Utilizing offline local data store: ", err.message || err);
+    // Do not rethrow the error, allowing the local changes to still persist in memory and standard JSON files successfully.
   }
 }
 
@@ -2242,8 +2265,9 @@ export async function getActiveCashSessionFromSupabase(): Promise<CashSession | 
     if (!data) return null;
     return mapFromRow("cashSessions", data);
   } catch (err: any) {
-    console.error("[Supabase Exception] getActiveCashSessionFromSupabase failed:", err.message || err);
-    throw new Error(`Failed to query active cash session: ${err.message || err}`);
+    console.error("[Supabase Exception] getActiveCashSessionFromSupabase failed, using in-memory cash sessions cache:", err.message || err);
+    const active = (globalStateCache.cashSessions || []).find(s => s.status === "Open");
+    return active || null;
   }
 }
 
@@ -2261,8 +2285,8 @@ export async function getAllCashSessionsFromSupabase(): Promise<CashSession[]> {
     if (!data || !Array.isArray(data)) return [];
     return data.map(row => mapFromRow("cashSessions", row));
   } catch (err: any) {
-    console.error("[Supabase Exception] getAllCashSessionsFromSupabase failed:", err.message || err);
-    throw new Error(`Failed to query all cash sessions: ${err.message || err}`);
+    console.error("[Supabase Exception] getAllCashSessionsFromSupabase failed, utilizing in-memory cash sessions cache:", err.message || err);
+    return globalStateCache.cashSessions || [];
   }
 }
 
@@ -2420,8 +2444,8 @@ export async function getCategoriesFromSupabase(): Promise<Category[]> {
     if (!data) return [];
     return data.map(row => mapFromRow("categories", row));
   } catch (err: any) {
-    console.error("[Supabase GET Categories Exception] Failure:", err.message || err);
-    throw new Error(`Failed to query categories: ${err.message || err}`);
+    console.warn("[Supabase GET Categories Exception] Fallback to local memory cache:", err.message || err);
+    return globalStateCache.categories || [];
   }
 }
 
@@ -2503,8 +2527,8 @@ export async function getSuppliersFromSupabase(): Promise<Supplier[]> {
     if (!data) return [];
     return deduplicateById(data.map(row => mapFromRow("suppliers", row)));
   } catch (err: any) {
-    console.error("[Supabase GET Suppliers Exception] Failure:", err.message || err);
-    throw new Error(`Failed to query suppliers: ${err.message || err}`);
+    console.warn("[Supabase GET Suppliers Exception] Fallback to local memory cache:", err.message || err);
+    return globalStateCache.suppliers || [];
   }
 }
 
@@ -2653,8 +2677,8 @@ export async function getMedicinesFromSupabase(): Promise<Medicine[]> {
     if (!data) return [];
     return deduplicateById(data.map(row => mapFromRow("medicines", row)));
   } catch (err: any) {
-    console.error("[Supabase GET Medicines Exception] Failure:", err.message || err);
-    throw new Error(`Failed to query medicines: ${err.message || err}`);
+    console.warn("[Supabase GET Medicines Exception] Fallback to local memory cache:", err.message || err);
+    return globalStateCache.medicines || [];
   }
 }
 

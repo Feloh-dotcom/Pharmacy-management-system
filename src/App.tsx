@@ -213,7 +213,7 @@ export default function App() {
     setProfileError(null);
     try {
       const res = await fetch(`/api/auth/me?email=${encodeURIComponent(email)}`);
-      if (res.ok) {
+      if (res.ok && res.headers.get("Content-Type")?.includes("json")) {
         const data = await res.json();
         if (data.user) {
           setSessionUser(data.user);
@@ -228,9 +228,21 @@ export default function App() {
           }
           return data.user;
         }
+      } else if (res.status === 404 || res.status === 401) {
+        // Task 8: Invalidate/sign out deleted user session automatically
+        handleLogout();
+        return null;
       } else {
-        const errData = await res.json().catch(() => ({}));
-        setProfileError(errData.error || "Failed to load live profile.");
+        let errorMsg = "Failed to load live profile.";
+        try {
+          if (res.headers.get("Content-Type")?.includes("json")) {
+            const errData = await res.json();
+            errorMsg = errData.error || errorMsg;
+          }
+        } catch {
+          // not JSON or body already parsed
+        }
+        setProfileError(errorMsg);
       }
     } catch (err) {
       console.error("[Live Profile Sync Exception]", err);

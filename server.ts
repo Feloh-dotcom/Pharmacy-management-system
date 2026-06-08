@@ -138,15 +138,16 @@ async function ensureUserInLocalCache(email: string): Promise<any> {
     console.error("[ensureUserInLocalCache Supabase Search Error]", err.message);
   }
 
-  // 3. Fallback: If found locally but missing in Supabase profiles, seed to Supabase
+  // 3. Fallback: If found locally but missing in Supabase profiles, they were deleted! Remove them from local DB to maintain sync, and return null.
   if (localUser) {
-    try {
-      const row = mapToRow("users", localUser);
-      await supabase.from("profiles").upsert(row);
-    } catch (e: any) {
-      console.warn("[ensureUserInLocalCache Seeding Error]", e.message);
-    }
-    return localUser;
+    console.log(`[ensureUserInLocalCache Sync] Removing user ${normalizedEmail} locally as they do not exist in Supabase Profiles.`);
+    updateDB(state => {
+      const idx = state.users.findIndex(u => u.email.toLowerCase() === normalizedEmail);
+      if (idx > -1) {
+        state.users.splice(idx, 1);
+      }
+    });
+    return null;
   }
 
   // 4. Fallback 2: If neither in local cache nor in Supabase profiles, auto-generate default profile
@@ -987,10 +988,10 @@ app.post("/api/auth/login", async (req, res) => {
     profileErr = err;
   }
 
-  // Task 9: Proper error for missing profile
+  // Task 9: Proper error for missing profile / deleted account
   if (profileErr || !profile) {
     return res.status(404).json({
-      error: `Authentication succeeded, but no matching personnel profile was found in the database (profiles) for ID: ${authUser.id}. Please contact system administrators.`
+      error: `Your clinical workspace profile was not found or has been completely deleted (ID: ${authUser.id}). Please contact system administrators to enroll a new workstation node.`
     });
   }
 
@@ -2632,6 +2633,70 @@ app.post("/api/settings/users", async (req, res) => {
     });
 
     return res.json({ message: "Workforce staff member enrolled successfully.", users: readDB().users });
+  }
+
+  if (action === "delete") {
+    if (!userId) {
+      return res.status(400).json({ error: "Missing Target User Identity." });
+    }
+
+    const emailToDelete = email?.toLowerCase().trim();
+    if (!emailToDelete) {
+      return res.status(400).json({ error: "Missing Target User Email." });
+    }
+
+    // 1. Delete matching user from Supabase Authentication (GoTrue)
+    let authDeleted = false;
+    try {
+      const supabaseUid = toUUIDIfNeeded(userId);
+      if (supabase.auth.admin && hasServiceRole()) {
+        const { error: authDelErr } = await supabase.auth.admin.deleteUser(supabaseUid);
+        if (authDelErr) {
+          console.warn("[Admin User Deletion Sync] Supabase Auth admin delete failed:", authDelErr.message);
+        } else {
+          authDeleted = true;
+          console.log("[Admin User Deletion Sync] Supabase Auth admin delete succeeded for", emailToDelete);
+        }
+      }
+    } catch (err: any) {
+      console.warn("[Admin User Deletion Exception] Supabase auth action failed:", err.message);
+    }
+
+    // 2. Delete user from public.profiles table in Supabase
+    try {
+      const { error: profileDelErr } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("email", emailToDelete);
+      if (profileDelErr) {
+        console.warn("[Profiles Deletion Sync] Supabase profiles delete failed:", profileDelErr.message);
+      } else {
+        console.log("[Profiles Deletion Sync] Deleted from profiles successfully on Cloud.");
+      }
+    } catch (err: any) {
+      console.warn("[Profiles Deletion Sync Exception] Supabase profiles delete failed:", err.message);
+    }
+
+    // 3. Remove user from local memory database (caches) to ensure immediate visual disappearance across the system (Counters & Lists)
+    updateDB(state => {
+      const idx = state.users.findIndex(u => u.id === userId || u.email.toLowerCase() === emailToDelete);
+      if (idx > -1) {
+        const deletedName = state.users[idx].name;
+        state.users.splice(idx, 1);
+
+        // Add to audit logs
+        state.auditLogs.unshift({
+          id: `aud-${Date.now()}`,
+          userEmail: adminEmail,
+          action: "Admin Deleted User",
+          module: "RBAC Security",
+          date: new Date().toISOString(),
+          details: `Administrator [${adminUser.name}] completely deleted workforce account: ${deletedName} (${emailToDelete})`
+        });
+      }
+    });
+
+    return res.json({ message: "Workforce staff member account was completely and automatically deleted.", users: readDB().users });
   }
 
   if (action === "reset-password") {

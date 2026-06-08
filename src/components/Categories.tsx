@@ -44,10 +44,13 @@ export default function Categories({ user, rolePermissions }: CategoriesProps) {
   const fetchCategories = async () => {
     try {
       const res = await fetch("/api/categories");
-      if (!res.ok) throw new Error("Failed to fetch categories");
-      const list = await res.json();
-      setCategories(list);
-      setError(null);
+      if (res.ok && res.headers.get("Content-Type")?.includes("json")) {
+        const list = await res.json();
+        setCategories(Array.isArray(list) ? list : []);
+        setError(null);
+      } else {
+        throw new Error("Local workstation clinical records temporarily offline.");
+      }
     } catch (e) {
       console.error(e);
       setError("Failed to load categories");

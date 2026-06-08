@@ -64,7 +64,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
       const salesRes = await fetch("/api/sales");
       if (salesRes.ok && salesRes.headers.get("Content-Type")?.includes("json")) {
         const salesData = await salesRes.json();
-        setSales(salesData);
+        setSales(Array.isArray(salesData) ? salesData : []);
       } else {
         setSales([]);
       }
@@ -72,42 +72,47 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
       const medsRes = await fetch("/api/medicines");
       if (medsRes.ok && medsRes.headers.get("Content-Type")?.includes("json")) {
         const medsData = await medsRes.json();
-        setMedicines(medsData);
+        setMedicines(Array.isArray(medsData) ? medsData : []);
       } else {
         setMedicines([]);
       }
 
       const catsRes = await fetch("/api/categories");
       if (catsRes.ok && catsRes.headers.get("Content-Type")?.includes("json")) {
-        setCategories(await catsRes.json());
+        const catsData = await catsRes.json();
+        setCategories(Array.isArray(catsData) ? catsData : []);
       } else {
         setCategories([]);
       }
 
       const supsRes = await fetch("/api/suppliers").catch(() => null);
       if (supsRes && supsRes.ok && supsRes.headers.get("Content-Type")?.includes("json")) {
-        setSuppliers(await supsRes.json());
+        const supsData = await supsRes.json();
+        setSuppliers(Array.isArray(supsData) ? supsData : []);
       } else {
         setSuppliers([]);
       }
 
       const custsRes = await fetch("/api/customers").catch(() => null);
       if (custsRes && custsRes.ok && custsRes.headers.get("Content-Type")?.includes("json")) {
-        setCustomers(await custsRes.json());
+        const custsData = await custsRes.json();
+        setCustomers(Array.isArray(custsData) ? custsData : []);
       } else {
         setCustomers([]);
       }
 
       const posRes = await fetch("/api/purchase-orders").catch(() => null);
       if (posRes && posRes.ok && posRes.headers.get("Content-Type")?.includes("json")) {
-        setPurchaseOrders(await posRes.json());
+        const posData = await posRes.json();
+        setPurchaseOrders(Array.isArray(posData) ? posData : []);
       } else {
         setPurchaseOrders([]);
       }
 
       const invRes = await fetch("/api/inventory/logs").catch(() => null);
       if (invRes && invRes.ok && invRes.headers.get("Content-Type")?.includes("json")) {
-        setInventoryLogs(await invRes.json());
+        const invData = await invRes.json();
+        setInventoryLogs(Array.isArray(invData) ? invData : []);
       } else {
         setInventoryLogs([]);
       }

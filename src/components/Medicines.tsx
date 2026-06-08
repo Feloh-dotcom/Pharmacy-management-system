@@ -99,15 +99,15 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
       setLoading(true);
       const mRes = await fetch("/api/medicines");
       const medicinesList = await mRes.json();
-      setMedicines(medicinesList);
+      setMedicines(Array.isArray(medicinesList) ? medicinesList : []);
 
       const cRes = await fetch("/api/categories");
       const categoriesList = await cRes.json();
-      setCategories(categoriesList);
+      setCategories(Array.isArray(categoriesList) ? categoriesList : []);
 
       const sRes = await fetch("/api/suppliers");
       const suppliersList = await sRes.json();
-      setSuppliers(suppliersList);
+      setSuppliers(Array.isArray(suppliersList) ? suppliersList : []);
     } catch (err) {
       console.error("Failed to load drug products database:", err);
     } finally {

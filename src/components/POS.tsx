@@ -103,7 +103,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
       const mRes = await fetch("/api/medicines");
       if (mRes.ok && mRes.headers.get("Content-Type")?.includes("json")) {
         const mData = await mRes.json();
-        setMedicines(mData.filter((m: Medicine) => m.quantity > 0)); // only load instock drugs for POS
+        setMedicines(Array.isArray(mData) ? mData.filter((m: Medicine) => m.quantity > 0) : []); // only load instock drugs for POS
       } else {
         setMedicines([]);
       }
@@ -111,7 +111,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
       const cRes = await fetch("/api/customers");
       if (cRes.ok && cRes.headers.get("Content-Type")?.includes("json")) {
         const cData = await cRes.json();
-        setCustomers(cData);
+        setCustomers(Array.isArray(cData) ? cData : []);
       } else {
         setCustomers([]);
       }
