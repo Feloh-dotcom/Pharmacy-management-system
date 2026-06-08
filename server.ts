@@ -241,6 +241,17 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
+app.get("/api/health/routes", (_req, res) => {
+  res.json({
+    ok: true,
+    routes: [
+      "POST /api/auth/login",
+      "POST /api/auth/forgot-password",
+      "POST /api/auth/register"
+    ]
+  });
+});
+
 // API Endpoints - MUST be defined BEFORE Vite middleware
 
 // Helper functions for dynamic weekly analytics and automated rollover
