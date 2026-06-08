@@ -11,15 +11,9 @@ if (typeof window !== "undefined") {
     Object.defineProperty(window, 'fetch', {
       value: function (input: any, init: any) {
         let url = input;
-        const isSandbox = 
-          window.location.hostname.includes("run.app") || 
-          window.location.hostname.includes("localhost") || 
-          window.location.hostname.includes("googleusercontent.com") ||
-          window.location.hostname.includes("google") ||
-          window.location.hostname.includes("aistudio") ||
-          window.location.hostname.includes("127.0.0.1") ||
-          !window.location.hostname;
-        const apiUrl = isSandbox ? "" : (import.meta as any).env?.VITE_API_URL;
+        const envUrl = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_API_URL;
+        const apiUrl = envUrl && envUrl !== "placeholder_not_configured" ? envUrl : "";
+        
         if (apiUrl) {
           if (typeof url === "string" && url.startsWith("/api/")) {
             url = `${apiUrl.replace(/\/$/, "")}${url}`;
@@ -38,15 +32,9 @@ if (typeof window !== "undefined") {
     try {
       (window as any).fetch = function (input: any, init: any) {
         let url = input;
-        const isSandbox = 
-          window.location.hostname.includes("run.app") || 
-          window.location.hostname.includes("localhost") || 
-          window.location.hostname.includes("googleusercontent.com") ||
-          window.location.hostname.includes("google") ||
-          window.location.hostname.includes("aistudio") ||
-          window.location.hostname.includes("127.0.0.1") ||
-          !window.location.hostname;
-        const apiUrl = isSandbox ? "" : (import.meta as any).env?.VITE_API_URL;
+        const envUrl = (import.meta as any).env?.VITE_API_BASE_URL || (import.meta as any).env?.VITE_API_URL;
+        const apiUrl = envUrl && envUrl !== "placeholder_not_configured" ? envUrl : "";
+
         if (apiUrl) {
           if (typeof url === "string" && url.startsWith("/api/")) {
             url = `${apiUrl.replace(/\/$/, "")}${url}`;

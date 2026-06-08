@@ -230,9 +230,21 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  const origin = req.get("origin") || req.get("referer");
+  if (origin) {
+    try {
+      // Validate or parse origin if it has a scheme, otherwise reflection-allow it
+      const originUrl = new URL(origin).origin;
+      res.header("Access-Control-Allow-Origin", originUrl);
+    } catch (_) {
+      res.header("Access-Control-Allow-Origin", origin);
+    }
+  } else {
+    res.header("Access-Control-Allow-Origin", "*");
+  }
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, apikey");
+  res.header("Access-Control-Allow-Credentials", "true");
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
@@ -657,10 +669,23 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     }
 
     // Dynamic redirection targets for development vs production
-    const redirectTo =
-      process.env.NODE_ENV === "production"
-        ? "https://pharmacy-management-system-0qet.onrender.com/reset-password"
-        : "http://localhost:3000/reset-password";
+    let frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL;
+    if (!frontendUrl) {
+      const referer = req.get("referer") || req.get("origin");
+      if (referer) {
+        try {
+          frontendUrl = new URL(referer).origin;
+        } catch (_) {
+          frontendUrl = referer;
+        }
+      }
+    }
+    if (!frontendUrl) {
+      frontendUrl = process.env.NODE_ENV === "production"
+        ? "https://pharmacy-management-system-0qet.onrender.com"
+        : "http://localhost:3000";
+    }
+    const redirectTo = `${frontendUrl.replace(/\/$/, "")}/reset-password`;
 
     console.log(`[Supabase Reset Initiator] Sending code request for: ${trimmedEmail}, redirect to: ${redirectTo}`);
 
