@@ -465,8 +465,12 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
                       <td className="py-4.5 px-5">
                         <div className="flex items-center space-x-3.5">
                           <img
-                            src={med.imageUrl || "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=80&h=80&fit=crop"}
+                            src={med.imageUrl || "/public/images/default-avatar.png"}
                             alt={med.name}
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = "/public/images/default-avatar.png";
+                            }}
                             className="w-10 h-10 rounded-xl object-cover shrink-0 bg-slate-50 border border-slate-200"
                           />
                           <div>

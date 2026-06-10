@@ -20,12 +20,12 @@ interface ProfileProps {
 }
 
 const DEFAULT_AVATARS = [
-  "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=150&h=150&fit=crop", // Male Doctor
-  "https://images.unsplash.com/photo-1594824813573-246434e33963?w=150&h=150&fit=crop", // Female Doctor
-  "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=150&h=150&fit=crop", // Male Scientist
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop", // Young Female Surgeon
-  "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=150&h=150&fit=crop", // Male Clinician
-  "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&h=150&fit=crop"  // Female Biochemist
+  "/public/images/default-avatar.png", // Male Doctor
+  "/public/images/default-avatar.png", // Female Doctor
+  "/public/images/default-avatar.png", // Male Scientist
+  "/public/images/default-avatar.png", // Young Female Surgeon
+  "/public/images/default-avatar.png", // Male Clinician
+  "/public/images/default-avatar.png"  // Female Biochemist
 ];
 
 export default function Profile({ user, onProfileUpdated }: ProfileProps) {
@@ -131,8 +131,8 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
         docType,
         nationalId: vNationalId,
         address: vAddress,
-        submittedDocumentUrl: docFile || "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=400&h=300",
-        selfieUrl: selfieFile || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400"
+        submittedDocumentUrl: docFile || "/public/images/default-avatar.png",
+        selfieUrl: selfieFile || "/public/images/default-avatar.png"
       };
 
       const res = await fetch("/api/users/profile/verify", {
@@ -441,8 +441,8 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
   };
 
   const handleResetToDefault = async () => {
-    // Standard system default Unsplash image
-    const defaultUrl = "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop";
+    // Standard system default image
+    const defaultUrl = "/public/images/default-avatar.png";
     await syncAvatarOnServer(defaultUrl);
   };
 
@@ -496,6 +496,10 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
                 src={previewUrl || avatarUrl}
                 alt={user?.name}
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = "/public/images/default-avatar.png";
+                }}
                 className={`w-24 h-24 object-cover rounded-full ring-4 shadow-md bg-slate-50 transition duration-300 ${
                   previewUrl 
                     ? "ring-teal-500 animate-pulse border-2 border-teal-400" 
@@ -598,7 +602,7 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
             )}
 
             {/* Standard Options Deck: Reset photo */}
-            {!previewUrl && avatarUrl && !avatarUrl.includes("photo-1535713875002-d1d0cf377fde") && (
+            {!previewUrl && avatarUrl && !avatarUrl.includes("default-avatar.png") && (
               <div className="w-full mt-3 flex justify-end">
                 <button
                   type="button"
@@ -652,7 +656,16 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
                       avatarUrl === avUrl ? "border-teal-500 scale-103 shadow-sm shadow-teal-500/20" : "border-transparent"
                     }`}
                   >
-                    <img src={avUrl} alt={`avatar-${index}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img
+                      src={avUrl}
+                      alt={`avatar-${index}`}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = "/public/images/default-avatar.png";
+                      }}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
                   </button>
                 ))}
               </div>
@@ -1263,7 +1276,15 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
                   <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 flex flex-col items-center justify-center text-center relative h-36">
                     {selfieFile ? (
                       <div className="relative w-full h-full">
-                        <img src={selfieFile} alt="selfie" className="w-full h-full object-cover rounded-xl" />
+                        <img
+                          src={selfieFile}
+                          alt="selfie"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = "/public/images/default-avatar.png";
+                          }}
+                          className="w-full h-full object-cover rounded-xl"
+                        />
                         <button 
                           type="button" 
                           onClick={() => setSelfieFile(null)}
@@ -1299,7 +1320,15 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
                   <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 flex flex-col items-center justify-center text-center relative h-36">
                     {docFile ? (
                       <div className="relative w-full h-full text-left">
-                        <img src={docFile} alt="document scan" className="w-full h-full object-cover rounded-xl" />
+                        <img
+                          src={docFile}
+                          alt="document scan"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = "/public/images/default-avatar.png";
+                          }}
+                          className="w-full h-full object-cover rounded-xl"
+                        />
                         <button 
                           type="button" 
                           onClick={() => setDocFile(null)}
@@ -1345,8 +1374,8 @@ export default function Profile({ user, onProfileUpdated }: ProfileProps) {
                     onClick={() => {
                       setVNationalId("ID-9964525");
                       setVAddress("742 Clinic Plaza Avenue, Central City");
-                      setSelfieFile("https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400");
-                      setDocFile("https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=400&h=300");
+                      setSelfieFile("/public/images/default-avatar.png");
+                      setDocFile("/public/images/default-avatar.png");
                       showToast("success", "Prereserved clinical credential pack loaded successfully!");
                     }}
                     className="px-3 py-1 bg-white hover:bg-teal-50 border border-teal-200 text-[#093530] font-extrabold text-[9px] rounded-lg cursor-pointer transition shadow-xs"

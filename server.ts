@@ -1113,7 +1113,7 @@ app.post("/api/medicines", async (req, res) => {
       barcode: medicineData.barcode ? String(medicineData.barcode).trim() : `890${Math.floor(1000000000 + Math.random() * 9000000000)}`,
       taxVat: Number(medicineData.taxVat) || 16,
       prescriptionRequired: !!medicineData.prescriptionRequired,
-      imageUrl: medicineData.imageUrl || "https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=120&h=120&fit=crop",
+      imageUrl: medicineData.imageUrl || "/public/images/default-avatar.png",
       createdAt: new Date().toISOString()
     };
 
@@ -2963,8 +2963,8 @@ app.post("/api/users/profile/verify", async (req, res) => {
       u.verificationSubmittedAt = new Date().toISOString();
       u.verificationDetails = {
         docType,
-        submittedDocumentUrl: submittedDocumentUrl || "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4?w=400&h=300",
-        selfieUrl: selfieUrl || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&h=400",
+        submittedDocumentUrl: submittedDocumentUrl || "/public/images/default-avatar.png",
+        selfieUrl: selfieUrl || "/public/images/default-avatar.png",
         submittedAt: new Date().toISOString()
       };
 

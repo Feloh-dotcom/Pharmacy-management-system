@@ -164,8 +164,7 @@ export function getAvatarUrl(avatarUrl: string | undefined | null): string {
   }
   const lowerUrl = avatarUrl.toLowerCase();
   if (
-    lowerUrl.includes("photo-1535713875002-d1d0cf377fde") || 
-    lowerUrl.includes("photo-1534528741775-53994a69daeb")
+    lowerUrl.includes("default-avatar.png")
   ) {
     return DEFAULT_PROFESSIONAL_AVATAR;
   }
@@ -192,8 +191,7 @@ export function calculateProfileCompletion(user: ProfileCompletionUser | null): 
 
   // Standard placeholder avatar detection
   const hasAvatar = !!user.avatarUrl && 
-    !user.avatarUrl.includes("photo-1535713875002-d1d0cf377fde") &&
-    !user.avatarUrl.includes("photo-1534528741775-53994a69daeb") &&
+    !user.avatarUrl.includes("default-avatar.png") &&
     !user.avatarUrl.includes("data:image/svg+xml");
 
   const hasName = !!user.name && user.name.trim().length > 1;
