@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS medicines (
 CREATE TABLE IF NOT EXISTS customers (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  full_name TEXT,
   email TEXT,
   phone TEXT,
   loyalty_points INT DEFAULT 0,
@@ -124,11 +125,13 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
 CREATE TABLE IF NOT EXISTS finance_records (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL, -- 'income' or 'expense'
+  record_type TEXT,
   category TEXT NOT NULL, -- 'Procurement', 'POS Prescription Sales', 'POS Over-The-Counter Sales', 'Rent', etc.
   amount NUMERIC(15,2) NOT NULL,
   description TEXT,
   payment_method TEXT,
-  date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  recorded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 10. Audit Logs table
@@ -138,6 +141,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   action TEXT NOT NULL,
   module TEXT NOT NULL,
   date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   details TEXT
 );
 
@@ -329,6 +333,7 @@ ALTER TABLE public.medicines ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH 
 
 -- Customers table
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS full_name TEXT;
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS email TEXT;
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS loyalty_points INT DEFAULT 0;
@@ -385,17 +390,20 @@ ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS received_date TIMEST
 
 -- Finance Records table
 ALTER TABLE public.finance_records ADD COLUMN IF NOT EXISTS type TEXT;
+ALTER TABLE public.finance_records ADD COLUMN IF NOT EXISTS record_type TEXT;
 ALTER TABLE public.finance_records ADD COLUMN IF NOT EXISTS category TEXT;
 ALTER TABLE public.finance_records ADD COLUMN IF NOT EXISTS amount NUMERIC(15,2);
 ALTER TABLE public.finance_records ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE public.finance_records ADD COLUMN IF NOT EXISTS payment_method TEXT;
 ALTER TABLE public.finance_records ADD COLUMN IF NOT EXISTS date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.finance_records ADD COLUMN IF NOT EXISTS recorded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
 -- Audit Logs table
 ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS user_email TEXT;
 ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS action TEXT;
 ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS module TEXT;
 ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS details TEXT;
 
 -- System Settings table

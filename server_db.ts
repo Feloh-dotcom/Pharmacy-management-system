@@ -949,9 +949,36 @@ export function mapFromRow(configName: string, row: any): any {
     }
   }
   if (configName === "cashSessions") {
-    item.salesInvoices = [];
-    item.mpesaTransactionsAndAmounts = [];
-    item.cashTransactions = [];
+    if (row.sales_invoices !== undefined && row.sales_invoices !== null) {
+      if (typeof row.sales_invoices === "string") {
+        try { item.salesInvoices = JSON.parse(row.sales_invoices); } catch { item.salesInvoices = []; }
+      } else {
+        item.salesInvoices = Array.isArray(row.sales_invoices) ? row.sales_invoices : [];
+      }
+    } else {
+      item.salesInvoices = [];
+    }
+
+    if (row.mpesa_transactions_and_amounts !== undefined && row.mpesa_transactions_and_amounts !== null) {
+      if (typeof row.mpesa_transactions_and_amounts === "string") {
+        try { item.mpesaTransactionsAndAmounts = JSON.parse(row.mpesa_transactions_and_amounts); } catch { item.mpesaTransactionsAndAmounts = []; }
+      } else {
+        item.mpesaTransactionsAndAmounts = Array.isArray(row.mpesa_transactions_and_amounts) ? row.mpesa_transactions_and_amounts : [];
+      }
+    } else {
+      item.mpesaTransactionsAndAmounts = [];
+    }
+
+    if (row.cash_transactions !== undefined && row.cash_transactions !== null) {
+      if (typeof row.cash_transactions === "string") {
+        try { item.cashTransactions = JSON.parse(row.cash_transactions); } catch { item.cashTransactions = []; }
+      } else {
+        item.cashTransactions = Array.isArray(row.cash_transactions) ? row.cash_transactions : [];
+      }
+    } else {
+      item.cashTransactions = [];
+    }
+
     if (typeof item.status === "string") {
       const lowerStatus = item.status.toLowerCase().trim();
       item.status = (lowerStatus === "open" ? "Open" : "Closed") as any;
@@ -1009,7 +1036,15 @@ export function mapFromRow(configName: string, row: any): any {
       else item.paymentStatus = "Paid";
     }
     // Decode payment metadata from notes column
-    item.items = [];
+    if (row.items !== undefined && row.items !== null) {
+      if (typeof row.items === "string") {
+        try { item.items = JSON.parse(row.items); } catch { item.items = []; }
+      } else {
+        item.items = Array.isArray(row.items) ? row.items : [];
+      }
+    } else {
+      item.items = [];
+    }
     if (row.notes) {
       try {
         const meta = JSON.parse(row.notes);
@@ -1018,7 +1053,7 @@ export function mapFromRow(configName: string, row: any): any {
           if (meta.mpesaPaid !== undefined) item.mpesaPaid = meta.mpesaPaid;
           if (meta.mpesaTransactionCode !== undefined) item.mpesaTransactionCode = meta.mpesaTransactionCode;
           if (meta.mpesaPhoneNumber !== undefined) item.mpesaPhoneNumber = meta.mpesaPhoneNumber;
-          if (meta.items !== undefined) item.items = meta.items;
+          if (meta.items !== undefined && Array.isArray(meta.items) && meta.items.length > 0) item.items = meta.items;
           if (meta.customerName !== undefined) item.customerName = meta.customerName;
           if (meta.customerEmail !== undefined) item.customerEmail = meta.customerEmail;
           item.notes = meta.customNotes || "";
@@ -1042,7 +1077,7 @@ export function mapFromRow(configName: string, row: any): any {
 
 function mapSettingsToRow(settings: SystemSettings) {
   return {
-    id: 1,
+    id: "default",
     general: settings.general,
     security: settings.security,
     financial: settings.financial,
@@ -1058,17 +1093,18 @@ function mapSettingsToRow(settings: SystemSettings) {
 }
 
 function mapSettingsFromRow(row: any): SystemSettings {
+  if (!row) return initialData.settings;
   return {
-    general: row.general,
-    security: row.security,
-    financial: row.financial,
-    inventory: row.inventory,
-    notifications: row.notifications,
-    integrations: row.integrations,
-    aiAutomation: row.ai_automation,
-    appearance: row.appearance,
-    receipts: row.receipts,
-    maintenance: row.maintenance
+    general: { ...initialData.settings.general, ...(row.general || {}) },
+    security: { ...initialData.settings.security, ...(row.security || {}) },
+    financial: { ...initialData.settings.financial, ...(row.financial || {}) },
+    inventory: { ...initialData.settings.inventory, ...(row.inventory || {}) },
+    notifications: { ...initialData.settings.notifications, ...(row.notifications || {}) },
+    integrations: { ...initialData.settings.integrations, ...(row.integrations || {}) },
+    aiAutomation: { ...initialData.settings.aiAutomation, ...(row.ai_automation || {}) },
+    appearance: { ...initialData.settings.appearance, ...(row.appearance || {}) },
+    receipts: { ...initialData.settings.receipts, ...(row.receipts || {}) },
+    maintenance: { ...initialData.settings.maintenance, ...(row.maintenance || {}) }
   };
 }
 
@@ -1540,9 +1576,7 @@ export async function initSupabaseSync(): Promise<void> {
     } else if (!allSettings || allSettings.length === 0) {
       console.log("[Supabase Settings] Record empty. Seeding system_settings to database...");
       let settingsRow: any = mapSettingsToRow(initialData.settings);
-      let { error: seedErr } = await supabase
-        .from("system_settings")
-        .upsert(settingsRow);
+      let { error: seedErr } = await upsertWithSelfHealing("system_settings", [settingsRow]);
         
       if (seedErr) {
         throw new Error(`Startup Failed: Seeding system_settings failed: ${seedErr.message}`);
@@ -2172,9 +2206,7 @@ async function syncChangesToSupabase(oldState: DBState, newState: DBState) {
     // 2. Sync system settings
     if (!disabledTables.has("system_settings") && JSON.stringify(oldState.settings) !== JSON.stringify(newState.settings)) {
       let settingsRow = mapSettingsToRow(newState.settings);
-      let { error } = await supabase
-        .from("system_settings")
-        .upsert(settingsRow);
+      let { error } = await upsertWithSelfHealing("system_settings", [settingsRow]);
       if (error) {
         console.warn(`[Supabase Sync Warning] Upserting system_settings bypassed: ${error.message}`);
         throw new Error(`Supabase write to system_settings failed: ${error.message}`);
