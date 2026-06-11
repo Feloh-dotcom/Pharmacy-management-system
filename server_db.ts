@@ -1116,28 +1116,38 @@ export async function pullChangesFromSupabase(force = false): Promise<void> {
       "apiKeys", "backups", "cashSessions", "weeklyCycles", "mpesaTransactions"
     ];
 
-    for (const key of tableKeys) {
-      if (isSupabaseDisabled || disabledTables.has(key)) continue;
+    const activeKeys = tableKeys.filter(key => !isSupabaseDisabled && !disabledTables.has(key) && tableMappings[key]);
 
-      const mapping = tableMappings[key];
-      if (!mapping) continue;
+    // Query standard tables and system_settings in parallel to maximize throughput and eliminate sequential latency
+    const [queriesResults, settingsResult] = await Promise.all([
+      Promise.all(
+        activeKeys.map(async (key) => {
+          const mapping = tableMappings[key]!;
+          try {
+            const response = await supabase.from(mapping.table).select("*");
+            return { key, data: response.data, error: response.error };
+          } catch (e: any) {
+            console.warn(`[Supabase Pull Table Exception] Could not query table ${mapping.table} due to a network or connection issue:`, e.message || e);
+            return { key, data: null, error: e };
+          }
+        })
+      ),
+      (!disabledTables.has("system_settings"))
+        ? supabase.from("system_settings").select("*").limit(1).then(
+            res => ({ data: res.data, error: res.error }),
+            err => {
+              console.warn("[Supabase Pull Settings Exception] Failed to query system_settings:", err.message || err);
+              return { data: null, error: err };
+            }
+          )
+        : null
+    ]);
 
-      let data: any[] | null = null;
-      let error: any = null;
-      try {
-        const response = await supabase
-          .from(mapping.table)
-          .select("*");
-        data = response.data;
-        error = response.error;
-      } catch (e: any) {
-        console.warn(`[Supabase Pull Table Exception] Could not query table ${mapping.table} due to a network or connection issue:`, e.message || e);
-        continue;
-      }
-        
+    for (const res of queriesResults) {
+      const { key, data, error } = res;
       if (error) {
         if (error.message?.includes("API key") || error.message?.includes("invalid_api_key") || error.code === "PGRST301" || (error as any).status === 401) {
-          console.log(`[Supabase Pull Info] Standby mode for ${mapping.table} during pull: ${error.message}`);
+          console.log(`[Supabase Pull Info] Standby mode for ${tableMappings[key]!.table} during pull: ${error.message}`);
           continue;
         }
       }
@@ -1181,19 +1191,10 @@ export async function pullChangesFromSupabase(force = false): Promise<void> {
       }
     }
 
-    if (!disabledTables.has("system_settings")) {
-      try {
-        const { data: allSettings, error: settingsError } = await supabase
-          .from("system_settings")
-          .select("*")
-          .limit(1);
-        if (!settingsError && allSettings && allSettings.length > 0) {
-          globalStateCache.settings = mapSettingsFromRow(allSettings[0]);
-        }
-      } catch (e: any) {
-        console.warn("[Supabase Pull Settings Exception] Failed to query system_settings:", e.message || e);
-      }
+    if (settingsResult && !settingsResult.error && settingsResult.data && settingsResult.data.length > 0) {
+      globalStateCache.settings = mapSettingsFromRow(settingsResult.data[0]);
     }
+
     lastPullTimestamp = Date.now();
     isInitialSyncDone = true;
     writeDBToFileSystem(globalStateCache);
