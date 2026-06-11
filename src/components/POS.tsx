@@ -676,16 +676,7 @@ export default function POS({ settings, onNavigate, user }: POSProps) {
                 )}
 
                 <div>
-                  <div className="flex items-start space-x-3">
-                    <img
-                      src={med.imageUrl || "/public/images/default-avatar.png"}
-                      alt={med.name}
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = "/public/images/default-avatar.png";
-                      }}
-                      className="w-12 h-12 rounded-xl object-cover border border-slate-100"
-                    />
+                  <div className="flex items-start">
                     <div>
                       <h3 className="text-xs font-bold text-slate-800 leading-none">{med.name}</h3>
                       <p className="text-[10px] text-slate-400 italic mt-0.5">{med.genericName}</p>

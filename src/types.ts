@@ -66,7 +66,6 @@ export interface Medicine {
   barcode: string;
   taxVat: number; // percentage (e.g. 16 for 16%)
   prescriptionRequired: boolean;
-  imageUrl?: string;
   createdAt: string;
 }
 

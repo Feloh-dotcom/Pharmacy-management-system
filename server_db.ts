@@ -420,7 +420,6 @@ export const tableMappings: Record<string, { table: string; keyMap: Record<strin
       barcode: "barcode",
       taxVat: "tax_vat",
       prescriptionRequired: "prescription_required",
-      imageUrl: "image_url",
       createdAt: "created_at"
     }
   },

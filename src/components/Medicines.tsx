@@ -463,16 +463,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
                   return (
                     <tr key={med.id} className="hover:bg-slate-50/60 text-slate-600 font-semibold text-xs leading-none">
                       <td className="py-4.5 px-5">
-                        <div className="flex items-center space-x-3.5">
-                          <img
-                            src={med.imageUrl || "/public/images/default-avatar.png"}
-                            alt={med.name}
-                            onError={(e) => {
-                              e.currentTarget.onerror = null;
-                              e.currentTarget.src = "/public/images/default-avatar.png";
-                            }}
-                            className="w-10 h-10 rounded-xl object-cover shrink-0 bg-slate-50 border border-slate-200"
-                          />
+                        <div className="flex items-center space-x-1">
                           <div>
                             <p className="text-xs font-bold text-slate-800 tracking-tight leading-none mb-1">{med.name}</p>
                             <p className="text-[10px] text-slate-400 italic">Generic: {med.genericName || "NoneSpecified"}</p>

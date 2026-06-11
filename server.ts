@@ -1113,7 +1113,6 @@ app.post("/api/medicines", async (req, res) => {
       barcode: medicineData.barcode ? String(medicineData.barcode).trim() : `890${Math.floor(1000000000 + Math.random() * 9000000000)}`,
       taxVat: Number(medicineData.taxVat) || 16,
       prescriptionRequired: !!medicineData.prescriptionRequired,
-      imageUrl: medicineData.imageUrl || "/public/images/default-avatar.png",
       createdAt: new Date().toISOString()
     };
 
