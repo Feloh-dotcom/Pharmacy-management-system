@@ -219,13 +219,7 @@ export default function App() {
           setSessionUser(data.user);
           localStorage.setItem("halomedical_session_user", JSON.stringify(data.user));
           
-          // Re-evaluate current tab if they completed onboarding
-          const completion = calculateProfileCompletion(data.user);
-          if (completion.percent >= 100) {
-            // Keep currentTab unless it's locked, but if they complete onboarding let's allow them access
-          } else {
-            setCurrentTab("profile");
-          }
+          // Keep currentTab unless they explicitly click to change it
           return data.user;
         }
       } else if (res.status === 404 || res.status === 401) {
@@ -263,10 +257,6 @@ export default function App() {
         if (parsed && parsed.email && parsed.role) {
           // Fallback option: load from local cache instantly to maintain smooth UI load
           setSessionUser(parsed);
-          const completion = calculateProfileCompletion(parsed);
-          if (completion.percent < 100) {
-            setCurrentTab("profile");
-          }
           // Simultaneously pull live, complete data from Supabase DB
           fetchLiveProfile(parsed.email);
         }
@@ -280,23 +270,10 @@ export default function App() {
   const handleLoginSuccess = async (sessionUser: SessionUser) => {
     setSessionUser(sessionUser);
     localStorage.setItem("halomedical_session_user", JSON.stringify(sessionUser));
-    const completion = calculateProfileCompletion(sessionUser);
-    if (completion.percent < 100) {
-      setCurrentTab("profile");
-    } else {
-      setCurrentTab("dashboard");
-    }
+    setCurrentTab("dashboard");
     // Pull full database values with all onboarding attributes in background
     if (sessionUser && sessionUser.email) {
-      const liveUser = await fetchLiveProfile(sessionUser.email);
-      if (liveUser) {
-        const fullCompletion = calculateProfileCompletion(liveUser);
-        if (fullCompletion.percent < 100) {
-          setCurrentTab("profile");
-        } else {
-          setCurrentTab("dashboard");
-        }
-      }
+      await fetchLiveProfile(sessionUser.email);
     }
   };
 
@@ -311,6 +288,7 @@ export default function App() {
   const handleLogout = () => {
     setSessionUser(null);
     localStorage.removeItem("halomedical_session_user");
+    setCurrentTab("dashboard");
   };
 
   const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
@@ -345,7 +323,7 @@ export default function App() {
   const renderActiveTab = () => {
     const completion = calculateProfileCompletion(user);
     const isVerified = user?.role === "Admin" || user?.verificationStatus === "Verified" || completion.percent === 100;
-    const sensitiveTabs = ["dashboard", "products", "categories", "cash-register", "orders", "sales", "payments", "reports", "settings"];
+    const sensitiveTabs = ["products", "categories", "cash-register", "orders", "sales", "payments", "reports", "settings"];
     const isTabLocked = user && currentTab !== "profile" && sensitiveTabs.includes(currentTab) && !isVerified;
 
     if (user && !isTabLocked && currentTab !== "profile" && !ROLE_ALLOWED_TABS[user.role]?.includes(currentTab)) {
