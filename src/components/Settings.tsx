@@ -44,6 +44,16 @@ interface SettingsProps {
 }
 
 export default function Settings({ onSettingsSaved, user }: SettingsProps) {
+  const isSuperAdminUser = (u: any): boolean => {
+    if (!u) return false;
+    const email = u.email?.toLowerCase();
+    return (
+      u.role === "Super Admin" || 
+      u.role === "Admin" || 
+      email === "meliswion1@gmail.com"
+    );
+  };
+
   // Confirmation states for manual overrides
   const [confirmResetDonut, setConfirmResetDonut] = useState(false);
   const [confirmResetCylinders, setConfirmResetCylinders] = useState(false);
@@ -154,6 +164,13 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
   useEffect(() => {
     loadAllSettings();
   }, []);
+
+  useEffect(() => {
+    const restrictedTabIds = ["users", "integrations", "branches", "maintenance", "security"];
+    if (!isSuperAdminUser(user) && restrictedTabIds.includes(currentTab)) {
+      setCurrentTab("general");
+    }
+  }, [user, currentTab]);
 
   // Save Settings wrapper
   const handleSaveSettingsMap = async (section: string, payload: Partial<SystemSettings>) => {
@@ -678,7 +695,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                 <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Workspace Divisions</span>
               </div>
               <div className="space-y-1.5 max-h-[580px] overflow-y-auto pr-1">
-                {TABS.map((t) => {
+                {TABS.filter(t => isSuperAdminUser(user) || !["users", "integrations", "branches", "maintenance", "security"].includes(t.id)).map((t) => {
                   const IconComp = t.icon;
                   const isSelected = currentTab === t.id;
                   return (
@@ -828,7 +845,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
               )}
 
               {/* TAB 2: SECURITY */}
-              {currentTab === "security" && securityForm && (
+              {currentTab === "security" && isSuperAdminUser(user) && securityForm && (
                 <form id="form-tab-security" onSubmit={saveSecurityTab} className="space-y-6">
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-800 flex items-center">
@@ -925,7 +942,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
               )}
 
               {/* TAB 3: USER & ROLE MANAGEMENT */}
-              {currentTab === "users" && (
+              {currentTab === "users" && isSuperAdminUser(user) && (
                 <div className="space-y-6">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div>
@@ -1165,8 +1182,8 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
                     </p>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                      {rolePermissions.map((rp) => (
-                        <div key={rp.role} className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
+                      {rolePermissions.map((rp, i) => (
+                        <div key={`${rp.role}-${i}`} className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-4 flex flex-col justify-between">
                           <div className="space-y-3">
                             <div className="flex justify-between items-center border-b border-slate-100 pb-2.5">
                               <h4 className="text-xs font-bold text-slate-800">{rp.role}</h4>
@@ -1553,7 +1570,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
               )}
 
               {/* TAB 7: INTEGRATIONS */}
-              {currentTab === "integrations" && integrationsForm && (
+              {currentTab === "integrations" && isSuperAdminUser(user) && integrationsForm && (
                 <form id="form-tab-integrations" onSubmit={saveIntegrationsTab} className="space-y-6">
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-800 flex items-center">
@@ -2039,7 +2056,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
               )}
 
               {/* TAB 13: BRANCH MANAGEMENT */}
-              {currentTab === "branches" && (
+              {currentTab === "branches" && isSuperAdminUser(user) && (
                 <div className="space-y-6">
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div>
@@ -2183,7 +2200,7 @@ export default function Settings({ onSettingsSaved, user }: SettingsProps) {
               )}
 
               {/* TAB 14: MAINTENANCE SETTINGS & DIAGNOSTICS */}
-              {currentTab === "maintenance" && (
+              {currentTab === "maintenance" && isSuperAdminUser(user) && (
                 <div className="space-y-6 animate-in fade-in">
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-800 flex items-center">

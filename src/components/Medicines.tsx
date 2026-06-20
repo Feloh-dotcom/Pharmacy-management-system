@@ -30,7 +30,7 @@ export default function Medicines({ editFocusMedicine, clearEditFocus, settings,
 
   // RBAC Permission Resolution
   const userRoleStr = (user?.role || "").trim().toLowerCase();
-  const isAdminOrPharmacist = userRoleStr === "admin" || userRoleStr === "pharmacist";
+  const isAdminOrPharmacist = userRoleStr === "admin" || userRoleStr === "super admin" || userRoleStr === "pharmacist" || userRoleStr === "user";
 
   const targetRolePerm = (rolePermissions || []).find(
     rp => (rp.role || "").trim().toLowerCase() === userRoleStr

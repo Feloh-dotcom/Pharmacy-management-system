@@ -1347,6 +1347,19 @@ function readDBFromFileSystem(): DBState {
       });
     }
     if (data.rolePermissions && Array.isArray(data.rolePermissions)) {
+      // First deduplicate existing roles
+      const seenRoles = new Set<string>();
+      data.rolePermissions = data.rolePermissions.filter((rp: any) => {
+        if (!rp || !rp.role) return false;
+        const normalizedRole = String(rp.role).trim().toLowerCase();
+        if (seenRoles.has(normalizedRole)) {
+          changed = true;
+          return false;
+        }
+        seenRoles.add(normalizedRole);
+        return true;
+      });
+
       const presentRoles = new Set(data.rolePermissions.map((rp: any) => rp.role));
       initialData.rolePermissions.forEach((initialRp) => {
         if (!presentRoles.has(initialRp.role)) {

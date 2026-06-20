@@ -60,6 +60,21 @@ function checkPermission(req: express.Request, permName: string): { allowed: boo
   return { allowed: !!(rp.permissions as any)[permName], user };
 }
 
+function isSuperAdminRequest(req: express.Request): boolean {
+  const email = req.headers["x-user-email"] || req.headers["X-User-Email"] || req.body?.userEmail || req.body?.adminEmail || req.query?.userEmail || req.body?.settingsUserEmail;
+  if (!email || typeof email !== "string") return false;
+  
+  const db = readDB();
+  const user = db.users.find(u => u.email.toLowerCase() === String(email).toLowerCase().trim());
+  if (!user) return false;
+  
+  return (
+    user.role === "Super Admin" || 
+    user.role === "Admin" || 
+    user.email?.toLowerCase().trim() === "meliswion1@gmail.com"
+  );
+}
+
 // Ensure the target email is active inside our roster, querying Supabase directly as the source of truth
 async function ensureUserInLocalCache(email: string): Promise<any> {
   const normalizedEmail = email.toLowerCase().trim();
@@ -716,173 +731,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
 });
 
 app.post("/api/auth/register", async (req, res) => {
-  const { id, name, email, password, phone, nationalId } = req.body;
-  if (!name || !email || !password || !phone || !nationalId) {
-    return res.status(400).json({ error: "Name, email, password, phone number and ID number are all required to register" });
-  }
-
-  const db = readDB();
-  const trimmedEmail = email.toLowerCase().trim();
-  const trimmedPhone = phone.trim();
-  const trimmedNationalId = nationalId.trim();
-
-  // 1. Check local DB cache
-  const existingEmailUser = db.users.find(u => u.email.toLowerCase() === trimmedEmail);
-  if (existingEmailUser) {
-    return res.status(409).json({ error: "This email is already registered. Please use another email or log in." });
-  }
-
-  const existingPhoneUser = db.users.find(u => u.phone && u.phone.trim() === trimmedPhone);
-  if (existingPhoneUser) {
-    return res.status(409).json({ error: "This phone number is already linked to another account." });
-  }
-
-  const existingIdUser = db.users.find(u => u.nationalId && u.nationalId.trim() === trimmedNationalId);
-  if (existingIdUser) {
-    return res.status(409).json({ error: "This ID number is already linked to another account." });
-  }
-
-  // 2. Check live Supabase
-  try {
-    const { data: existingEmailProf } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("email", trimmedEmail)
-      .maybeSingle();
-    if (existingEmailProf) {
-      return res.status(409).json({ error: "This email is already registered. Please use another email or log in." });
-    }
-    
-    const { data: existingPhoneProf } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("phone", trimmedPhone)
-      .maybeSingle();
-    if (existingPhoneProf) {
-      return res.status(409).json({ error: "This phone number is already linked to another account." });
-    }
-    
-    const { data: existingIdProf } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("national_id", trimmedNationalId)
-      .maybeSingle();
-    if (existingIdProf) {
-      return res.status(409).json({ error: "This ID number is already linked to another account." });
-    }
-  } catch (supabaseErr: any) {
-    console.error("[Register Duplicate Verification Error]", supabaseErr.message);
-  }
-
-  // Public registration strictly maps to Standard "Customer" or "User" role.
-  // Never assign privileged roles like Admin, Pharmacist, Cashier, etc., to prevent privilege escalation.
-  const { salt, hash } = hashPassword(password);
-  
-  let userIdOnCloud = id || `usr-${Date.now()}`;
-
-  // Pre-emptively clean up any stale matching profile in Supabase to avoid trigger unique conflict (email constraint)
-  try {
-    const { error: delErr } = await supabase.from("profiles").delete().eq("email", email.toLowerCase());
-    if (delErr) {
-      console.warn("[Register Pre-Clean Warn] Unable to delete potentially stale profile:", delErr.message);
-    }
-  } catch (cleanEx: any) {
-    console.warn("[Register Pre-Clean Ex] Exception during pre-clean:", cleanEx.message);
-  }
-
-  // Force register / auto-confirm inside Supabase Authentication to protect absolute integrity
-  try {
-    let authUser = null;
-    let authErr = null;
-    if (supabase.auth.admin && hasServiceRole()) {
-      try {
-        const res = await supabase.auth.admin.createUser({
-          email: email.toLowerCase(),
-          password: password,
-          email_confirm: true,
-          user_metadata: { full_name: name, role: "User" }
-        });
-        authUser = res.data;
-        authErr = res.error;
-      } catch (adminEx: any) {
-        console.warn("[Register Admin Warn] Admin createUser had an error:", adminEx?.message || adminEx);
-      }
-    }
-    
-    if (!authUser?.user) {
-      console.log("[Auth Admin Bypassed in Register] Trying public signUp fallback...");
-      const res = await supabase.auth.signUp({
-        email: email.toLowerCase(),
-        password: password,
-        options: {
-          data: { full_name: name, role: "User" }
-        }
-      });
-      authUser = res.data;
-      authErr = res.error;
-    }
-
-    if (authErr) {
-      console.warn("[Register Sync] Supabase Auth registration notification/warning:", authErr.message);
-    } else if (authUser?.user) {
-      userIdOnCloud = authUser.user.id;
-    }
-  } catch (error: any) {
-    console.error("[Register Sync Exception] Supabase auth action had an error:", error.message);
-  }
-
-  const newUser = {
-    id: userIdOnCloud,
-    name,
-    fullName: name,
-    email: email.toLowerCase(),
-    role: "User" as any, // Assign harmless non-privileged default role
-    avatarUrl: null as any, // Set to null as requested; fallback is handled automatically by professional placeholder avatars
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    passwordHash: hash,
-    salt,
-    failedLoginAttempts: 0,
-    verificationStatus: "Pending" as any,
-    phone: trimmedPhone,
-    bio: "",
-    nationalId: trimmedNationalId,
-    address: "",
-    passwordSetupCompleted: true
-  };
-
-  updateDB(state => {
-    state.users.push(newUser);
-    state.auditLogs.unshift({
-      id: `aud-${Date.now()}`,
-      userEmail: newUser.email,
-      action: "User Registered",
-      module: "Authentication",
-      date: new Date().toISOString(),
-      details: `Public workstation account self-registered with default standard permissions: ${newUser.name}`
-    });
-  });
-
-  res.json({
-    success: true,
-    message: "Welcome to Halomedical. Account registered securely.",
-    user: {
-      id: newUser.id,
-      name: newUser.name,
-      fullName: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      avatarUrl: newUser.avatarUrl,
-      phone: newUser.phone || "",
-      bio: newUser.bio || "",
-      nationalId: newUser.nationalId || "",
-      address: newUser.address || "",
-      passwordSetupCompleted: newUser.passwordSetupCompleted,
-      verificationStatus: newUser.verificationStatus || "Pending",
-      verificationSubmittedAt: (newUser as any).verificationSubmittedAt,
-      verificationDetails: (newUser as any).verificationDetails
-    }
-  });
+  return res.status(403).json({ error: "Public self-registration and public account creation are disabled. All workforce accounts must be registered and onboarded by the Super Admin through the administrative dashboard." });
 });
 
 function calculateProfileCompletionBackend(user: any) {
@@ -2301,6 +2150,13 @@ app.post("/api/settings", (req, res) => {
     return res.status(400).json({ error: "Missing settings configuration payload." });
   }
 
+  const section = String(sectionUpdated || "").toLowerCase();
+  if (section === "security" || section === "integrations") {
+    if (!isSuperAdminRequest(req)) {
+      return res.status(403).json({ error: "Access Denied. Only the Super Admin is permitted to modify security policies or integrations." });
+    }
+  }
+
   updateDB(state => {
     state.settings = { ...state.settings, ...settings };
     state.auditLogs.unshift({
@@ -2370,6 +2226,10 @@ app.post("/api/settings/reset-analytics", (req, res) => {
 });
 
 app.post("/api/settings/branches", (req, res) => {
+  if (!isSuperAdminRequest(req)) {
+    return res.status(403).json({ error: "Access Denied. Only the Super Admin is permitted to manage multi-location branches." });
+  }
+
   const { branch } = req.body;
   if (!branch) {
     return res.status(400).json({ error: "Missing branch definition payload." });
@@ -2440,21 +2300,18 @@ app.post("/api/settings/api-keys", (req, res) => {
 });
 
 app.post("/api/settings/roles", (req, res) => {
-  const { adminEmail, rolePermissions } = req.body;
+  if (!isSuperAdminRequest(req)) {
+    return res.status(403).json({ error: "Access Denied. Only the Super Admin is permitted to calibrate the RBAC capability matrix." });
+  }
+
+  const { rolePermissions } = req.body;
   if (!rolePermissions) {
     return res.status(400).json({ error: "Missing role mappings payload." });
   }
 
+  const adminEmail = req.body.adminEmail || getRequesterEmail(req);
   const db = readDB();
-  const adminUser = db.users.find(u => u.email.toLowerCase() === adminEmail?.toLowerCase());
-  const isAuthorized = adminUser && (
-    adminUser.role === UserRole.ADMIN || 
-    adminUser.role === UserRole.PHARMACIST
-  );
-
-  if (!isAuthorized) {
-    return res.status(403).json({ error: "Access Denied. Only clinical system administrators are permitted to calibrate the RBAC capability matrix." });
-  }
+  const adminUser = db.users.find(u => u.email.toLowerCase() === adminEmail.toLowerCase()) || { name: "Super Admin", email: adminEmail };
 
   updateDB(state => {
     const idx = state.rolePermissions.findIndex(rp => rp.role === rolePermissions.role);
@@ -2504,6 +2361,10 @@ app.post("/api/settings/backup/run", (req, res) => {
 });
 
 app.post("/api/settings/maintenance/diagnose", (req, res) => {
+  if (!isSuperAdminRequest(req)) {
+    return res.status(403).json({ error: "Access Denied. Only the Super Admin is permitted to run system diagnostics." });
+  }
+
   const db = readDB();
   const report = [
     { title: "Node.js Platform Runtime V8 Engine", status: "Healthy", value: `${process.version} Live` },
@@ -2529,23 +2390,20 @@ app.post("/api/settings/maintenance/diagnose", (req, res) => {
 });
 
 app.post("/api/settings/users", async (req, res) => {
-  const { adminEmail, userId, isActive, role, action, name, email, password } = req.body;
-
-  const db = readDB();
-  const adminUser = db.users.find(u => u.email.toLowerCase() === adminEmail?.toLowerCase());
-  const isAuthorized = adminUser && (
-    adminUser.role === UserRole.ADMIN || 
-    adminUser.role === UserRole.PHARMACIST
-  );
-
-  if (!isAuthorized) {
-    return res.status(403).json({ error: "Access Denied. Only authorized system administrators are permitted to override operational keys/roles." });
+  if (!isSuperAdminRequest(req)) {
+    return res.status(403).json({ error: "Access Denied. Only the Super Admin is permitted to manage workspace operators." });
   }
+
+  const { userId, isActive, role, action, name, email, password } = req.body;
+  const adminEmail = req.body.adminEmail || getRequesterEmail(req);
+  const db = readDB();
+  const adminUser = db.users.find(u => u.email.toLowerCase() === adminEmail.toLowerCase()) || { name: "Super Admin", email: adminEmail };
 
   // Handle admin actions:
   if (action === "create") {
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({ error: "Name, email, password and role are all required to enroll workspace personnel." });
+    const userRoleValue = role || "User";
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email, and password are all required to enroll workspace personnel." });
     }
 
     const dupUser = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -2576,7 +2434,7 @@ app.post("/api/settings/users", async (req, res) => {
             email: email.toLowerCase(),
             password: password,
             email_confirm: true,
-            user_metadata: { full_name: name, role: role }
+            user_metadata: { full_name: name, role: userRoleValue }
           });
           authUser = res.data;
           authErr = res.error;
@@ -2591,7 +2449,7 @@ app.post("/api/settings/users", async (req, res) => {
           email: email.toLowerCase(),
           password: password,
           options: {
-            data: { full_name: name, role: role }
+            data: { full_name: name, role: userRoleValue }
           }
         });
         authUser = res.data;
@@ -2611,7 +2469,7 @@ app.post("/api/settings/users", async (req, res) => {
       id: staffIdOnCloud,
       name,
       email: email.toLowerCase(),
-      role: role as any,
+      role: userRoleValue as any,
       isActive: true,
       createdAt: new Date().toISOString(),
       passwordHash: hash,

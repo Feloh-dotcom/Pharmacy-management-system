@@ -628,46 +628,10 @@ export default function Auth({ onLoginSuccess, settings }: AuthProps) {
               </div>
             )}
 
-            {/* Toggle Switch between login/register */}
-            {!isForgot && (
-              <div className="text-center text-xs text-[#64748B] font-medium pt-3 px-1 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-center gap-1 select-none">
-                {isRegister ? (
-                  <>
-                    <span>{activeTrans.haveAccount}</span>
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => {
-                        setIsRegister(false);
-                        setError(null);
-                        setInfo(null);
-                        setConfirmPassword("");
-                      }}
-                      className="text-[#2563EB] hover:text-[#1D4ED8] font-bold hover:underline transition cursor-pointer bg-none border-none"
-                    >
-                      {activeTrans.loginNow}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span>{activeTrans.noAccount}</span>
-                    <button
-                      type="button"
-                      disabled={loading}
-                      onClick={() => {
-                        setIsRegister(true);
-                        setError(null);
-                        setInfo(null);
-                        setConfirmPassword("");
-                      }}
-                      className="text-[#2563EB] hover:text-[#1D4ED8] font-bold hover:underline transition cursor-pointer bg-none border-none"
-                    >
-                      {activeTrans.registerNow}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
+            {/* Registration is restricted strictly to Super Admin workspace onboarding */}
+            <div className="text-center text-xs text-[#64748B] font-medium pt-3 px-1 border-t border-slate-100 select-none">
+              <span>System login for authorized healthcare workforce operators only.</span>
+            </div>
 
           </form>
         </div>

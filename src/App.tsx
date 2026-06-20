@@ -292,6 +292,10 @@ export default function App() {
   };
 
   const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
+    [UserRole.SUPER_ADMIN]: [
+      "dashboard", "products", "categories", "cash-register", "orders", 
+      "sales", "customers", "suppliers", "payments", "reports", "settings", "ai-forecast"
+    ],
     [UserRole.ADMIN]: [
       "dashboard", "products", "categories", "cash-register", "orders", 
       "sales", "customers", "suppliers", "payments", "reports", "settings", "ai-forecast"
@@ -316,13 +320,14 @@ export default function App() {
       "dashboard", "products", "categories", "orders", "suppliers", "ai-forecast"
     ],
     [UserRole.USER]: [
-      "dashboard"
+      "dashboard", "products", "categories", "cash-register", "orders", 
+      "sales", "customers", "suppliers", "payments", "reports", "settings", "ai-forecast"
     ],
   };
 
   const renderActiveTab = () => {
     const completion = calculateProfileCompletion(user);
-    const isVerified = user?.role === "Admin" || user?.verificationStatus === "Verified" || completion.percent === 100;
+    const isVerified = user?.role === "Admin" || user?.role === "Super Admin" || user?.role === "User" || user?.verificationStatus === "Verified" || completion.percent === 100;
     const sensitiveTabs = ["products", "categories", "cash-register", "orders", "sales", "payments", "reports", "settings"];
     const isTabLocked = user && currentTab !== "profile" && sensitiveTabs.includes(currentTab) && !isVerified;
 

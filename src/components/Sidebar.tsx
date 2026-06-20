@@ -63,6 +63,10 @@ export default function Sidebar({
   ];
 
   const ROLE_ALLOWED_TABS: Record<string, string[]> = {
+    "Super Admin": [
+      "dashboard", "products", "categories", "cash-register", "orders", 
+      "sales", "customers", "suppliers", "payments", "reports", "settings"
+    ],
     "Admin": [
       "dashboard", "products", "categories", "cash-register", "orders", 
       "sales", "customers", "suppliers", "payments", "reports", "settings"
@@ -87,17 +91,18 @@ export default function Sidebar({
       "dashboard", "products", "categories", "orders", "suppliers"
     ],
     "User": [
-      "dashboard"
+      "dashboard", "products", "categories", "cash-register", "orders", 
+      "sales", "customers", "suppliers", "payments", "reports", "settings"
     ],
   };
 
   const completion = calculateProfileCompletion(user);
   const percent = completion.percent;
-  const isVerified = user?.role === "Admin" || user?.verificationStatus === "Verified" || percent === 100;
+  const isVerified = user?.role === "Admin" || user?.role === "Super Admin" || user?.role === "User" || user?.verificationStatus === "Verified" || percent === 100;
   const sensitiveTabs = ["dashboard", "products", "categories", "cash-register", "orders", "sales", "payments", "reports", "settings"];
 
   const isTabLocked = (tabId: string) => {
-    if (user?.role === "Admin") return false;
+    if (user?.role === "Admin" || user?.role === "Super Admin" || user?.role === "User") return false;
     return sensitiveTabs.includes(tabId) && !isVerified;
   };
 

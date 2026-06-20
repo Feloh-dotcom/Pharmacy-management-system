@@ -625,7 +625,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
         </div>
 
         <div className="flex items-center space-x-3">
-          {metrics?.weeklyCycles && metrics.weeklyCycles.length > 0 && [UserRole.ADMIN, UserRole.PHARMACIST, UserRole.ACCOUNTANT].includes(user?.role as any) && (
+          {metrics?.weeklyCycles && metrics.weeklyCycles.length > 0 && [UserRole.ADMIN, UserRole.PHARMACIST, UserRole.ACCOUNTANT, UserRole.USER].includes(user?.role as any) && (
             <div className="flex items-center space-x-2 bg-white border border-slate-150 rounded-xl px-3 py-2 shadow-sm">
               <Calendar className="w-4 h-4 text-teal-600" />
               <select
@@ -643,7 +643,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
             </div>
           )}
 
-          {[UserRole.ADMIN, UserRole.PHARMACIST, UserRole.CASHIER].includes(user?.role as any) && (
+          {[UserRole.ADMIN, UserRole.PHARMACIST, UserRole.CASHIER, UserRole.USER].includes(user?.role as any) && (
             <button 
               id="btn-pos-navigation"
               onClick={() => onNavigate("sales")}
@@ -657,7 +657,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
       </div>
 
       {/* Expiry Alarm Collapsible Warning Banner panel */}
-      {medicines.length > 0 && [UserRole.ADMIN, UserRole.PHARMACIST, UserRole.INVENTORY_MANAGER, UserRole.CASHIER].includes(user?.role as any) && (() => {
+      {medicines.length > 0 && [UserRole.ADMIN, UserRole.PHARMACIST, UserRole.INVENTORY_MANAGER, UserRole.CASHIER, UserRole.USER].includes(user?.role as any) && (() => {
         const expiredCount = medicines.filter(m => getDaysToExpiry(m.expiryDate) <= 0).length;
         const nearCount = medicines.filter(m => {
           const d = getDaysToExpiry(m.expiryDate);
@@ -736,7 +736,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
       })()}
 
       {/* Low Stock Alerts Banner Panel */}
-      {lowStockMedicines.length > 0 && [UserRole.ADMIN, UserRole.PHARMACIST, UserRole.INVENTORY_MANAGER].includes(user?.role as any) && (
+      {lowStockMedicines.length > 0 && [UserRole.ADMIN, UserRole.PHARMACIST, UserRole.INVENTORY_MANAGER, UserRole.USER].includes(user?.role as any) && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start space-x-3.5 shadow-sm">
           <ShieldAlert className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
           <div className="flex-1">
@@ -786,7 +786,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
       </div>
 
       {/* Charts Section: Graph Report & Total Sales Overview */}
-      {[UserRole.ADMIN, UserRole.PHARMACIST, UserRole.CASHIER, UserRole.ACCOUNTANT].includes(user?.role as any) && (
+      {[UserRole.ADMIN, UserRole.PHARMACIST, UserRole.CASHIER, UserRole.ACCOUNTANT, UserRole.USER].includes(user?.role as any) && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
         
         {/* Graph Report: Donut charts */}
@@ -1096,9 +1096,9 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                       <div className="flex items-center bg-slate-100 rounded-xl border border-slate-200/60 p-0.5">
                         <button
                           id={`btn-qty-dec-${sale.id}`}
-                          disabled={user?.role !== UserRole.ADMIN}
+                          disabled={user?.role !== UserRole.ADMIN && user?.role !== UserRole.USER}
                           onClick={() => handleQuantityChange(sale.id, 0, -1)}
-                          className={`w-5 h-5 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all font-bold ${user?.role !== UserRole.ADMIN ? "opacity-35 cursor-not-allowed" : ""}`}
+                          className={`w-5 h-5 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all font-bold ${user?.role !== UserRole.ADMIN && user?.role !== UserRole.USER ? "opacity-35 cursor-not-allowed" : ""}`}
                         >
                           -
                         </button>
@@ -1107,9 +1107,9 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                         </span>
                         <button
                           id={`btn-qty-inc-${sale.id}`}
-                          disabled={user?.role !== UserRole.ADMIN}
+                          disabled={user?.role !== UserRole.ADMIN && user?.role !== UserRole.USER}
                           onClick={() => handleQuantityChange(sale.id, 0, 1)}
-                          className={`w-5 h-5 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all font-bold ${user?.role !== UserRole.ADMIN ? "opacity-35 cursor-not-allowed" : ""}`}
+                          className={`w-5 h-5 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all font-bold ${user?.role !== UserRole.ADMIN && user?.role !== UserRole.USER ? "opacity-35 cursor-not-allowed" : ""}`}
                         >
                           +
                         </button>
@@ -1142,7 +1142,7 @@ export default function Dashboard({ onNavigate, onEditMedicine, settings, user }
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
-                      {user?.role === UserRole.ADMIN && (
+                      {(user?.role === UserRole.ADMIN || user?.role === UserRole.USER) && (
                         <button 
                           id={`btn-sale-delete-${sale.id}`}
                           onClick={() => handleDeleteSale(sale.id, sale.invoiceNumber)}
